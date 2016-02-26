@@ -1,27 +1,31 @@
 /* Common core note type descriptions for Linux.
    Copyright (C) 2007-2010 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) H.J. Lu <hjl.tools@gmail.com>, 2015.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #include <string.h>
 
@@ -39,6 +43,22 @@
 #define	INT			int32_t
 #define ALIGN_INT		4
 #define TYPE_INT		ELF_T_SWORD
+#ifndef PR_REG
+# define PR_REG			ULONG
+#endif
+#ifndef ALIGN_PR_REG
+# define ALIGN_PR_REG		ALIGN_ULONG
+#endif
+#ifndef PRPSINFO_UID_T
+# define PRPSINFO_UID_T		UID_T
+# define ALIGN_PRPSINFO_UID_T	ALIGN_UID_T
+# define TYPE_PRPSINFO_UID_T	TYPE_UID_T
+#endif
+#ifndef PRPSINFO_GID_T
+# define PRPSINFO_GID_T		GID_T
+# define ALIGN_PRPSINFO_GID_T	ALIGN_GID_T
+# define TYPE_PRPSINFO_GID_T	TYPE_GID_T
+#endif
 
 #define FIELD(type, name) type name __attribute__ ((aligned (ALIGN_##type)))
 
@@ -78,7 +98,14 @@ struct EBLHOOK(prstatus)
   struct EBLHOOK(timeval) pr_stime;
   struct EBLHOOK(timeval) pr_cutime;
   struct EBLHOOK(timeval) pr_cstime;
-  FIELD (ULONG, pr_reg[PRSTATUS_REGS_SIZE / sizeof (ULONG)]);
+  struct
+  {
+    FIELD (PR_REG, pr_reg[PRSTATUS_REGS_SIZE / sizeof (PR_REG)]);
+  }
+#ifdef ALIGN_PR_REG
+    __attribute__ ((aligned (ALIGN_PR_REG)))
+#endif
+    ;
   FIELD (INT, pr_fpvalid);
 };
 
@@ -92,8 +119,8 @@ struct EBLHOOK(prpsinfo)
   FIELD (CHAR, pr_zomb);
   FIELD (CHAR, pr_nice);
   FIELD (ULONG, pr_flag);
-  FIELD (UID_T, pr_uid);
-  FIELD (GID_T, pr_gid);
+  FIELD (PRPSINFO_UID_T, pr_uid);
+  FIELD (PRPSINFO_GID_T, pr_gid);
   FIELD (PID_T, pr_pid);
   FIELD (PID_T, pr_ppid);
   FIELD (PID_T, pr_pgrp);
@@ -120,8 +147,10 @@ static const Ebl_Core_Item prstatus_items[] =
     FIELD (signal, INT, info.si_code, 'd'),
     FIELD (signal, INT, info.si_errno, 'd'),
     FIELD (signal, SHORT, cursig, 'd'),
-    FIELD (signal, ULONG, sigpend, 'B'),
-    FIELD (signal, ULONG, sighold, 'B'),
+
+    /* Use different group name for a newline delimiter.  */
+    FIELD (signal2, ULONG, sigpend, 'B'),
+    FIELD (signal3, ULONG, sighold, 'B'),
     FIELD (identity, PID_T, pid, 'd', .thread_identifier = true),
     FIELD (identity, PID_T, ppid, 'd'),
     FIELD (identity, PID_T, pgrp, 'd'),
@@ -155,8 +184,8 @@ static const Ebl_Core_Item prpsinfo_items[] =
     FIELD (state, CHAR, zomb, 'd'),
     FIELD (state, CHAR, nice, 'd'),
     FIELD (state, ULONG, flag, 'x'),
-    FIELD (identity, UID_T, uid, 'd'),
-    FIELD (identity, GID_T, gid, 'd'),
+    FIELD (identity, PRPSINFO_UID_T, uid, 'd'),
+    FIELD (identity, PRPSINFO_GID_T, gid, 'd'),
     FIELD (identity, PID_T, pid, 'd'),
     FIELD (identity, PID_T, ppid, 'd'),
     FIELD (identity, PID_T, pgrp, 'd'),
@@ -175,14 +204,10 @@ static const Ebl_Core_Item vmcoreinfo_items[] =
 #undef	FIELD
 
 int
-EBLHOOK(core_note) (nhdr, name, regs_offset, nregloc, reglocs, nitems, items)
-     const GElf_Nhdr *nhdr;
-     const char *name;
-     GElf_Word *regs_offset;
-     size_t *nregloc;
-     const Ebl_Register_Location **reglocs;
-     size_t *nitems;
-     const Ebl_Core_Item **items;
+EBLHOOK(core_note) (const GElf_Nhdr *nhdr, const char *name,
+		    GElf_Word *regs_offset, size_t *nregloc,
+		    const Ebl_Register_Location **reglocs,
+		    size_t *nitems, const Ebl_Core_Item **items)
 {
   switch (nhdr->n_namesz)
     {
@@ -247,6 +272,28 @@ EBLHOOK(core_note) (nhdr, name, regs_offset, nregloc, reglocs, nitems, items)
       *reglocs = table;							      \
       *nitems = 0;							      \
       *items = NULL;							      \
+      return 1;
+
+#define EXTRA_REGSET_ITEMS(type, size, table, extra_items)		      \
+    case type:								      \
+      if (nhdr->n_descsz != size)					      \
+	return 0;							      \
+      *regs_offset = 0;							      \
+      *nregloc = sizeof table / sizeof table[0];			      \
+      *reglocs = table;							      \
+      *nitems = sizeof extra_items / sizeof extra_items[0];		      \
+      *items = extra_items;						      \
+      return 1;
+
+#define EXTRA_ITEMS(type, size, extra_items)				      \
+    case type:								      \
+      if (nhdr->n_descsz != size)					      \
+	return 0;							      \
+      *regs_offset = 0;							      \
+      *nregloc = 0;							      \
+      *reglocs = NULL;							      \
+      *nitems = sizeof extra_items / sizeof extra_items[0];		      \
+      *items = extra_items;						      \
       return 1;
 
 #ifdef FPREGSET_SIZE

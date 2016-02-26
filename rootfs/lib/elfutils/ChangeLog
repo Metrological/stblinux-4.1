@@ -1,3 +1,284 @@
+2015-10-15  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.164.
+	* NEWS: Add 0.164 additions.
+
+2015-10-07  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Add AM_SILENT_RULES([yes]).
+
+2015-09-24  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* configure.ac: Use -fPIC instead of -fpic to avoid relocation
+	overflows in some platforms.
+
+2015-07-11  Pino Toscano  <toscano.pino@tiscali.it>
+
+	* .gitignore: Add more generated files, and anchor some of the
+	existing ones.
+
+2015-06-19  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.163.
+	* NEWS: Mention 0.163 is bug fixes only.
+
+2015-06-10  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.162.
+	* NEWS: Add 0.162 additions.
+
+2015-06-08  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (ADD_STACK_USAGE_WARNING): New conditional based on
+	gcc -Wstack-usage check.
+
+2015-05-31  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (MODVERSION): Define using LIBEBL_SUBDIR, eu_version
+	and ac_cv_build.
+
+2015-05-31  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (use_undefined): Use AC_LINK_IFELSE. AC_DEFINE
+	CHECK_UNDEFINED.
+
+2015-05-30  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Check for bunzip2. Check flex and bison are
+	installed in maintainer-mode. Otherwise check libdw/known-dwarf.h
+	is already generated.
+
+2015-05-21  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Add --enable-sanitize-undefined.
+	* Makefile.am (DISTCHECK_CONFIGURE_FLAGS): Rename to...
+	(AM_DISTCHECK_CONFIGURE_FLAGS): this. Add --enable-sanitize-undefined.
+
+2015-05-04  Anthony G. Basile  <blueness@gentoo.org>
+
+	* configure.ac (argp_LDADD): Check if libc has argp and set
+	argp_LDADD accordingly.
+
+2015-05-03  Max Filippov  <jcmvbkbc@gmail.com>
+
+	* configure.ac (DEMANGLE): Fix enable_demangler setting.
+
+2015-05-01  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (DEMANGLE): Explicitly set enable_demangler.
+
+2015-05-01  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (debugpred): Use and set use_debugpred_val.
+	(textrelcheck): Explicitly set enable_textrelcheck to yes or no.
+	(symbol-versioning): Likewise for enable_symbol_versioning.
+	AC_MSG_NOTICE overview of enabled/disabled features.
+
+2015-04-23  Max Filippov  <jcmvbkbc@gmail.com>
+
+	* configure.ac: Add --disable-symbol-versioning.
+
+2015-04-14  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (ac_cv_c99): Add explicit checks for all GNU99
+	extensions used.
+
+2015-03-13  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (ac_cv_c99): Add explicit return.
+	(ac_cv_tls): Add stdlib.h include.
+
+2014-12-18  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.161.
+	* NEWS: Add dwarf.h additions.
+
+2014-12-15  Josh Stone  <jistone@redhat.com>
+
+	* .gitignore: Add config/compile as installed by automake 1.14.
+
+2014-11-27  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Add --disable-textrelcheck.
+
+2014-10-06  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS: New section 0.161. Add dwarf_peel_type.
+
+2014-08-25  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.160.
+	* NEWS: Add removal of DW_TAG_mutable_type, LZMA .ko.xz kernel
+	module support, ARM THUMB functions and ppc64le ELFv2 abi backends.
+
+2014-08-15  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS: Add dwarf_cu_die.
+
+2014-08-15  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS: Add dwarf_cu_getdwarf.
+
+2014-07-18  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (AC_CHECK_TYPE): Test for struct user_regs_struct.
+
+2014-05-26  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS: New section 0.160. Add unstrip --force.
+
+2014-05-17  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.159.
+	* NEWS: Add entries for version 0.159.
+
+2014-05-02  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS: Add note about dwz support no longer being experimental and
+	new helper functions.
+	* configure.ac: Remove --enable-dwz.
+	* Makefile.am (DISTCHECK_CONFIGURE_FLAGS): Remove --enable-dwz.
+
+2014-04-11  Mark Wielaard  <mjw@redhat.com>
+
+	* Makefile.am (SUBDIRS): Add libdwelf.
+	* configure.ac (AC_CONFIG_FILES): Add libdwelf/Makefile.
+	* NEWS: Add note about libdwelf.
+
+2014-04-13  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Remove mudflap enable arg and MUDFLAP conditional.
+
+2014-01-21  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS (Version 0.159): Add stack -i.
+
+2014-01-20  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS (Version 0.159): New. Add stack -d.
+
+2014-01-03  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.158.
+	* NEWS: Add entries for version 0.158.
+
+2013-12-20  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS (libdwfl): Add dwfl_getthread_frames.
+	(stack): New entry.
+
+2013-12-18  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS (libdwfl): Add dwfl_module_getsym_info and
+	dwfl_module_addrinfo.
+	(addr2line): Add -x option.
+
+2013-12-17  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* NEWS (Version 0.158) (libdwfl): Added Dwfl_Thread_Callbacks,
+	Dwfl_Thread, Dwfl_Frame, dwfl_attach_state, dwfl_pid, dwfl_thread_dwfl,
+	dwfl_thread_tid, dwfl_frame_thread, dwfl_thread_state_registers,
+	dwfl_thread_state_register_pc, dwfl_getthreads, dwfl_thread_getframes
+	and dwfl_frame_pc.
+
+2013-12-16  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS (libdwfl): Add dwfl_module_getsymtab_first_global.
+
+2013-12-09  Josh Stone  <jistone@redhat.com>
+
+	* .gitignore: Add config/ar-lib, installed due to AM_PROG_AR.
+
+2013-12-02  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* configure.ac (CC_BIARCH): Remove AS_IF for it.
+
+2013-11-07  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* configure.ac: New AC_CHECK_SIZEOF for long.  Call utrace_BIARCH, new
+	AC_SUBST for CC_BIARCH.
+
+2013-11-06  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (--enable-dwz): Add AC_MSG_WARN when disabled but
+	local system does have /usr/lib/debug/.dwz.
+
+2013-11-06  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (--enable-thread-safety): Add AC_MSG_WARN experimental
+	option.
+
+2013-11-01  Michael Forney  <mforney@mforney.org>
+
+	* configure.ac: Call AM_PROG_AR and AC_CHECK_TOOL for readelf and nm.
+
+2013-10-30  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* NEWS (Version 0.158): New.
+
+2013-09-30  Mark Wielaard  <mjw@redhat.com>
+
+	* NEWS: Update for readelf NT_SIGINFO and NT_FILE core notes.
+
+2013-09-27  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.157.
+	* NEWS: Add entries for version 0.157.
+
+2013-09-20  Mark Wielaard  <mjw@redhat.com>
+
+	* Makefile.am (DISTCHECK_CONFIGURE_FLAGS): Add --enable-dwz.
+
+2013-07-25  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* configure.ac: Set version to 0.156.
+
+2013-07-19  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* NEWS: Remove bugfix only entries from Version 0.156.
+
+2013-07-18  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* NEWS: Add entries for Version 0.156.
+
+2013-04-28  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* NEWS (Version 0.156): New.
+
+2013-04-26  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac (AM_INIT_AUTOMAKE): Request parallel-tests.
+
+2013-04-25  Mark Wielaard  <mjw@redhat.com>
+
+	* .gitignore: Add config/test-driver as installed by automake 1.13.
+	* configure.ac (AM_INIT_AUTOMAKE): Require at least automake 1.11.
+
+2012-10-01  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Add --enable-valgrind check.
+	* Makefile.am (DISTCHECK_CONFIGURE_FLAGS): Add --enable-valgrind.
+
+2012-08-27  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.155.
+
+2012-08-24  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Add --enable-dwz check, defaults to no.
+
+2012-07-24  Mark Wielaard  <mjw@redhat.com>
+
+	* TODO: Add note on shdrs after elf_cntl (ELF_C_FDREAD).
+
+2012-06-22  Mark Wielaard  <mjw@redhat.com>
+
+	* configure.ac: Set version to 0.154.
+
+2012-01-24  Mark Wielaard  <mjw@redhat.com>
+
+	* COPYING: Fix address. Updated version from gnulib.
+
 2012-01-23  Mark Wielaard  <mjw@redhat.com>
 
 	* configure.ac: Set version to 0.153, update copyright years.
@@ -13,9 +294,6 @@
 	Reported by Mike Frysinger <vapier@gentoo.org>.
 
 2011-10-08  Mike Frysinger  <vapier@gentoo.org>
-
-	* configure.ac (--disable-werror): Handle it, controlling BUILD_WERROR
-	automake option.
 
 	* configure.ac: Fix use of AC_ARG_ENABLE to handle $enableval correctly.
 
@@ -38,10 +316,6 @@
 
 	* configure.ac (LOCALEDIR, DATADIRNAME): Removed.
 
-2009-11-22  Roland McGrath  <roland@redhat.com>
-
-	* configure.ac: Use sed and expr instead of modern bash extensions.
-
 2009-09-21  Ulrich Drepper  <drepper@redhat.com>
 
 	* configure.ac: Update for more modern autoconf.
@@ -49,10 +323,6 @@
 2009-08-26  Roland McGrath  <roland@redhat.com>
 
 	* configure.ac (zip_LIBS): Check for liblzma too.
-
-2009-08-17  Roland McGrath  <roland@redhat.com>
-
-	* configure.ac: Check for -fgnu89-inline; add it to WEXTRA if it works.
 
 2009-04-19  Roland McGrath  <roland@redhat.com>
 
@@ -64,8 +334,6 @@
 	let $PACKAGE_VERSION be x.y.z as well as x.y (implied x.y.0).
 
 2009-01-23  Roland McGrath  <roland@redhat.com>
-
-	* configure.ac: Check for __builtin_popcount.
 
 	* configure.ac (zlib check): Check for gzdirect, need zlib >= 1.2.2.3.
 
@@ -147,10 +415,6 @@
 	* configure.ac: Add dummy automake conditional to get dependencies
 	for non-generic linker right.  See src/Makefile.am.
 
-2005-11-22  Roland McGrath  <roland@redhat.com>
-
-	* configure.ac: Check for --as-needed linker option.
-
 2005-11-18  Roland McGrath  <roland@redhat.com>
 
 	* Makefile.am (DISTCHECK_CONFIGURE_FLAGS): New variable.
@@ -197,17 +461,6 @@
 
 	* Makefile.am (all_SUBDIRS): Add libdwfl.
 	* configure.ac: Write libdwfl/Makefile.
-
-2005-05-31  Roland McGrath  <roland@redhat.com>
-
-	* configure.ac (WEXTRA): Check for -Wextra and set this substitution.
-
-	* configure.ac: Check for struct stat st_?tim members.
-	* src/strip.c (process_file): Use st_?time if st_?tim are not there.
-
-	* configure.ac: Check for futimes function.
-	* src/strip.c (handle_elf) [! HAVE_FUTIMES]: Use utimes instead.
-	(handle_ar) [! HAVE_FUTIMES]: Likewise.
 
 2005-05-19  Roland McGrath  <roland@redhat.com>
 

@@ -1,3 +1,55 @@
+2015-09-24  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* Makefile.am (AM_CFLAGS): Use -fPIC instead of -fpic to avoid relocation
+	overflows in some platforms.
+
+2015-09-22  Mark Wielaard  <mjw@redhat.com>
+
+	* dynamicsizehash.c: Remove old-style function definitions.
+	* md5.c: Likewise.
+	* sha1.c: Likewise.
+	* xmalloc.c: Likewise.
+	* xstrdup.c: Likewise.
+	* xstrndup.c: Likewise.
+
+2015-05-31  Mark Wielaard  <mjw@redhat.com>
+
+	* eu-config.h (ALLOW_UNALIGNED): Define when ! CHECK_UNDEFINED.
+
+2015-04-23  Max Filippov  <jcmvbkbc@gmail.com>
+
+	* eu-config.h: Use SYMBOL_VERSIONING as guard.
+
+2014-01-17  Lei Zhang  <thestig@google.com>
+
+	* crc32_file.c: Include config.h.
+
+2013-12-12  Josh Stone  <jistone@redhat.com>
+
+	* dynamicsizehash.c (lookup): Add a shortcut around division.
+
+2013-04-30  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* eu-config.h (COMPAT_VERSION_NEWPROTO): New.  Twice.
+
+2013-04-26  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* system.h (LE64, BE64): Move here the definitions from
+	libdwfl/link_map.c.
+
+2013-04-24  Mark Wielaard  <mjw@redhat.com>
+
+	* Makefile.am: Use AM_CPPFLAGS instead of INCLUDES.
+
+2012-10-09  Adam Markey  <adam@etinternational.com>
+
+	* system.h: Changed pwrite_retry, write_retry, and pread_retry to
+	handle case where not all data was read/written.
+
+2012-10-08  Jan Kratochvil  <jan.kratochvil@redhat.com>
+
+	* system.h (eu_static_assert): New macro.
+
 2012-01-21  Ulrich Drepper  <drepper@gmail.com>
 
 	* Makefile.am (libeu_a_SOURCES): Add color.c.
@@ -34,9 +86,6 @@
 	* eu-config.h (OLD_VERSION, NEW_VERSION, COMPAT_VERSION): New macros.
 
 2009-01-23  Roland McGrath  <roland@redhat.com>
-
-	* eu-config.h [! HAVE_BUILTIN_POPCOUNT]
-	(__builtin_popcount): New inline function.
 
 	* eu-config.h: Add multiple inclusion protection.
 
@@ -93,11 +142,6 @@
 	* crc32_file.c: New file.
 	* Makefile.am (libeu_a_SOURCES): Add it.
 	* system.h: Declare crc32_file.
-
-2005-02-07  Roland McGrath  <roland@redhat.com>
-
-	* Makefile.am (WEXTRA): New variable, substituted by configure.
-	(AM_CFLAGS): Use it in place of -Wextra.
 
 2005-04-30  Ulrich Drepper  <drepper@redhat.com>
 

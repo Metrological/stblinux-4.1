@@ -41,6 +41,7 @@
 #include <linux/kconfig.h>
 #include <linux/memblock.h>
 #include <linux/sort.h>
+#include <linux/notifier.h>
 #include <asm/fncpy.h>
 #include <asm/suspend.h>
 #include <asm/setup.h>
@@ -788,6 +789,19 @@ static void __iomem *brcmstb_ioremap_match(const struct of_device_id *matches,
 	return brcmstb_ioremap_node(dn, index);
 }
 
+static int brcmstb_pm_panic_notify(struct notifier_block *nb,
+		unsigned long action, void *data)
+{
+	__raw_writel(BRCMSTB_PANIC_MAGIC,
+		ctrl.aon_sram + AON_REG_PANIC);
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block brcmstb_pm_panic_nb = {
+	.notifier_call = brcmstb_pm_panic_notify,
+};
+
 static int brcmstb_pm_init(void)
 {
 	struct device_node *dn;
@@ -815,6 +829,8 @@ static int brcmstb_pm_init(void)
 	} else {
 		ctrl.aon_sram = base;
 	}
+
+	__raw_writel(0, ctrl.aon_sram + AON_REG_PANIC);
 
 	/* DDR PHY registers */
 	base = brcmstb_ioremap_match(ddr_phy_dt_ids, 0,
@@ -877,6 +893,9 @@ static int brcmstb_pm_init(void)
 	ret = brcmstb_memory_get(&bm);
 	if (ret)
 		pr_err("error getting brcmstb memory\n");
+
+	atomic_notifier_chain_register(&panic_notifier_list,
+				       &brcmstb_pm_panic_nb);
 
 	pm_power_off = brcmstb_pm_poweroff;
 	suspend_set_ops(&brcmstb_pm_ops);

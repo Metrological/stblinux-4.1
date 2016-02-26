@@ -1,28 +1,20 @@
 /* Print the strings of printable characters in files.
-   Copyright (C) 2005-2010, 2012 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2005-2010, 2012, 2014 Red Hat, Inc.
+   This file is part of elfutils.
    Written by Ulrich Drepper <drepper@redhat.com>, 2005.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -57,8 +49,8 @@
 
 
 /* Prototypes of local functions.  */
-static int read_fd (int fd, const char *fname, off64_t fdlen);
-static int read_elf (Elf *elf, int fd, const char *fname, off64_t fdlen);
+static int read_fd (int fd, const char *fname, off_t fdlen);
+static int read_elf (Elf *elf, int fd, const char *fname, off_t fdlen);
 
 
 /* Name and version of program.  */
@@ -128,8 +120,15 @@ static bool char_7bit;
 /* True if file names should be printed before strings.  */
 static bool print_file_name;
 
-/* Location print format string.  */
-static const char *locfmt;
+/* Radix for printed numbers.  */
+static enum
+{
+  radix_none = 0,
+  radix_decimal,
+  radix_hex,
+  radix_octal
+} radix = radix_none;
+
 
 /* Page size in use.  */
 static size_t ps;
@@ -139,7 +138,7 @@ static size_t ps;
 static unsigned char *elfmap;
 static unsigned char *elfmap_base;
 static size_t elfmap_size;
-static off64_t elfmap_off;
+static off_t elfmap_off;
 
 
 int
@@ -168,14 +167,14 @@ main (int argc, char *argv[])
   /* Determine the page size.  We will likely need it a couple of times.  */
   ps = sysconf (_SC_PAGESIZE);
 
-  struct stat64 st;
+  struct stat st;
   int result = 0;
   if (remaining == argc)
     /* We read from standard input.  This we cannot do for a
        structured file.  */
     result = read_fd (STDIN_FILENO,
 		      print_file_name ? "{standard input}" : NULL,
-		      (fstat64 (STDIN_FILENO, &st) == 0 && S_ISREG (st.st_mode))
+		      (fstat (STDIN_FILENO, &st) == 0 && S_ISREG (st.st_mode))
 		      ? st.st_size : INT64_C (0x7fffffffffffffff));
   else
     do
@@ -190,10 +189,10 @@ main (int argc, char *argv[])
 	else
 	  {
 	    const char *fname = print_file_name ? argv[remaining] : NULL;
-	    int fstat_fail = fstat64 (fd, &st);
-	    off64_t fdlen = (fstat_fail
+	    int fstat_fail = fstat (fd, &st);
+	    off_t fdlen = (fstat_fail
 			     ? INT64_C (0x7fffffffffffffff) : st.st_size);
-	    if (fdlen > (off64_t) min_len_bytes)
+	    if (fdlen > (off_t) min_len_bytes)
 	      {
 		Elf *elf = NULL;
 		if (entire_file
@@ -291,16 +290,16 @@ parse_opt (int key, char *arg,
       switch (arg[0])
 	{
 	case 'd':
-	  locfmt = "%7" PRId64 " ";
+	  radix = radix_decimal;
 	  break;
 
 	case 'o':
 	octfmt:
-	  locfmt = "%7" PRIo64 " ";
+	  radix = radix_octal;
 	  break;
 
 	case 'x':
-	  locfmt = "%7" PRIx64 " ";
+	  radix = radix_hex;
 	  break;
 
 	default:
@@ -327,7 +326,7 @@ parse_opt (int key, char *arg,
 
 
 static void
-process_chunk_mb (const char *fname, const unsigned char *buf, off64_t to,
+process_chunk_mb (const char *fname, const unsigned char *buf, off_t to,
 		  size_t len, char **unprinted)
 {
   size_t curlen = *unprinted == NULL ? 0 : strlen (*unprinted);
@@ -367,8 +366,11 @@ process_chunk_mb (const char *fname, const unsigned char *buf, off64_t to,
 		  fputs_unlocked (": ", stdout);
 		}
 
-	      if (unlikely (locfmt != NULL))
-		printf (locfmt, (int64_t) to - len - (buf - start));
+	      if (unlikely (radix != radix_none))
+		printf ((radix == radix_octal ? "%7" PRIo64 " "
+			 : (radix == radix_decimal ? "%7" PRId64 " "
+			    : "%7" PRIx64 " ")),
+			(int64_t) to - len - (buf - start));
 
 	      if (unlikely (*unprinted != NULL))
 		{
@@ -401,7 +403,7 @@ process_chunk_mb (const char *fname, const unsigned char *buf, off64_t to,
 
 
 static void
-process_chunk (const char *fname, const unsigned char *buf, off64_t to,
+process_chunk (const char *fname, const unsigned char *buf, off_t to,
 	       size_t len, char **unprinted)
 {
   /* We are not going to slow the check down for the 2- and 4-byte
@@ -432,8 +434,11 @@ process_chunk (const char *fname, const unsigned char *buf, off64_t to,
 		  fputs_unlocked (": ", stdout);
 		}
 
-	      if (likely (locfmt != NULL))
-		printf (locfmt, (int64_t) to - len - (buf - start));
+	      if (likely (radix != radix_none))
+		printf ((radix == radix_octal ? "%7" PRIo64 " "
+			 : (radix == radix_decimal ? "%7" PRId64 " "
+			    : "%7" PRIx64 " ")),
+			(int64_t) to - len - (buf - start));
 
 	      if (unlikely (*unprinted != NULL))
 		{
@@ -462,15 +467,8 @@ process_chunk (const char *fname, const unsigned char *buf, off64_t to,
 
 /* Map a file in as large chunks as possible.  */
 static void *
-map_file (int fd, off64_t start_off, off64_t fdlen, size_t *map_sizep)
+map_file (int fd, off_t start_off, off_t fdlen, size_t *map_sizep)
 {
-#if _MUDFLAP
-  (void) fd;
-  (void) start_off;
-  (void) fdlen;
-  (void) map_sizep;
-  return MAP_FAILED;
-#else
   /* Maximum size we mmap.  We use an #ifdef to avoid overflows on
      32-bit machines.  64-bit machines these days do not have usable
      address spaces larger than about 43 bits.  Not that any file
@@ -482,7 +480,7 @@ map_file (int fd, off64_t start_off, off64_t fdlen, size_t *map_sizep)
 # endif
 
   /* Try to mmap the file.  */
-  size_t map_size = MIN ((off64_t) mmap_max, fdlen);
+  size_t map_size = MIN ((off_t) mmap_max, fdlen);
   const size_t map_size_min = MAX (MAX (SIZE_MAX / 16, 2 * ps),
 				   roundup (2 * min_len_bytes + 1, ps));
   void *mem;
@@ -491,17 +489,12 @@ map_file (int fd, off64_t start_off, off64_t fdlen, size_t *map_sizep)
       /* We map the memory for reading only here.  Since we will
 	 always look at every byte of the file it makes sense to
 	 use MAP_POPULATE.  */
-      mem = mmap64 (NULL, map_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE,
-		    fd, start_off);
+      mem = mmap (NULL, map_size, PROT_READ, MAP_PRIVATE | MAP_POPULATE,
+		  fd, start_off);
       if (mem != MAP_FAILED)
 	{
-#if !defined POSIX_MADV_SEQUENTIAL && defined MADV_SEQUENTIAL
-# define POSIX_MADV_SEQUENTIAL MADV_SEQUENTIAL
-#endif
-#ifdef POSIX_MADV_SEQUENTIAL
 	  /* We will go through the mapping sequentially.  */
 	  (void) posix_madvise (mem, map_size, POSIX_MADV_SEQUENTIAL);
-#endif
 	  break;
 	}
       if (errno != EINVAL && errno != ENOMEM)
@@ -517,13 +510,12 @@ map_file (int fd, off64_t start_off, off64_t fdlen, size_t *map_sizep)
 
   *map_sizep = map_size;
   return mem;
-#endif
 }
 
 
 /* Read the file without mapping.  */
 static int
-read_block_no_mmap (int fd, const char *fname, off64_t from, off64_t fdlen)
+read_block_no_mmap (int fd, const char *fname, off_t from, off_t fdlen)
 {
   char *unprinted = NULL;
 #define CHUNKSIZE 65536
@@ -585,7 +577,7 @@ read_block_no_mmap (int fd, const char *fname, off64_t from, off64_t fdlen)
 
 
 static int
-read_block (int fd, const char *fname, off64_t fdlen, off64_t from, off64_t to)
+read_block (int fd, const char *fname, off_t fdlen, off_t from, off_t to)
 {
   if (elfmap == NULL)
     {
@@ -593,11 +585,9 @@ read_block (int fd, const char *fname, off64_t fdlen, off64_t from, off64_t to)
       elfmap_off = from & ~(ps - 1);
       elfmap_base = elfmap = map_file (fd, elfmap_off, fdlen, &elfmap_size);
 
-#ifdef POSIX_FADV_SEQUENTIAL
       if (unlikely (elfmap == MAP_FAILED))
 	/* Let the kernel know we are going to read everything in sequence.  */
 	(void) posix_fadvise (fd, 0, 0, POSIX_FADV_SEQUENTIAL);
-#endif
     }
 
   if (unlikely (elfmap == MAP_FAILED))
@@ -606,23 +596,23 @@ read_block (int fd, const char *fname, off64_t fdlen, off64_t from, off64_t to)
 	 read pointer.  */
       // XXX Eventually add flag which avoids this if the position
       // XXX is known to match.
-      if (from != 0 && lseek64 (fd, from, SEEK_SET) != from)
-	error (EXIT_FAILURE, errno, gettext ("lseek64 failed"));
+      if (from != 0 && lseek (fd, from, SEEK_SET) != from)
+	error (EXIT_FAILURE, errno, gettext ("lseek failed"));
 
       return read_block_no_mmap (fd, fname, from, to - from);
     }
 
-  assert ((off64_t) min_len_bytes < fdlen);
+  assert ((off_t) min_len_bytes < fdlen);
 
-  if (to < (off64_t) elfmap_off || from > (off64_t) (elfmap_off + elfmap_size))
+  if (to < (off_t) elfmap_off || from > (off_t) (elfmap_off + elfmap_size))
     {
       /* The existing mapping cannot fit at all.  Map the new area.
 	 We always map the full range of ELFMAP_SIZE bytes even if
 	 this extend beyond the end of the file.  The Linux kernel
 	 handles this OK if the access pages are not touched.  */
       elfmap_off = from & ~(ps - 1);
-      if (mmap64 (elfmap, elfmap_size, PROT_READ,
-		  MAP_PRIVATE | MAP_POPULATE | MAP_FIXED, fd, from)
+      if (mmap (elfmap, elfmap_size, PROT_READ,
+		MAP_PRIVATE | MAP_POPULATE | MAP_FIXED, fd, from)
 	  == MAP_FAILED)
 	error (EXIT_FAILURE, errno, gettext ("re-mmap failed"));
       elfmap_base = elfmap;
@@ -632,23 +622,23 @@ read_block (int fd, const char *fname, off64_t fdlen, off64_t from, off64_t to)
 
   /* Use the existing mapping as much as possible.  If necessary, map
      new pages.  */
-  if (from >= (off64_t) elfmap_off
-      && from < (off64_t) (elfmap_off + elfmap_size))
+  if (from >= (off_t) elfmap_off
+      && from < (off_t) (elfmap_off + elfmap_size))
     /* There are at least a few bytes in this mapping which we can
        use.  */
     process_chunk (fname, elfmap_base + (from - elfmap_off),
-		   MIN (to, (off64_t) (elfmap_off + elfmap_size)),
-		   MIN (to, (off64_t) (elfmap_off + elfmap_size)) - from,
+		   MIN (to, (off_t) (elfmap_off + elfmap_size)),
+		   MIN (to, (off_t) (elfmap_off + elfmap_size)) - from,
 		   &unprinted);
 
-  if (to > (off64_t) (elfmap_off + elfmap_size))
+  if (to > (off_t) (elfmap_off + elfmap_size))
     {
       unsigned char *remap_base = elfmap_base;
       size_t read_now = elfmap_size - (elfmap_base - elfmap);
 
-      assert (from >= (off64_t) elfmap_off
-	      && from < (off64_t) (elfmap_off + elfmap_size));
-      off64_t handled_to = elfmap_off + elfmap_size;
+      assert (from >= (off_t) elfmap_off
+	      && from < (off_t) (elfmap_off + elfmap_size));
+      off_t handled_to = elfmap_off + elfmap_size;
       assert (elfmap == elfmap_base
 	      || (elfmap_base - elfmap
 		  == (ptrdiff_t) ((min_len_bytes + ps - 1) & ~(ps - 1))));
@@ -685,8 +675,8 @@ read_block (int fd, const char *fname, off64_t fdlen, off64_t from, off64_t to)
 
 	  assert (handled_to % ps == 0);
 	  assert (handled_to % bytes_per_char == 0);
-	  if (mmap64 (remap_base, read_now, PROT_READ,
-		      MAP_PRIVATE | MAP_POPULATE | MAP_FIXED, fd, handled_to)
+	  if (mmap (remap_base, read_now, PROT_READ,
+		    MAP_PRIVATE | MAP_POPULATE | MAP_FIXED, fd, handled_to)
 	      == MAP_FAILED)
 	    error (EXIT_FAILURE, errno, gettext ("re-mmap failed"));
 	  elfmap_off = handled_to;
@@ -710,14 +700,14 @@ read_block (int fd, const char *fname, off64_t fdlen, off64_t from, off64_t to)
 
 
 static int
-read_fd (int fd, const char *fname, off64_t fdlen)
+read_fd (int fd, const char *fname, off_t fdlen)
 {
   return read_block (fd, fname, fdlen, 0, fdlen);
 }
 
 
 static int
-read_elf (Elf *elf, int fd, const char *fname, off64_t fdlen)
+read_elf (Elf *elf, int fd, const char *fname, off_t fdlen)
 {
   assert (fdlen >= 0);
 
@@ -739,8 +729,25 @@ read_elf (Elf *elf, int fd, const char *fname, off64_t fdlen)
 	 actually have content.  */
       if (shdr != NULL && shdr->sh_type != SHT_NOBITS
 	  && (shdr->sh_flags & SHF_ALLOC) != 0)
-	result |= read_block (fd, fname, fdlen, shdr->sh_offset,
-			      shdr->sh_offset + shdr->sh_size);
+	{
+	  if (shdr->sh_offset > (Elf64_Off) fdlen
+	      || fdlen - shdr->sh_offset < shdr->sh_size)
+	    {
+	      size_t strndx = 0;
+	      const char *sname;
+	      if (unlikely (elf_getshdrstrndx (elf, &strndx) < 0))
+		sname = "<unknown>";
+	      else
+		sname = elf_strptr (elf, strndx, shdr->sh_name) ?: "<unknown>";
+	      error (0, 0,
+		     gettext ("Skipping section %zd '%s' data outside file"),
+		     elf_ndxscn (scn), sname);
+	      result = 1;
+	    }
+	  else
+	    result |= read_block (fd, fname, fdlen, shdr->sh_offset,
+				  shdr->sh_offset + shdr->sh_size);
+	}
     }
   while ((scn = elf_nextscn (elf, scn)) != NULL);
 

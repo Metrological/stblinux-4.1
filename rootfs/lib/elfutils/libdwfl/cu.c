@@ -1,51 +1,30 @@
 /* Keeping track of DWARF compilation units in libdwfl.
-   Copyright (C) 2005-2010 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2005-2010, 2015 Red Hat, Inc.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   In addition, as a special exception, Red Hat, Inc. gives You the
-   additional right to link the code of Red Hat elfutils with code licensed
-   under any Open Source Initiative certified open source license
-   (http://www.opensource.org/licenses/index.php) which requires the
-   distribution of source code with any binary distribution and to
-   distribute linked combinations of the two.  Non-GPL Code permitted under
-   this exception must only link to the code of Red Hat elfutils through
-   those well defined interfaces identified in the file named EXCEPTION
-   found in the source code files (the "Approved Interfaces").  The files
-   of Non-GPL Code may instantiate templates or use macros or inline
-   functions from the Approved Interfaces without causing the resulting
-   work to be covered by the GNU General Public License.  Only Red Hat,
-   Inc. may make changes or additions to the list of Approved Interfaces.
-   Red Hat's grant of this exception is conditioned upon your not adding
-   any new exceptions.  If you wish to add a new Approved Interface or
-   exception, please contact Red Hat.  You must obey the GNU General Public
-   License in all respects for all of the Red Hat elfutils code and other
-   code used in conjunction with Red Hat elfutils except the Non-GPL Code
-   covered by this exception.  If you modify this file, you may extend this
-   exception to your version of the file, but you are not obligated to do
-   so.  If you do not wish to provide this exception without modification,
-   you must delete this exception statement from your version and license
-   this file solely under the GPL without exception.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #include "libdwflP.h"
 #include "../libdw/libdwP.h"
@@ -172,20 +151,49 @@ less_lazy (Dwfl_Module *mod)
 static inline Dwarf_Off
 cudie_offset (const struct dwfl_cu *cu)
 {
+  /* These are real CUs, so there never is a type_sig8.  Note
+     initialization of dwkey.start and offset_size in intern_cu ()
+     to see why this calculates the same value for both key and
+     die.cu search items.  */
   return DIE_OFFSET_FROM_CU_OFFSET (cu->die.cu->start, cu->die.cu->offset_size,
-				    cu->die.cu->type_sig8 != 0);
+				    0);
 }
 
 static int
 compare_cukey (const void *a, const void *b)
 {
-  return cudie_offset (a) - cudie_offset (b);
+  Dwarf_Off a_off = cudie_offset (a);
+  Dwarf_Off b_off = cudie_offset (b);
+  return (a_off < b_off) ? -1 : ((a_off > b_off) ? 1 : 0);
 }
 
 /* Intern the CU if necessary.  */
 static Dwfl_Error
 intern_cu (Dwfl_Module *mod, Dwarf_Off cuoff, struct dwfl_cu **result)
 {
+  if (unlikely (cuoff + 4 >= mod->dw->sectiondata[IDX_debug_info]->d_size))
+    {
+      if (likely (mod->lazycu == 1))
+	{
+	  /* This is the EOF marker.  Now we have interned all the CUs.
+	     One increment in MOD->lazycu counts not having hit EOF yet.  */
+	  *result = (void *) -1;
+	  less_lazy (mod);
+	  return DWFL_E_NOERROR;
+	}
+      else
+	{
+	  /* Unexpected EOF, most likely a bogus aranges.  */
+	  return (DWFL_E (LIBDW, DWARF_E_INVALID_DWARF));
+	}
+    }
+
+  /* Make sure the cuoff points to a real DIE.  */
+  Dwarf_Die cudie;
+  Dwarf_Die *die = INTUSE(dwarf_offdie) (mod->dw, cuoff, &cudie);
+  if (die == NULL)
+    return DWFL_E_LIBDW;
+
   struct Dwarf_CU dwkey;
   struct dwfl_cu key;
   key.die.cu = &dwkey;
@@ -197,48 +205,33 @@ intern_cu (Dwfl_Module *mod, Dwarf_Off cuoff, struct dwfl_cu **result)
 
   if (*found == &key || *found == NULL)
     {
-      if (unlikely (cuoff + 4 >= mod->dw->sectiondata[IDX_debug_info]->d_size))
+      /* This is a new entry, meaning we haven't looked at this CU.  */
+
+      *found = NULL;
+
+      struct dwfl_cu *cu = malloc (sizeof *cu);
+      if (unlikely (cu == NULL))
+	return DWFL_E_NOMEM;
+
+      cu->mod = mod;
+      cu->next = NULL;
+      cu->lines = NULL;
+      cu->die = cudie;
+
+      struct dwfl_cu **newvec = realloc (mod->cu, ((mod->ncu + 1)
+						   * sizeof (mod->cu[0])));
+      if (newvec == NULL)
 	{
-	  /* This is the EOF marker.  Now we have interned all the CUs.
-	     One increment in MOD->lazycu counts not having hit EOF yet.  */
-	  *found = (void *) -1l;
-	  less_lazy (mod);
+	  free (cu);
+	  return DWFL_E_NOMEM;
 	}
-      else
-	{
-	  /* This is a new entry, meaning we haven't looked at this CU.  */
+      mod->cu = newvec;
 
-	  *found = NULL;
+      mod->cu[mod->ncu++] = cu;
+      if (cu->die.cu->start == 0)
+	mod->first_cu = cu;
 
-	  struct dwfl_cu *cu = malloc (sizeof *cu);
-	  if (unlikely (cu == NULL))
-	    return DWFL_E_NOMEM;
-
-	  cu->mod = mod;
-	  cu->next = NULL;
-	  cu->lines = NULL;
-
-	  /* XXX use non-searching lookup */
-	  Dwarf_Die *die = INTUSE(dwarf_offdie) (mod->dw, cuoff, &cu->die);
-	  if (die == NULL)
-	    return DWFL_E_LIBDW;
-	  assert (die == &cu->die);
-
-	  struct dwfl_cu **newvec = realloc (mod->cu, ((mod->ncu + 1)
-						       * sizeof (mod->cu[0])));
-	  if (newvec == NULL)
-	    {
-	      free (cu);
-	      return DWFL_E_NOMEM;
-	    }
-	  mod->cu = newvec;
-
-	  mod->cu[mod->ncu++] = cu;
-	  if (cu->die.cu->start == 0)
-	    mod->first_cu = cu;
-
-	  *found = cu;
-	}
+      *found = cu;
     }
 
   *result = *found;
@@ -287,7 +280,8 @@ __libdwfl_nextcu (Dwfl_Module *mod, struct dwfl_cu *lastcu,
       if (result != DWFL_E_NOERROR)
 	return result;
 
-      if ((*nextp)->next == NULL && nextoff == (Dwarf_Off) -1l)
+      if (*nextp != (void *) -1
+	  && (*nextp)->next == NULL && nextoff == (Dwarf_Off) -1l)
 	(*nextp)->next = (void *) -1l;
     }
 

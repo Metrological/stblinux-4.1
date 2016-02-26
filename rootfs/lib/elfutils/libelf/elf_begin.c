@@ -1,52 +1,31 @@
 /* Create descriptor for processing file.
-   Copyright (C) 1998-2010 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 1998-2010, 2012, 2014, 2015 Red Hat, Inc.
+   This file is part of elfutils.
    Written by Ulrich Drepper <drepper@redhat.com>, 1998.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   In addition, as a special exception, Red Hat, Inc. gives You the
-   additional right to link the code of Red Hat elfutils with code licensed
-   under any Open Source Initiative certified open source license
-   (http://www.opensource.org/licenses/index.php) which requires the
-   distribution of source code with any binary distribution and to
-   distribute linked combinations of the two.  Non-GPL Code permitted under
-   this exception must only link to the code of Red Hat elfutils through
-   those well defined interfaces identified in the file named EXCEPTION
-   found in the source code files (the "Approved Interfaces").  The files
-   of Non-GPL Code may instantiate templates or use macros or inline
-   functions from the Approved Interfaces without causing the resulting
-   work to be covered by the GNU General Public License.  Only Red Hat,
-   Inc. may make changes or additions to the list of Approved Interfaces.
-   Red Hat's grant of this exception is conditioned upon your not adding
-   any new exceptions.  If you wish to add a new Approved Interface or
-   exception, please contact Red Hat.  You must obey the GNU General Public
-   License in all respects for all of the Red Hat elfutils code and other
-   code used in conjunction with Red Hat elfutils except the Non-GPL Code
-   covered by this exception.  If you modify this file, you may extend this
-   exception to your version of the file, but you are not obligated to do
-   so.  If you do not wish to provide this exception without modification,
-   you must delete this exception statement from your version and license
-   this file solely under the GPL without exception.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -165,14 +144,15 @@ get_shnum (void *map_address, unsigned char *e_ident, int fildes, off_t offset,
 
       if (unlikely (result == 0) && ehdr.e32->e_shoff != 0)
 	{
-	  if (ehdr.e32->e_shoff + sizeof (Elf32_Shdr) > maxsize)
+	  if (unlikely (ehdr.e32->e_shoff >= maxsize)
+	      || unlikely (maxsize - ehdr.e32->e_shoff < sizeof (Elf32_Shdr)))
 	    /* Cannot read the first section header.  */
 	    return 0;
 
 	  if (likely (map_address != NULL) && e_ident[EI_DATA] == MY_ELFDATA
 	      && (ALLOW_UNALIGNED
-		  || (((size_t) ((char *) map_address + offset))
-		      & (__alignof__ (Elf32_Ehdr) - 1)) == 0))
+		  || (((size_t) ((char *) map_address + ehdr.e32->e_shoff))
+		      & (__alignof__ (Elf32_Shdr) - 1)) == 0))
 	    /* We can directly access the memory.  */
 	    result = ((Elf32_Shdr *) ((char *) map_address + ehdr.e32->e_shoff
 				      + offset))->sh_size;
@@ -213,15 +193,16 @@ get_shnum (void *map_address, unsigned char *e_ident, int fildes, off_t offset,
 
       if (unlikely (result == 0) && ehdr.e64->e_shoff != 0)
 	{
-	  if (ehdr.e64->e_shoff + sizeof (Elf64_Shdr) > maxsize)
+	  if (unlikely (ehdr.e64->e_shoff >= maxsize)
+	      || unlikely (ehdr.e64->e_shoff + sizeof (Elf64_Shdr) > maxsize))
 	    /* Cannot read the first section header.  */
 	    return 0;
 
 	  Elf64_Xword size;
 	  if (likely (map_address != NULL) && e_ident[EI_DATA] == MY_ELFDATA
 	      && (ALLOW_UNALIGNED
-		  || (((size_t) ((char *) map_address + offset))
-		      & (__alignof__ (Elf64_Ehdr) - 1)) == 0))
+		  || (((size_t) ((char *) map_address + ehdr.e64->e_shoff))
+		      & (__alignof__ (Elf64_Shdr) - 1)) == 0))
 	    /* We can directly access the memory.  */
 	    size = ((Elf64_Shdr *) ((char *) map_address + ehdr.e64->e_shoff
 				    + offset))->sh_size;
@@ -285,6 +266,15 @@ file_read_elf (int fildes, void *map_address, unsigned char *e_ident,
     /* Could not determine the number of sections.  */
     return NULL;
 
+  /* Check for too many sections.  */
+  if (e_ident[EI_CLASS] == ELFCLASS32)
+    {
+      if (scncnt > SIZE_MAX / (sizeof (Elf_Scn) + sizeof (Elf32_Shdr)))
+	return NULL;
+    }
+  else if (scncnt > SIZE_MAX / (sizeof (Elf_Scn) + sizeof (Elf64_Shdr)))
+    return NULL;
+
   /* We can now allocate the memory.  Even if there are no section headers,
      we allocate space for a zeroth section in case we need it later.  */
   const size_t scnmax = (scncnt ?: (cmd == ELF_C_RDWR || cmd == ELF_C_RDWR_MMAP)
@@ -316,48 +306,10 @@ file_read_elf (int fildes, void *map_address, unsigned char *e_ident,
       /* This is a 32-bit binary.  */
       if (map_address != NULL && e_ident[EI_DATA] == MY_ELFDATA
 	  && (ALLOW_UNALIGNED
-	      || ((((uintptr_t) ehdr) & (__alignof__ (Elf32_Ehdr) - 1)) == 0
-		  && ((uintptr_t) ((char *) ehdr + ehdr->e_shoff)
-		      & (__alignof__ (Elf32_Shdr) - 1)) == 0
-		  && ((uintptr_t) ((char *) ehdr + ehdr->e_phoff)
-		      & (__alignof__ (Elf32_Phdr) - 1)) == 0)))
+	      || (((uintptr_t) ehdr) & (__alignof__ (Elf32_Ehdr) - 1)) == 0))
 	{
 	  /* We can use the mmapped memory.  */
 	  elf->state.elf32.ehdr = ehdr;
-	  elf->state.elf32.shdr
-	    = (Elf32_Shdr *) ((char *) ehdr + ehdr->e_shoff);
-
-	  /* Don't precache the phdr pointer here.
-	     elf32_getphdr will validate it against the size when asked.  */
-
-	  for (size_t cnt = 0; cnt < scncnt; ++cnt)
-	    {
-	      elf->state.elf32.scns.data[cnt].index = cnt;
-	      elf->state.elf32.scns.data[cnt].elf = elf;
-	      elf->state.elf32.scns.data[cnt].shdr.e32 =
-		&elf->state.elf32.shdr[cnt];
-	      if (likely (elf->state.elf32.shdr[cnt].sh_offset < maxsize)
-		  && likely (maxsize - elf->state.elf32.shdr[cnt].sh_offset
-			     <= elf->state.elf32.shdr[cnt].sh_size))
-		elf->state.elf32.scns.data[cnt].rawdata_base =
-		  elf->state.elf32.scns.data[cnt].data_base =
-		  ((char *) map_address + offset
-		   + elf->state.elf32.shdr[cnt].sh_offset);
-	      elf->state.elf32.scns.data[cnt].list = &elf->state.elf32.scns;
-
-	      /* If this is a section with an extended index add a
-		 reference in the section which uses the extended
-		 index.  */
-	      if (elf->state.elf32.shdr[cnt].sh_type == SHT_SYMTAB_SHNDX
-		  && elf->state.elf32.shdr[cnt].sh_link < scncnt)
-		elf->state.elf32.scns.data[elf->state.elf32.shdr[cnt].sh_link].shndx_index
-		  = cnt;
-
-	      /* Set the own shndx_index field in case it has not yet
-		 been set.  */
-	      if (elf->state.elf32.scns.data[cnt].shndx_index == 0)
-		elf->state.elf32.scns.data[cnt].shndx_index = -1;
-	    }
 	}
       else
 	{
@@ -381,7 +333,60 @@ file_read_elf (int fildes, void *map_address, unsigned char *e_ident,
 	      CONVERT (elf->state.elf32.ehdr_mem.e_shnum);
 	      CONVERT (elf->state.elf32.ehdr_mem.e_shstrndx);
 	    }
+	}
 
+      /* Don't precache the phdr pointer here.
+	 elf32_getphdr will validate it against the size when asked.  */
+
+      Elf32_Off e_shoff = elf->state.elf32.ehdr->e_shoff;
+      if (map_address != NULL && e_ident[EI_DATA] == MY_ELFDATA
+	  && (ALLOW_UNALIGNED
+	      || (((uintptr_t) ((char *) ehdr + e_shoff)
+		   & (__alignof__ (Elf32_Shdr) - 1)) == 0)))
+	{
+	  if (unlikely (e_shoff >= maxsize)
+	      || unlikely (maxsize - e_shoff
+			   < scncnt * sizeof (Elf32_Shdr)))
+	    {
+	    free_and_out:
+	      free (elf);
+	      __libelf_seterrno (ELF_E_INVALID_FILE);
+	      return NULL;
+	    }
+	  elf->state.elf32.shdr
+	    = (Elf32_Shdr *) ((char *) ehdr + e_shoff);
+
+	  for (size_t cnt = 0; cnt < scncnt; ++cnt)
+	    {
+	      elf->state.elf32.scns.data[cnt].index = cnt;
+	      elf->state.elf32.scns.data[cnt].elf = elf;
+	      elf->state.elf32.scns.data[cnt].shdr.e32 =
+		&elf->state.elf32.shdr[cnt];
+	      if (likely (elf->state.elf32.shdr[cnt].sh_offset < maxsize)
+		  && likely (elf->state.elf32.shdr[cnt].sh_size
+			     <= maxsize - elf->state.elf32.shdr[cnt].sh_offset))
+		elf->state.elf32.scns.data[cnt].rawdata_base =
+		  elf->state.elf32.scns.data[cnt].data_base =
+		  ((char *) map_address + offset
+		   + elf->state.elf32.shdr[cnt].sh_offset);
+	      elf->state.elf32.scns.data[cnt].list = &elf->state.elf32.scns;
+
+	      /* If this is a section with an extended index add a
+		 reference in the section which uses the extended
+		 index.  */
+	      if (elf->state.elf32.shdr[cnt].sh_type == SHT_SYMTAB_SHNDX
+		  && elf->state.elf32.shdr[cnt].sh_link < scncnt)
+		elf->state.elf32.scns.data[elf->state.elf32.shdr[cnt].sh_link].shndx_index
+		  = cnt;
+
+	      /* Set the own shndx_index field in case it has not yet
+		 been set.  */
+	      if (elf->state.elf32.scns.data[cnt].shndx_index == 0)
+		elf->state.elf32.scns.data[cnt].shndx_index = -1;
+	    }
+	}
+      else
+	{
 	  for (size_t cnt = 0; cnt < scncnt; ++cnt)
 	    {
 	      elf->state.elf32.scns.data[cnt].index = cnt;
@@ -402,48 +407,10 @@ file_read_elf (int fildes, void *map_address, unsigned char *e_ident,
       /* This is a 64-bit binary.  */
       if (map_address != NULL && e_ident[EI_DATA] == MY_ELFDATA
 	  && (ALLOW_UNALIGNED
-	      || ((((uintptr_t) ehdr) & (__alignof__ (Elf64_Ehdr) - 1)) == 0
-		  && ((uintptr_t) ((char *) ehdr + ehdr->e_shoff)
-		      & (__alignof__ (Elf64_Shdr) - 1)) == 0
-		  && ((uintptr_t) ((char *) ehdr + ehdr->e_phoff)
-		      & (__alignof__ (Elf64_Phdr) - 1)) == 0)))
+	      || (((uintptr_t) ehdr) & (__alignof__ (Elf64_Ehdr) - 1)) == 0))
 	{
 	  /* We can use the mmapped memory.  */
 	  elf->state.elf64.ehdr = ehdr;
-	  elf->state.elf64.shdr
-	    = (Elf64_Shdr *) ((char *) ehdr + ehdr->e_shoff);
-
-	  /* Don't precache the phdr pointer here.
-	     elf64_getphdr will validate it against the size when asked.  */
-
-	  for (size_t cnt = 0; cnt < scncnt; ++cnt)
-	    {
-	      elf->state.elf64.scns.data[cnt].index = cnt;
-	      elf->state.elf64.scns.data[cnt].elf = elf;
-	      elf->state.elf64.scns.data[cnt].shdr.e64 =
-		&elf->state.elf64.shdr[cnt];
-	      if (likely (elf->state.elf64.shdr[cnt].sh_offset < maxsize)
-		  && likely (maxsize - elf->state.elf64.shdr[cnt].sh_offset
-			     <= elf->state.elf64.shdr[cnt].sh_size))
-		elf->state.elf64.scns.data[cnt].rawdata_base =
-		  elf->state.elf64.scns.data[cnt].data_base =
-		  ((char *) map_address + offset
-		   + elf->state.elf64.shdr[cnt].sh_offset);
-	      elf->state.elf64.scns.data[cnt].list = &elf->state.elf64.scns;
-
-	      /* If this is a section with an extended index add a
-		 reference in the section which uses the extended
-		 index.  */
-	      if (elf->state.elf64.shdr[cnt].sh_type == SHT_SYMTAB_SHNDX
-		  && elf->state.elf64.shdr[cnt].sh_link < scncnt)
-		elf->state.elf64.scns.data[elf->state.elf64.shdr[cnt].sh_link].shndx_index
-		  = cnt;
-
-	      /* Set the own shndx_index field in case it has not yet
-		 been set.  */
-	      if (elf->state.elf64.scns.data[cnt].shndx_index == 0)
-		elf->state.elf64.scns.data[cnt].shndx_index = -1;
-	    }
 	}
       else
 	{
@@ -467,7 +434,55 @@ file_read_elf (int fildes, void *map_address, unsigned char *e_ident,
 	      CONVERT (elf->state.elf64.ehdr_mem.e_shnum);
 	      CONVERT (elf->state.elf64.ehdr_mem.e_shstrndx);
 	    }
+	}
 
+      /* Don't precache the phdr pointer here.
+	 elf64_getphdr will validate it against the size when asked.  */
+
+      Elf64_Off e_shoff = elf->state.elf64.ehdr->e_shoff;
+      if (map_address != NULL && e_ident[EI_DATA] == MY_ELFDATA
+	  && (ALLOW_UNALIGNED
+	      || (((uintptr_t) ((char *) ehdr + e_shoff)
+		   & (__alignof__ (Elf64_Shdr) - 1)) == 0)))
+	{
+	  if (unlikely (e_shoff >= maxsize)
+	      || unlikely (maxsize - e_shoff
+			   < scncnt * sizeof (Elf64_Shdr)))
+	    goto free_and_out;
+	  elf->state.elf64.shdr
+	    = (Elf64_Shdr *) ((char *) ehdr + e_shoff);
+
+	  for (size_t cnt = 0; cnt < scncnt; ++cnt)
+	    {
+	      elf->state.elf64.scns.data[cnt].index = cnt;
+	      elf->state.elf64.scns.data[cnt].elf = elf;
+	      elf->state.elf64.scns.data[cnt].shdr.e64 =
+		&elf->state.elf64.shdr[cnt];
+	      if (likely (elf->state.elf64.shdr[cnt].sh_offset < maxsize)
+		  && likely (elf->state.elf64.shdr[cnt].sh_size
+			     <= maxsize - elf->state.elf64.shdr[cnt].sh_offset))
+		elf->state.elf64.scns.data[cnt].rawdata_base =
+		  elf->state.elf64.scns.data[cnt].data_base =
+		  ((char *) map_address + offset
+		   + elf->state.elf64.shdr[cnt].sh_offset);
+	      elf->state.elf64.scns.data[cnt].list = &elf->state.elf64.scns;
+
+	      /* If this is a section with an extended index add a
+		 reference in the section which uses the extended
+		 index.  */
+	      if (elf->state.elf64.shdr[cnt].sh_type == SHT_SYMTAB_SHNDX
+		  && elf->state.elf64.shdr[cnt].sh_link < scncnt)
+		elf->state.elf64.scns.data[elf->state.elf64.shdr[cnt].sh_link].shndx_index
+		  = cnt;
+
+	      /* Set the own shndx_index field in case it has not yet
+		 been set.  */
+	      if (elf->state.elf64.scns.data[cnt].shndx_index == 0)
+		elf->state.elf64.scns.data[cnt].shndx_index = -1;
+	    }
+	}
+      else
+	{
 	  for (size_t cnt = 0; cnt < scncnt; ++cnt)
 	    {
 	      elf->state.elf64.scns.data[cnt].index = cnt;
@@ -545,9 +560,12 @@ read_unmmaped_file (int fildes, off_t offset, size_t maxsize, Elf_Cmd cmd,
 				    maxsize),
 			       offset);
   if (unlikely (nread == -1))
-    /* We cannot even read the head of the file.  Maybe FILDES is associated
-       with an unseekable device.  This is nothing we can handle.  */
-    return NULL;
+    {
+      /* We cannot even read the head of the file.  Maybe FILDES is associated
+	 with an unseekable device.  This is nothing we can handle.  */
+      __libelf_seterrno (ELF_E_INVALID_FILE);
+      return NULL;
+    }
 
   /* See what kind of object we have here.  */
   Elf_Kind kind = determine_kind (mem.header, nread);
@@ -585,11 +603,6 @@ read_file (int fildes, off_t offset, size_t maxsize,
   int use_mmap = (cmd == ELF_C_READ_MMAP || cmd == ELF_C_RDWR_MMAP
 		  || cmd == ELF_C_WRITE_MMAP
 		  || cmd == ELF_C_READ_MMAP_PRIVATE);
-
-#if _MUDFLAP
-  /* Mudflap doesn't grok that our mmap'd data is ok.  */
-  use_mmap = 0;
-#endif
 
   if (use_mmap)
     {
@@ -670,7 +683,8 @@ read_long_names (Elf *elf)
     {
       if (elf->map_address != NULL)
 	{
-	  if (offset + sizeof (struct ar_hdr) > elf->maximum_size)
+	  if ((size_t) offset > elf->maximum_size
+	      || elf->maximum_size - offset < sizeof (struct ar_hdr))
 	    return NULL;
 
 	  /* The data is mapped.  */
@@ -704,11 +718,15 @@ read_long_names (Elf *elf)
       char *runp;
 
       if (elf->map_address != NULL)
-	/* Simply copy it over.  */
-	elf->state.ar.long_names = (char *) memcpy (newp,
-						    elf->map_address + offset
-						    + sizeof (struct ar_hdr),
-						    len);
+	{
+	  if (len > elf->maximum_size - offset - sizeof (struct ar_hdr))
+	    goto too_much;
+	  /* Simply copy it over.  */
+	  elf->state.ar.long_names = (char *) memcpy (newp,
+						      elf->map_address + offset
+						      + sizeof (struct ar_hdr),
+						      len);
+	}
       else
 	{
 	  if (unlikely ((size_t) pread_retry (elf->fildes, newp, len,
@@ -716,6 +734,7 @@ read_long_names (Elf *elf)
 					      + sizeof (struct ar_hdr))
 			!= len))
 	    {
+	    too_much:
 	      /* We were not able to read all data.  */
 	      free (newp);
 	      elf->state.ar.long_names = NULL;
@@ -730,16 +749,17 @@ read_long_names (Elf *elf)
       runp = newp;
       while (1)
         {
+	  char *startp = runp;
 	  runp = (char *) memchr (runp, '/', newp + len - runp);
 	  if (runp == NULL)
-	    /* This was the last entry.  */
-	    break;
+	    {
+	      /* This was the last entry.  Clear any left overs.  */
+	      memset (startp, '\0', newp + len - startp);
+	      break;
+	    }
 
 	  /* NUL-terminate the string.  */
-	  *runp = '\0';
-
-	  /* Skip the NUL byte and the \012.  */
-	  runp += 2;
+	  *runp++ = '\0';
 
 	  /* A sanity check.  Somebody might have generated invalid
 	     archive.  */
@@ -755,8 +775,7 @@ read_long_names (Elf *elf)
 /* Read the next archive header.  */
 int
 internal_function
-__libelf_next_arhdr_wrlock (elf)
-     Elf *elf;
+__libelf_next_arhdr_wrlock (Elf *elf)
 {
   struct ar_hdr *ar_hdr;
   Elf_Arhdr *elf_ar_hdr;
@@ -764,8 +783,10 @@ __libelf_next_arhdr_wrlock (elf)
   if (elf->map_address != NULL)
     {
       /* See whether this entry is in the file.  */
-      if (unlikely (elf->state.ar.offset + sizeof (struct ar_hdr)
-		    > elf->start_offset + elf->maximum_size))
+      if (unlikely ((size_t) elf->state.ar.offset
+		    > elf->start_offset + elf->maximum_size
+		    || (elf->start_offset + elf->maximum_size
+			- elf->state.ar.offset) < sizeof (struct ar_hdr)))
 	{
 	  /* This record is not anymore in the file.  */
 	  __libelf_seterrno (ELF_E_RANGE);
@@ -808,6 +829,10 @@ __libelf_next_arhdr_wrlock (elf)
 	  && memcmp (ar_hdr->ar_name, "/               ", 16) == 0)
 	/* This is the index.  */
 	elf_ar_hdr->ar_name = memcpy (elf->state.ar.ar_name, "/", 2);
+      else if (ar_hdr->ar_name[1] == 'S'
+	       && memcmp (ar_hdr->ar_name, "/SYM64/         ", 16) == 0)
+	/* 64-bit index.  */
+	elf_ar_hdr->ar_name = memcpy (elf->state.ar.ar_name, "/SYM64/", 8);
       else if (ar_hdr->ar_name[1] == '/'
 	       && memcmp (ar_hdr->ar_name, "//              ", 16) == 0)
 	/* This is the array with the long names.  */
@@ -904,6 +929,19 @@ __libelf_next_arhdr_wrlock (elf)
   INT_FIELD (ar_gid);
   INT_FIELD (ar_mode);
   INT_FIELD (ar_size);
+
+  if (elf_ar_hdr->ar_size < 0)
+    {
+      __libelf_seterrno (ELF_E_INVALID_ARCHIVE);
+      return -1;
+    }
+
+  /* Truncated file?  */
+  size_t maxsize;
+  maxsize = (elf->start_offset + elf->maximum_size
+	     - elf->state.ar.offset - sizeof (struct ar_hdr));
+  if ((size_t) elf_ar_hdr->ar_size > maxsize)
+    elf_ar_hdr->ar_size = maxsize;
 
   return 0;
 }
@@ -1004,10 +1042,7 @@ write_file (int fd, Elf_Cmd cmd)
 
 /* Return a descriptor for the file belonging to FILDES.  */
 Elf *
-elf_begin (fildes, cmd, ref)
-     int fildes;
-     Elf_Cmd cmd;
-     Elf *ref;
+elf_begin (int fildes, Elf_Cmd cmd, Elf *ref)
 {
   Elf *retval;
 
@@ -1028,7 +1063,7 @@ elf_begin (fildes, cmd, ref)
       return NULL;
     }
 
-  Elf *lock_dup_elf ()
+  Elf *lock_dup_elf (void)
   {
     /* We need wrlock to dup an archive.  */
     if (ref->kind == ELF_K_AR)

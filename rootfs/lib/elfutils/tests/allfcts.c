@@ -1,33 +1,27 @@
-/* Copyright (C) 2005 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+/* Copyright (C) 2005, 2013 Red Hat, Inc.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
 
+#include <err.h>
 #include <fcntl.h>
 #include ELFUTILS_HEADER(dw)
+#include ELFUTILS_HEADER(dwelf)
 #include <stdio.h>
 #include <unistd.h>
 
@@ -42,9 +36,31 @@ cb (Dwarf_Die *func, void *arg __attribute__ ((unused)))
 
   printf ("%s:%d:%s\n", file, line, fct);
 
-  return DWARF_CB_OK;
+  return DWARF_CB_ABORT;
 }
 
+static Dwarf *
+setup_alt (Dwarf *main)
+{
+  const char *alt_name;
+  const void *build_id;
+  ssize_t ret = dwelf_dwarf_gnu_debugaltlink (main, &alt_name, &build_id);
+  if (ret == 0)
+    return NULL;
+  if (ret == -1)
+    errx (1, "dwelf_dwarf_gnu_debugaltlink: %s", dwarf_errmsg (-1));
+  int fd = open (alt_name, O_RDONLY);
+  if (fd < 0)
+    err (1, "open (%s)", alt_name);
+  Dwarf *dbg_alt = dwarf_begin (fd, DWARF_C_READ);
+  if (dbg_alt == NULL)
+    errx (1, "dwarf_begin (%s): %s", alt_name, dwarf_errmsg (-1));
+  if (elf_cntl (dwarf_getelf (dbg_alt), ELF_C_FDREAD) != 0)
+    errx (1, "elf_cntl (%s, ELF_C_FDREAD): %s", alt_name, elf_errmsg (-1));
+  close (fd);
+  dwarf_setalt (main, dbg_alt);
+  return dbg_alt;
+}
 
 int
 main (int argc, char *argv[])
@@ -52,6 +68,8 @@ main (int argc, char *argv[])
   for (int i = 1; i < argc; ++i)
     {
       int fd = open (argv[i], O_RDONLY);
+      if (fd < 0)
+	err (1, "open (%s)", argv[i]);
 
       Dwarf *dbg = dwarf_begin (fd, DWARF_C_READ);
       if (dbg != NULL)
@@ -59,19 +77,32 @@ main (int argc, char *argv[])
 	  Dwarf_Off off = 0;
 	  size_t cuhl;
 	  Dwarf_Off noff;
+	  Dwarf *dbg_alt = setup_alt (dbg);
 
 	  while (dwarf_nextcu (dbg, off, &noff, &cuhl, NULL, NULL, NULL) == 0)
 	    {
 	      Dwarf_Die die_mem;
 	      Dwarf_Die *die = dwarf_offdie (dbg, off + cuhl, &die_mem);
 
-	      (void) dwarf_getfuncs (die, cb, NULL, 0);
+	      /* Explicitly stop in the callback and then resume each time.  */
+	      ptrdiff_t doff = 0;
+	      do
+		{
+		  doff = dwarf_getfuncs (die, cb, NULL, doff);
+		  if (dwarf_errno () != 0)
+		    errx (1, "dwarf_getfuncs (%s): %s",
+			  argv[i], dwarf_errmsg (-1));
+		}
+	      while (doff != 0);
 
 	      off = noff;
 	    }
 
+	  dwarf_end (dbg_alt);
 	  dwarf_end (dbg);
 	}
+      else
+	errx (1, "dwarf_begin (%s): %s", argv[i], dwarf_errmsg (-1));
 
       close (fd);
     }

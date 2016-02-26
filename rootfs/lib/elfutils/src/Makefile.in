@@ -39,24 +39,24 @@ build_triplet = @build@
 host_triplet = @host@
 DIST_COMMON = $(noinst_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(top_srcdir)/config/eu.am ChangeLog \
-	ldlex.c ldscript.c ylwrap
-@BUILD_WERROR_TRUE@am__append_1 = $(if $($(*F)_no_Werror),,-Werror)
-@MUDFLAP_TRUE@am__append_2 = -fmudflap
+	ldlex.c ldscript.c
+@SYMBOL_VERSIONING_TRUE@am__append_1 = -DSYMBOL_VERSIONING
 bin_PROGRAMS = readelf$(EXEEXT) nm$(EXEEXT) size$(EXEEXT) \
 	strip$(EXEEXT) ld$(EXEEXT) elflint$(EXEEXT) \
 	findtextrel$(EXEEXT) addr2line$(EXEEXT) elfcmp$(EXEEXT) \
 	objdump$(EXEEXT) ranlib$(EXEEXT) strings$(EXEEXT) ar$(EXEEXT) \
-	unstrip$(EXEEXT)
+	unstrip$(EXEEXT) stack$(EXEEXT)
 @NATIVE_LD_FALSE@noinst_PROGRAMS = $(am__EXEEXT_1)
 # We never build this library but we need to get the dependency files
 # of all the linker backends that might be used in a non-generic linker.
-@NEVER_TRUE@am__append_3 = libdummy.a
+@NEVER_TRUE@am__append_2 = libdummy.a
 # -ldl is always needed for libebl.
-@NATIVE_LD_TRUE@am__append_4 = libld_elf.a
+@NATIVE_LD_TRUE@am__append_3 = libld_elf.a
 @NATIVE_LD_TRUE@am_libld_elf_i386_pic_a_OBJECTS =
 subdir = src
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/biarch.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
 	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/m4/zip.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -67,7 +67,12 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LIBRARIES = $(noinst_LIBRARIES)
 AR = ar
-ARFLAGS = cru
+AM_V_AR = $(am__v_AR_$(V))
+am__v_AR_ = $(am__v_AR_$(AM_DEFAULT_VERBOSITY))
+am__v_AR_0 = @echo "  AR    " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
 libar_a_AR = $(AR) $(ARFLAGS)
 libar_a_LIBADD =
 am_libar_a_OBJECTS = arlib.$(OBJEXT) arlib2.$(OBJEXT) \
@@ -96,7 +101,7 @@ am__DEPENDENCIES_1 =
 @BUILD_STATIC_TRUE@am__DEPENDENCIES_2 = ../libdw/libdw.a \
 @BUILD_STATIC_TRUE@	$(am__DEPENDENCIES_1) $(libelf) $(libebl)
 addr2line_DEPENDENCIES = $(am__DEPENDENCIES_2) $(libelf) \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 ar_SOURCES = ar.c
 ar_OBJECTS = ar.$(OBJEXT)
 ar_DEPENDENCIES = libar.a $(libelf) $(libeu) $(am__DEPENDENCIES_1)
@@ -116,7 +121,7 @@ am_ld_OBJECTS = ld.$(OBJEXT) ldgeneric.$(OBJEXT) ldlex.$(OBJEXT) \
 	versionhash.$(OBJEXT)
 ld_OBJECTS = $(am_ld_OBJECTS)
 ld_DEPENDENCIES = $(libebl) $(libelf) $(libeu) $(am__DEPENDENCIES_1) \
-	$(am__append_4)
+	$(am__append_3)
 ld_LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(ld_LDFLAGS) $(LDFLAGS) -o \
 	$@
 am_libld_elf_i386_so_OBJECTS =
@@ -140,6 +145,10 @@ readelf_DEPENDENCIES = $(am__DEPENDENCIES_2) $(libebl) $(libelf) \
 size_SOURCES = size.c
 size_OBJECTS = size.$(OBJEXT)
 size_DEPENDENCIES = $(libelf) $(libeu) $(am__DEPENDENCIES_1)
+stack_SOURCES = stack.c
+stack_OBJECTS = stack.$(OBJEXT)
+stack_DEPENDENCIES = $(libebl) $(libelf) $(am__DEPENDENCIES_2) \
+	$(libeu) $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 strings_SOURCES = strings.c
 strings_OBJECTS = strings.$(OBJEXT)
 strings_DEPENDENCIES = $(libelf) $(libeu) $(am__DEPENDENCIES_1)
@@ -179,37 +188,55 @@ am__depfiles_maybe = depfiles
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+AM_V_CC = $(am__v_CC_$(V))
+am__v_CC_ = $(am__v_CC_$(AM_DEFAULT_VERBOSITY))
+am__v_CC_0 = @echo "  CC    " $@;
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CCLD = $(am__v_CCLD_$(V))
+am__v_CCLD_ = $(am__v_CCLD_$(AM_DEFAULT_VERBOSITY))
+am__v_CCLD_0 = @echo "  CCLD  " $@;
 @MAINTAINER_MODE_FALSE@am__skiplex = test -f $@ ||
 LEXCOMPILE = $(LEX) $(LFLAGS) $(AM_LFLAGS)
+AM_V_LEX = $(am__v_LEX_$(V))
+am__v_LEX_ = $(am__v_LEX_$(AM_DEFAULT_VERBOSITY))
+am__v_LEX_0 = @echo "  LEX   " $@;
 YLWRAP = $(top_srcdir)/config/ylwrap
 @MAINTAINER_MODE_FALSE@am__skipyacc = test -f $@ ||
 YACCCOMPILE = $(YACC) $(YFLAGS) $(AM_YFLAGS)
+AM_V_YACC = $(am__v_YACC_$(V))
+am__v_YACC_ = $(am__v_YACC_$(AM_DEFAULT_VERBOSITY))
+am__v_YACC_0 = @echo "  YACC  " $@;
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libar_a_SOURCES) $(libdummy_a_SOURCES) \
 	$(libld_elf_a_SOURCES) $(libld_elf_i386_pic_a_SOURCES) \
 	addr2line.c ar.c elfcmp.c elflint.c findtextrel.c \
 	$(ld_SOURCES) $(libld_elf_i386_so_SOURCES) nm.c objdump.c \
-	ranlib.c readelf.c size.c strings.c strip.c unstrip.c
+	ranlib.c readelf.c size.c stack.c strings.c strip.c unstrip.c
 DIST_SOURCES = $(libar_a_SOURCES) $(am__libdummy_a_SOURCES_DIST) \
 	$(am__libld_elf_a_SOURCES_DIST) \
 	$(libld_elf_i386_pic_a_SOURCES) addr2line.c ar.c elfcmp.c \
 	elflint.c findtextrel.c $(ld_SOURCES) \
 	$(libld_elf_i386_so_SOURCES) nm.c objdump.c ranlib.c readelf.c \
-	size.c strings.c strip.c unstrip.c
+	size.c stack.c strings.c strip.c unstrip.c
 HEADERS = $(noinst_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
+CC_BIARCH = @CC_BIARCH@
 CFLAGS = @CFLAGS@
+CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUGPRED = @DEBUGPRED@
@@ -220,17 +247,22 @@ DEPDIR = @DEPDIR@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
+EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 GETTEXT_MACRO_VERSION = @GETTEXT_MACRO_VERSION@
 GMSGFMT = @GMSGFMT@
 GMSGFMT_015 = @GMSGFMT_015@
+GREP = @GREP@
+HAVE_BISON = @HAVE_BISON@
+HAVE_BUNZIP2 = @HAVE_BUNZIP2@
+HAVE_FLEX = @HAVE_FLEX@
+HAVE_VALGRIND = @HAVE_VALGRIND@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LDFLAGS = @LDFLAGS@
-LD_AS_NEEDED = @LD_AS_NEEDED@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
@@ -245,22 +277,22 @@ MODVERSION = @MODVERSION@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
+NM = @NM@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
-PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
+READELF = @READELF@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
-WEXTRA = @WEXTRA@
 XGETTEXT = @XGETTEXT@
 XGETTEXT_015 = @XGETTEXT_015@
 XGETTEXT_EXTRA_OPTIONS = @XGETTEXT_EXTRA_OPTIONS@
@@ -276,6 +308,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+argp_LDADD = @argp_LDADD@
 base_cpu = @base_cpu@
 bindir = @bindir@
 build = @build@
@@ -319,31 +352,41 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 zip_LIBS = @zip_LIBS@
-INCLUDES = -I. -I$(srcdir) -I$(top_srcdir)/lib -I.. \
+AM_CPPFLAGS = -I. -I$(srcdir) -I$(top_srcdir)/lib -I.. \
 	-I$(srcdir)/../libelf -I$(srcdir)/../libebl \
-	-I$(srcdir)/../libdw -I$(srcdir)/../libdwfl \
-	-I$(srcdir)/../libasm
-AM_CFLAGS = -std=gnu99 -Wall -Wshadow $(if \
-	$($(*F)_no_Wunused),,-Wunused $(WEXTRA)) $(if \
-	$($(*F)_no_Wformat),-Wno-format,-Wformat=2) $($(*F)_CFLAGS) \
-	$(am__append_1) $(am__append_2)
-@MUDFLAP_FALSE@libmudflap = 
-@MUDFLAP_TRUE@libmudflap = -lmudflap
-COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage $(no_mudflap.os),\
-	     		  $(COMPILE))
+	-I$(srcdir)/../libdw -I$(srcdir)/../libdwelf \
+	-I$(srcdir)/../libdwfl -I$(srcdir)/../libasm
 
+# Drop the 'u' flag that automake adds by default. It is incompatible
+# with deterministic archives.
+ARFLAGS = cr
+@ADD_STACK_USAGE_WARNING_FALSE@STACK_USAGE_WARNING = 
+
+# Warn about stack usage of more than 256K = 262144 bytes.
+@ADD_STACK_USAGE_WARNING_TRUE@STACK_USAGE_WARNING = -Wstack-usage=262144
+AM_CFLAGS = -std=gnu99 -Wall -Wshadow -Wformat=2 \
+	    -Wold-style-definition -Wstrict-prototypes \
+	    $(if $($(*F)_no_Werror),,-Werror) \
+	    $(if $($(*F)_no_Wunused),,-Wunused -Wextra) \
+	    $(if $($(*F)_no_Wstack_usage),,$(STACK_USAGE_WARNING)) \
+	    $($(*F)_CFLAGS)
+
+COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage, $(COMPILE))
+DEFS.os = -DPIC -DSHARED $(am__append_1)
 CLEANFILES = *.gcno *.gcda make-debug-archive none_ld.os \
 	$(ld_modules:.c=.os) *.gconv
-textrel_check = if readelf -d $@ | fgrep -q TEXTREL; then exit 1; fi
+textrel_msg = echo "WARNING: TEXTREL found in '$@'"
+@FATAL_TEXTREL_FALSE@textrel_found = $(textrel_msg)
+@FATAL_TEXTREL_TRUE@textrel_found = $(textrel_msg); exit 1
+textrel_check = if $(READELF) -d $@ | fgrep -q TEXTREL; then $(textrel_found); fi
 AM_LDFLAGS = -Wl,-rpath-link,../libelf:../libdw
-no_mudflap.os = -fmudflap
 AM_YFLAGS = -pld
 AM_LFLAGS = -Pld -olex.yy.c
 native_ld = @native_ld@
 ld_dsos = libld_elf_i386_pic.a
 @NATIVE_LD_FALSE@noinst_LIBRARIES = libld_elf.a libar.a $(ld_dsos) \
-@NATIVE_LD_FALSE@	$(am__append_3)
-@NATIVE_LD_TRUE@noinst_LIBRARIES = libld_elf.a libar.a $(am__append_3)
+@NATIVE_LD_FALSE@	$(am__append_2)
+@NATIVE_LD_TRUE@noinst_LIBRARIES = libld_elf.a libar.a $(am__append_2)
 @NATIVE_LD_TRUE@native_ld_cflags = -DBASE_ELF_NAME=elf_$(base_cpu)
 @NEVER_TRUE@libdummy_a_SOURCES = i386_ld.c
 ld_SOURCES = ld.c ldgeneric.c ldlex.l ldscript.y symbolhash.c sectionhash.c \
@@ -366,33 +409,43 @@ bin_SCRIPTS = make-debug-archive
 libebl = ../libebl/libebl.a
 libeu = ../lib/libeu.a
 @DEMANGLE_TRUE@demanglelib = -lstdc++
-nm_no_Wformat = yes
-size_no_Wformat = yes
-strings_no_Wformat = yes
-addr2line_no_Wformat = yes
+
 # XXX While the file is not finished, don't warn about this
 ldgeneric_no_Wunused = yes
+ldgeneric_no_Wstack_usage = yes
+ldlex_no_Wstack_usage = yes
 
-# Buggy old compilers.
-readelf_no_Werror = yes
-readelf_LDADD = $(libdw) $(libebl) $(libelf) $(libeu) $(libmudflap) -ldl
-nm_LDADD = $(libdw) $(libebl) $(libelf) $(libeu) $(libmudflap) -ldl \
+# Bad, bad stack usage...
+readelf_no_Wstack_usage = yes
+nm_no_Wstack_usage = yes
+size_no_Wstack_usage = yes
+strip_no_Wstack_usage = yes
+elflint_no_Wstack_usage = yes
+findtextrel_no_Wstack_usage = yes
+elfcmp_no_Wstack_usage = yes
+objdump_no_Wstack_usage = yes
+ranlib_no_Wstack_usage = yes
+ar_no_Wstack_usage = yes
+unstrip_no_Wstack_usage = yes
+readelf_LDADD = $(libdw) $(libebl) $(libelf) $(libeu) $(argp_LDADD) -ldl
+nm_LDADD = $(libdw) $(libebl) $(libelf) $(libeu) $(argp_LDADD) -ldl \
 	   $(demanglelib)
 
-size_LDADD = $(libelf) $(libeu) $(libmudflap)
-strip_LDADD = $(libebl) $(libelf) $(libeu) $(libmudflap) -ldl
-ld_LDADD = $(libebl) $(libelf) $(libeu) $(libmudflap) -ldl \
-	$(am__append_4)
+size_LDADD = $(libelf) $(libeu) $(argp_LDADD)
+strip_LDADD = $(libebl) $(libelf) $(libeu) $(argp_LDADD) -ldl
+ld_LDADD = $(libebl) $(libelf) $(libeu) $(argp_LDADD) -ldl \
+	$(am__append_3)
 ld_LDFLAGS = -rdynamic
-elflint_LDADD = $(libebl) $(libelf) $(libeu) $(libmudflap) -ldl
-findtextrel_LDADD = $(libdw) $(libelf) $(libmudflap)
-addr2line_LDADD = $(libdw) $(libelf) $(libmudflap)
-elfcmp_LDADD = $(libebl) $(libelf) $(libmudflap) -ldl
-objdump_LDADD = $(libasm) $(libebl) $(libelf) $(libeu) $(libmudflap) -ldl
-ranlib_LDADD = libar.a $(libelf) $(libeu) $(libmudflap)
-strings_LDADD = $(libelf) $(libeu) $(libmudflap)
-ar_LDADD = libar.a $(libelf) $(libeu) $(libmudflap)
-unstrip_LDADD = $(libebl) $(libelf) $(libdw) $(libeu) $(libmudflap) -ldl
+elflint_LDADD = $(libebl) $(libelf) $(libeu) $(argp_LDADD) -ldl
+findtextrel_LDADD = $(libdw) $(libelf) $(argp_LDADD)
+addr2line_LDADD = $(libdw) $(libelf) $(argp_LDADD) $(demanglelib)
+elfcmp_LDADD = $(libebl) $(libelf) $(argp_LDADD) -ldl
+objdump_LDADD = $(libasm) $(libebl) $(libelf) $(libeu) $(argp_LDADD) -ldl
+ranlib_LDADD = libar.a $(libelf) $(libeu) $(argp_LDADD)
+strings_LDADD = $(libelf) $(libeu) $(argp_LDADD)
+ar_LDADD = libar.a $(libelf) $(libeu) $(argp_LDADD)
+unstrip_LDADD = $(libebl) $(libelf) $(libdw) $(libeu) $(argp_LDADD) -ldl
+stack_LDADD = $(libebl) $(libelf) $(libdw) $(libeu) $(argp_LDADD) -ldl $(demanglelib)
 ldlex_no_Werror = yes
 
 # Machine-specific linker code.
@@ -439,21 +492,21 @@ $(am__aclocal_m4_deps):
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 libar.a: $(libar_a_OBJECTS) $(libar_a_DEPENDENCIES) 
-	-rm -f libar.a
-	$(libar_a_AR) libar.a $(libar_a_OBJECTS) $(libar_a_LIBADD)
-	$(RANLIB) libar.a
+	$(AM_V_at)-rm -f libar.a
+	$(AM_V_AR)$(libar_a_AR) libar.a $(libar_a_OBJECTS) $(libar_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libar.a
 libdummy.a: $(libdummy_a_OBJECTS) $(libdummy_a_DEPENDENCIES) 
-	-rm -f libdummy.a
-	$(libdummy_a_AR) libdummy.a $(libdummy_a_OBJECTS) $(libdummy_a_LIBADD)
-	$(RANLIB) libdummy.a
+	$(AM_V_at)-rm -f libdummy.a
+	$(AM_V_AR)$(libdummy_a_AR) libdummy.a $(libdummy_a_OBJECTS) $(libdummy_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libdummy.a
 libld_elf.a: $(libld_elf_a_OBJECTS) $(libld_elf_a_DEPENDENCIES) 
-	-rm -f libld_elf.a
-	$(libld_elf_a_AR) libld_elf.a $(libld_elf_a_OBJECTS) $(libld_elf_a_LIBADD)
-	$(RANLIB) libld_elf.a
+	$(AM_V_at)-rm -f libld_elf.a
+	$(AM_V_AR)$(libld_elf_a_AR) libld_elf.a $(libld_elf_a_OBJECTS) $(libld_elf_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libld_elf.a
 libld_elf_i386_pic.a: $(libld_elf_i386_pic_a_OBJECTS) $(libld_elf_i386_pic_a_DEPENDENCIES) 
-	-rm -f libld_elf_i386_pic.a
-	$(libld_elf_i386_pic_a_AR) libld_elf_i386_pic.a $(libld_elf_i386_pic_a_OBJECTS) $(libld_elf_i386_pic_a_LIBADD)
-	$(RANLIB) libld_elf_i386_pic.a
+	$(AM_V_at)-rm -f libld_elf_i386_pic.a
+	$(AM_V_AR)$(libld_elf_i386_pic_a_AR) libld_elf_i386_pic.a $(libld_elf_i386_pic_a_OBJECTS) $(libld_elf_i386_pic_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libld_elf_i386_pic.a
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	test -z "$(bindir)" || $(MKDIR_P) "$(DESTDIR)$(bindir)"
@@ -496,49 +549,52 @@ clean-noinstPROGRAMS:
 	-test -z "$(noinst_PROGRAMS)" || rm -f $(noinst_PROGRAMS)
 addr2line$(EXEEXT): $(addr2line_OBJECTS) $(addr2line_DEPENDENCIES) 
 	@rm -f addr2line$(EXEEXT)
-	$(LINK) $(addr2line_OBJECTS) $(addr2line_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(addr2line_OBJECTS) $(addr2line_LDADD) $(LIBS)
 ar$(EXEEXT): $(ar_OBJECTS) $(ar_DEPENDENCIES) 
 	@rm -f ar$(EXEEXT)
-	$(LINK) $(ar_OBJECTS) $(ar_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(ar_OBJECTS) $(ar_LDADD) $(LIBS)
 elfcmp$(EXEEXT): $(elfcmp_OBJECTS) $(elfcmp_DEPENDENCIES) 
 	@rm -f elfcmp$(EXEEXT)
-	$(LINK) $(elfcmp_OBJECTS) $(elfcmp_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(elfcmp_OBJECTS) $(elfcmp_LDADD) $(LIBS)
 elflint$(EXEEXT): $(elflint_OBJECTS) $(elflint_DEPENDENCIES) 
 	@rm -f elflint$(EXEEXT)
-	$(LINK) $(elflint_OBJECTS) $(elflint_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(elflint_OBJECTS) $(elflint_LDADD) $(LIBS)
 findtextrel$(EXEEXT): $(findtextrel_OBJECTS) $(findtextrel_DEPENDENCIES) 
 	@rm -f findtextrel$(EXEEXT)
-	$(LINK) $(findtextrel_OBJECTS) $(findtextrel_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(findtextrel_OBJECTS) $(findtextrel_LDADD) $(LIBS)
 ld$(EXEEXT): $(ld_OBJECTS) $(ld_DEPENDENCIES) 
 	@rm -f ld$(EXEEXT)
-	$(ld_LINK) $(ld_OBJECTS) $(ld_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(ld_LINK) $(ld_OBJECTS) $(ld_LDADD) $(LIBS)
 @NATIVE_LD_TRUE@libld_elf_i386.so$(EXEEXT): $(libld_elf_i386_so_OBJECTS) $(libld_elf_i386_so_DEPENDENCIES) 
 @NATIVE_LD_TRUE@	@rm -f libld_elf_i386.so$(EXEEXT)
-@NATIVE_LD_TRUE@	$(LINK) $(libld_elf_i386_so_OBJECTS) $(libld_elf_i386_so_LDADD) $(LIBS)
+@NATIVE_LD_TRUE@	$(AM_V_CCLD)$(LINK) $(libld_elf_i386_so_OBJECTS) $(libld_elf_i386_so_LDADD) $(LIBS)
 nm$(EXEEXT): $(nm_OBJECTS) $(nm_DEPENDENCIES) 
 	@rm -f nm$(EXEEXT)
-	$(LINK) $(nm_OBJECTS) $(nm_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(nm_OBJECTS) $(nm_LDADD) $(LIBS)
 objdump$(EXEEXT): $(objdump_OBJECTS) $(objdump_DEPENDENCIES) 
 	@rm -f objdump$(EXEEXT)
-	$(LINK) $(objdump_OBJECTS) $(objdump_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(objdump_OBJECTS) $(objdump_LDADD) $(LIBS)
 ranlib$(EXEEXT): $(ranlib_OBJECTS) $(ranlib_DEPENDENCIES) 
 	@rm -f ranlib$(EXEEXT)
-	$(LINK) $(ranlib_OBJECTS) $(ranlib_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(ranlib_OBJECTS) $(ranlib_LDADD) $(LIBS)
 readelf$(EXEEXT): $(readelf_OBJECTS) $(readelf_DEPENDENCIES) 
 	@rm -f readelf$(EXEEXT)
-	$(LINK) $(readelf_OBJECTS) $(readelf_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(readelf_OBJECTS) $(readelf_LDADD) $(LIBS)
 size$(EXEEXT): $(size_OBJECTS) $(size_DEPENDENCIES) 
 	@rm -f size$(EXEEXT)
-	$(LINK) $(size_OBJECTS) $(size_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(size_OBJECTS) $(size_LDADD) $(LIBS)
+stack$(EXEEXT): $(stack_OBJECTS) $(stack_DEPENDENCIES) 
+	@rm -f stack$(EXEEXT)
+	$(AM_V_CCLD)$(LINK) $(stack_OBJECTS) $(stack_LDADD) $(LIBS)
 strings$(EXEEXT): $(strings_OBJECTS) $(strings_DEPENDENCIES) 
 	@rm -f strings$(EXEEXT)
-	$(LINK) $(strings_OBJECTS) $(strings_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(strings_OBJECTS) $(strings_LDADD) $(LIBS)
 strip$(EXEEXT): $(strip_OBJECTS) $(strip_DEPENDENCIES) 
 	@rm -f strip$(EXEEXT)
-	$(LINK) $(strip_OBJECTS) $(strip_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(strip_OBJECTS) $(strip_LDADD) $(LIBS)
 unstrip$(EXEEXT): $(unstrip_OBJECTS) $(unstrip_DEPENDENCIES) 
 	@rm -f unstrip$(EXEEXT)
-	$(LINK) $(unstrip_OBJECTS) $(unstrip_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(unstrip_OBJECTS) $(unstrip_LDADD) $(LIBS)
 install-binSCRIPTS: $(bin_SCRIPTS)
 	@$(NORMAL_INSTALL)
 	test -z "$(bindir)" || $(MKDIR_P) "$(DESTDIR)$(bindir)"
@@ -615,6 +671,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/readelf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sectionhash.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/size.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strings.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/strip.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symbolhash.Po@am__quote@
@@ -622,24 +679,26 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/versionhash.Po@am__quote@
 
 .c.o:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c $<
 
 .c.obj:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
 
 .l.c:
-	$(am__skiplex) $(SHELL) $(YLWRAP) $< $(LEX_OUTPUT_ROOT).c $@ -- $(LEXCOMPILE)
+	$(AM_V_LEX)$(am__skiplex) $(SHELL) $(YLWRAP) $< $(LEX_OUTPUT_ROOT).c $@ -- $(LEXCOMPILE)
 
 .y.c:
-	$(am__skipyacc) $(SHELL) $(YLWRAP) $< y.tab.c $@ y.tab.h $*.h y.output $*.output -- $(YACCCOMPILE)
+	$(AM_V_YACC)$(am__skipyacc) $(SHELL) $(YLWRAP) $< y.tab.c $@ y.tab.h $*.h y.output $*.output -- $(YACCCOMPILE)
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
@@ -848,26 +907,29 @@ uninstall-am: uninstall-binPROGRAMS uninstall-binSCRIPTS
 
 
 %.os: %.c %.o
-@AMDEP_TRUE@	if $(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED -MT $@ -MD -MP \
+@AMDEP_TRUE@	$(AM_V_CC)if $(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) -MT $@ -MD -MP \
 @AMDEP_TRUE@	  -MF "$(DEPDIR)/$*.Tpo" `test -f '$<' || echo '$(srcdir)/'`$<; \
 @AMDEP_TRUE@	then cat "$(DEPDIR)/$*.Tpo" >> "$(DEPDIR)/$*.Po"; \
 @AMDEP_TRUE@	     rm -f "$(DEPDIR)/$*.Tpo"; \
 @AMDEP_TRUE@	else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; \
 @AMDEP_TRUE@	fi
-@AMDEP_FALSE@	$(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED $<
+@AMDEP_FALSE@	$(AM_V_CC)$(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) $<
+
+print-%:
+	@echo $*=$($*)
 
 ldlex.o: ldscript.c
 ldscript.h: ldscript.c
 @NATIVE_LD_FALSE@libld_elf_i386.so: libld_elf_i386_pic.a libld_elf_i386.map
-@NATIVE_LD_FALSE@	$(LINK) -shared -o $@ -Wl,--whole-archive,$<,--no-whole-archive \
+@NATIVE_LD_FALSE@	$(AM_V_CCLD)$(LINK) -shared -o $@ -Wl,--whole-archive,$<,--no-whole-archive \
 @NATIVE_LD_FALSE@		$(libelf) $(libeu) \
 @NATIVE_LD_FALSE@		-Wl,--version-script,$(srcdir)/libld_elf_i386.map
-@NATIVE_LD_FALSE@	$(textrel_check)
+@NATIVE_LD_FALSE@	@$(textrel_check)
 
 # Special rule to make it possible to define libld_elf_a_SOURCES as we do.
 # Otherwise make would complain.
 .deps/none_ld.Po: none_ld.os
-	-:
+	@-:
 
 installcheck-binPROGRAMS: $(bin_PROGRAMS)
 	bad=0; pid=$$$$; list="$(bin_PROGRAMS)"; for p in $$list; do \
@@ -886,14 +948,14 @@ installcheck-binPROGRAMS: $(bin_PROGRAMS)
 	done; rm -f c$${pid}_.???; exit $$bad
 
 make-debug-archive: $(srcdir)/make-debug-archive.in
-	UNSTRIP=$(bindir)/`echo unstrip | sed '$(transform)'`; \
+	$(AM_V_GEN)UNSTRIP=$(bindir)/`echo unstrip | sed '$(transform)'`; \
 	AR=$(bindir)/`echo ar | sed '$(transform)'`; \
-	sed -e "s,@UNSTRIP@,$$UNSTRIP,g" -e "s,@AR@,$$AR,g" \
+	sed -e "s,[@]UNSTRIP[@],$$UNSTRIP,g" -e "s,[@]AR[@],$$AR,g" \
 	    -e "s%[@]PACKAGE_NAME[@]%$(PACKAGE_NAME)%g" \
 	    -e "s%[@]PACKAGE_VERSION[@]%$(PACKAGE_VERSION)%g" \
 	    $(srcdir)/make-debug-archive.in > $@.new
-	chmod +x $@.new
-	mv -f $@.new $@
+	$(AM_V_at)chmod +x $@.new
+	$(AM_V_at)mv -f $@.new $@
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

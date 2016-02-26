@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Broadcom Corporation
+ * Copyright (C) 2015-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -52,7 +52,7 @@ struct brcmstb_gpio_priv {
 	struct notifier_block reboot_notifier;
 };
 
-#define MAX_GPIO_PER_BANK           32
+#define MAX_GPIO_PER_BANK       32
 #define GPIO_BANK(gpio)         ((gpio) >> 5)
 /* assumes MAX_GPIO_PER_BANK is a multiple of 2 */
 #define GPIO_BIT(gpio)          ((gpio) & (MAX_GPIO_PER_BANK - 1))
@@ -121,13 +121,13 @@ static int brcmstb_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 
 	switch (type) {
 	case IRQ_TYPE_LEVEL_LOW:
-		level = 0;
+		level = mask;
 		edge_config = 0;
 		edge_insensitive = 0;
 		break;
 	case IRQ_TYPE_LEVEL_HIGH:
 		level = mask;
-		edge_config = 0;
+		edge_config = mask;
 		edge_insensitive = 0;
 		break;
 	case IRQ_TYPE_EDGE_FALLING:
@@ -220,17 +220,20 @@ static void brcmstb_gpio_irq_bank_handler(struct brcmstb_gpio_bank *bank)
 			 bank->bgc.read_reg(reg_base + GIO_MASK(bank->id)))) {
 		int bit;
 
+		/* Ack the status bits we are about to service */
+		bank->bgc.write_reg(reg_base + GIO_STAT(bank->id),
+				    status);
+		spin_unlock_irqrestore(&bank->bgc.lock, flags);
+
 		for_each_set_bit(bit, &status, 32) {
-			u32 stat = bank->bgc.read_reg(reg_base +
-						      GIO_STAT(bank->id));
 			if (bit >= bank->width)
 				dev_warn(&priv->pdev->dev,
 					 "IRQ for invalid GPIO (bank=%d, offset=%d)\n",
 					 bank->id, bit);
-			bank->bgc.write_reg(reg_base + GIO_STAT(bank->id),
-					    stat | BIT(bit));
 			generic_handle_irq(irq_find_mapping(irq_domain, bit));
 		}
+
+		spin_lock_irqsave(&bank->bgc.lock, flags);
 	}
 	spin_unlock_irqrestore(&bank->bgc.lock, flags);
 }
@@ -356,12 +359,14 @@ static int brcmstb_gpio_irq_setup(struct platform_device *pdev,
 	struct device_node *np = dev->of_node;
 
 	bank->irq_chip.name = dev_name(dev);
+	bank->irq_chip.irq_disable = brcmstb_gpio_irq_mask;
 	bank->irq_chip.irq_mask = brcmstb_gpio_irq_mask;
 	bank->irq_chip.irq_unmask = brcmstb_gpio_irq_unmask;
 	bank->irq_chip.irq_set_type = brcmstb_gpio_irq_set_type;
 
 	/* Ensures that all non-wakeup IRQs are disabled at suspend */
-	bank->irq_chip.flags = IRQCHIP_MASK_ON_SUSPEND;
+	/* and that interrupts are masked when changing their type  */
+	bank->irq_chip.flags = IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_SET_TYPE_MASKED;
 
 	if (IS_ENABLED(CONFIG_PM_SLEEP) && !priv->can_wake &&
 			of_property_read_bool(np, "wakeup-source")) {

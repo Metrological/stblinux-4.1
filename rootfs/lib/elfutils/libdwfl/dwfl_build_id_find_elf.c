@@ -1,51 +1,30 @@
 /* Find an ELF file for a module from its build ID.
-   Copyright (C) 2007-2010 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2007-2010, 2014, 2015 Red Hat, Inc.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   In addition, as a special exception, Red Hat, Inc. gives You the
-   additional right to link the code of Red Hat elfutils with code licensed
-   under any Open Source Initiative certified open source license
-   (http://www.opensource.org/licenses/index.php) which requires the
-   distribution of source code with any binary distribution and to
-   distribute linked combinations of the two.  Non-GPL Code permitted under
-   this exception must only link to the code of Red Hat elfutils through
-   those well defined interfaces identified in the file named EXCEPTION
-   found in the source code files (the "Approved Interfaces").  The files
-   of Non-GPL Code may instantiate templates or use macros or inline
-   functions from the Approved Interfaces without causing the resulting
-   work to be covered by the GNU General Public License.  Only Red Hat,
-   Inc. may make changes or additions to the list of Approved Interfaces.
-   Red Hat's grant of this exception is conditioned upon your not adding
-   any new exceptions.  If you wish to add a new Approved Interface or
-   exception, please contact Red Hat.  You must obey the GNU General Public
-   License in all respects for all of the Red Hat elfutils code and other
-   code used in conjunction with Red Hat elfutils except the Non-GPL Code
-   covered by this exception.  If you modify this file, you may extend this
-   exception to your version of the file, but you are not obligated to do
-   so.  If you do not wish to provide this exception without modification,
-   you must delete this exception statement from your version and license
-   this file solely under the GPL without exception.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #include "libdwflP.h"
 #include <inttypes.h>
@@ -55,20 +34,23 @@
 
 int
 internal_function
-__libdwfl_open_by_build_id (Dwfl_Module *mod, bool debug, char **file_name)
+__libdwfl_open_by_build_id (Dwfl_Module *mod, bool debug, char **file_name,
+			    const size_t id_len, const uint8_t *id)
 {
-  /* If *FILE_NAME was primed into the module, leave it there
-     as the fallback when we have nothing to offer.  */
-  errno = 0;
-  if (mod->build_id_len <= 0)
-    return -1;
-
-  const size_t id_len = mod->build_id_len;
-  const uint8_t *id = mod->build_id_bits;
+  /* We don't handle very short or really large build-ids.  We need at
+     at least 3 and allow for up to 64 (normally ids are 20 long).  */
+#define MIN_BUILD_ID_BYTES 3
+#define MAX_BUILD_ID_BYTES 64
+  if (id_len < MIN_BUILD_ID_BYTES || id_len > MAX_BUILD_ID_BYTES)
+    {
+      __libdwfl_seterrno (DWFL_E_WRONG_ID_ELF);
+      return -1;
+    }
 
   /* Search debuginfo_path directories' .build-id/ subdirectories.  */
 
-  char id_name[sizeof "/.build-id/" + 1 + id_len * 2 + sizeof ".debug" - 1];
+  char id_name[sizeof "/.build-id/" + 1 + MAX_BUILD_ID_BYTES * 2
+	       + sizeof ".debug" - 1];
   strcpy (id_name, "/.build-id/");
   int n = snprintf (&id_name[sizeof "/.build-id/" - 1],
 		    4, "%02" PRIx8 "/", (uint8_t) id[0]);
@@ -84,12 +66,15 @@ __libdwfl_open_by_build_id (Dwfl_Module *mod, bool debug, char **file_name)
 	    ".debug");
 
   const Dwfl_Callbacks *const cb = mod->dwfl->callbacks;
-  char *path = strdupa ((cb->debuginfo_path ? *cb->debuginfo_path : NULL)
-			?: DEFAULT_DEBUGINFO_PATH);
+  char *path = strdup ((cb->debuginfo_path ? *cb->debuginfo_path : NULL)
+		       ?: DEFAULT_DEBUGINFO_PATH);
+  if (path == NULL)
+    return -1;
 
   int fd = -1;
   char *dir;
-  while (fd < 0 && (dir = strsep (&path, ":")) != NULL)
+  char *paths = path;
+  while (fd < 0 && (dir = strsep (&paths, ":")) != NULL)
     {
       if (dir[0] == '+' || dir[0] == '-')
 	++dir;
@@ -104,7 +89,7 @@ __libdwfl_open_by_build_id (Dwfl_Module *mod, bool debug, char **file_name)
 	break;
       memcpy (mempcpy (name, dir, dirlen), id_name, sizeof id_name);
 
-      fd = TEMP_FAILURE_RETRY (open64 (name, O_RDONLY));
+      fd = TEMP_FAILURE_RETRY (open (name, O_RDONLY));
       if (fd >= 0)
 	{
 	  if (*file_name != NULL)
@@ -119,6 +104,8 @@ __libdwfl_open_by_build_id (Dwfl_Module *mod, bool debug, char **file_name)
       free (name);
     }
 
+  free (path);
+
   /* If we simply found nothing, clear errno.  If we had some other error
      with the file, report that.  Possibly this should treat other errors
      like ENOENT too.  But ignoring all errors could mask some that should
@@ -130,6 +117,22 @@ __libdwfl_open_by_build_id (Dwfl_Module *mod, bool debug, char **file_name)
 }
 
 int
+internal_function
+__libdwfl_open_mod_by_build_id (Dwfl_Module *mod, bool debug, char **file_name)
+{
+  /* If *FILE_NAME was primed into the module, leave it there
+     as the fallback when we have nothing to offer.  */
+  errno = 0;
+  if (mod->build_id_len <= 0)
+    return -1;
+
+  const size_t id_len = mod->build_id_len;
+  const uint8_t *id = mod->build_id_bits;
+
+  return __libdwfl_open_by_build_id (mod, debug, file_name, id_len, id);
+}
+
+int
 dwfl_build_id_find_elf (Dwfl_Module *mod,
 			void **userdata __attribute__ ((unused)),
 			const char *modname __attribute__ ((unused)),
@@ -137,7 +140,23 @@ dwfl_build_id_find_elf (Dwfl_Module *mod,
 			char **file_name, Elf **elfp)
 {
   *elfp = NULL;
-  int fd = __libdwfl_open_by_build_id (mod, false, file_name);
+  if (mod->is_executable && mod->dwfl->executable_for_core != NULL)
+    {
+      /* When dwfl_core_file_report was called with a non-NULL executable file
+	 name this callback will replace the Dwfl_Module main.name with the
+	 recorded executable file when MOD was identified as main executable
+	 (which then triggers opening and reporting of the executable).  */
+      int fd = open (mod->dwfl->executable_for_core, O_RDONLY);
+      if (fd >= 0)
+	{
+	  *file_name = strdup (mod->dwfl->executable_for_core);
+	  if (*file_name != NULL)
+	    return fd;
+	  else
+	    close (fd);
+	}
+    }
+  int fd = __libdwfl_open_mod_by_build_id (mod, false, file_name);
   if (fd >= 0)
     {
       Dwfl_Error error = __libdw_open_file (&fd, elfp, true, false);

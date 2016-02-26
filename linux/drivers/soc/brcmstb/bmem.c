@@ -1,5 +1,5 @@
 /*
- * Copyright © 2015 Broadcom Corporation
+ * Copyright © 2015-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License, version 2, as
@@ -50,6 +50,19 @@ static bool bmem_disabled;
  * BMEM (reserved A/V buffer memory) support
  ***********************************************************************/
 
+static int __init __bmem_setup(phys_addr_t addr, phys_addr_t size)
+{
+	if (n_bmem_regions == MAX_BMEM_REGIONS) {
+		pr_warn_once("too many regions, ignoring extras\n");
+		return -E2BIG;
+	}
+
+	bmem_regions[n_bmem_regions].addr = addr;
+	bmem_regions[n_bmem_regions].size = size;
+	n_bmem_regions++;
+	return 0;
+}
+
 /*
  * Parses command line for bmem= options
  */
@@ -57,6 +70,7 @@ static int __init bmem_setup(char *str)
 {
 	phys_addr_t addr = 0, size;
 	char *orig_str = str;
+	int ret;
 
 	size = memparse(str, &str);
 	if (*str == '@')
@@ -74,16 +88,10 @@ static int __init bmem_setup(char *str)
 		return 0;
 	}
 
-	if (n_bmem_regions == MAX_BMEM_REGIONS) {
-		pr_warn_once("too many regions, ignoring extras\n");
-		return -E2BIG;
-	}
-
-	bmem_regions[n_bmem_regions].addr = addr;
-	bmem_regions[n_bmem_regions].size = size;
-	n_bmem_regions++;
-	return 0;
-
+	ret = __bmem_setup(addr, size);
+	if (!ret)
+		brcmstb_memory_override_defaults = true;
+	return ret;
 }
 early_param("bmem", bmem_setup);
 
@@ -131,6 +139,26 @@ int bmem_region_info(int idx, phys_addr_t *addr, phys_addr_t *size)
 	return -ENOENT;
 }
 
+static void __init bmem_setup_defaults(void)
+{
+	int ret, iter = 0;
+
+	do {
+		phys_addr_t start, size;
+		if (n_bmem_regions == MAX_BMEM_REGIONS) {
+			pr_warn_once("%s: too many regions, ignoring extras\n",
+					__func__);
+			return;
+		}
+
+		/* fill in start and size */
+		ret = brcmstb_memory_get_default_reserve(iter, &start, &size);
+		if (!ret)
+			__bmem_setup(start, size);
+		iter++;
+	} while (ret != -ENOMEM);
+}
+
 void __init bmem_reserve(void)
 {
 	int i;
@@ -140,6 +168,11 @@ void __init bmem_reserve(void)
 		n_bmem_regions = 0;
 		return;
 	}
+
+	if (brcmstb_default_reserve == BRCMSTB_RESERVE_BMEM &&
+			!n_bmem_regions &&
+			!brcmstb_memory_override_defaults)
+		bmem_setup_defaults();
 
 	for (i = 0; i < n_bmem_regions; ++i) {
 		ret = memblock_reserve(bmem_regions[i].addr,

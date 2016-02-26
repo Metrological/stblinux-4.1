@@ -39,14 +39,13 @@ host_triplet = @host@
 DIST_COMMON = $(include_HEADERS) $(noinst_HEADERS) \
 	$(pkginclude_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(top_srcdir)/config/eu.am ChangeLog
-@BUILD_WERROR_TRUE@am__append_1 = $(if $($(*F)_no_Werror),,-Werror)
-@MUDFLAP_TRUE@am__append_2 = -fmudflap
-@BUILD_STATIC_TRUE@am__append_3 = -fpic
-@MUDFLAP_FALSE@noinst_PROGRAMS = $(am__EXEEXT_1)
-@MUDFLAP_TRUE@am_libdw_pic_a_OBJECTS =
+@SYMBOL_VERSIONING_TRUE@am__append_1 = -DSYMBOL_VERSIONING
+@BUILD_STATIC_TRUE@am__append_2 = -fPIC
+noinst_PROGRAMS = $(am__EXEEXT_1)
 subdir = libdw
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/biarch.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
 	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/m4/zip.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -80,10 +79,15 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(includedir)" \
 	"$(DESTDIR)$(pkgincludedir)"
 LIBRARIES = $(lib_LIBRARIES) $(noinst_LIBRARIES)
 AR = ar
-ARFLAGS = cru
+AM_V_AR = $(am__v_AR_$(V))
+am__v_AR_ = $(am__v_AR_$(AM_DEFAULT_VERBOSITY))
+am__v_AR_0 = @echo "  AR    " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
 libdw_a_AR = $(AR) $(ARFLAGS)
-libdw_a_DEPENDENCIES = $(addprefix ../libdwfl/,$(shell $(AR) t \
-	../libdwfl/libdwfl.a))
+libdw_a_DEPENDENCIES = $(addprefix ../libdwfl/,$(libdwfl_objects)) \
+	$(addprefix ../libdwelf/,$(libdwelf_objects))
 am_libdw_a_OBJECTS = dwarf_begin.$(OBJEXT) dwarf_begin_elf.$(OBJEXT) \
 	dwarf_end.$(OBJEXT) dwarf_getelf.$(OBJEXT) \
 	dwarf_getpubnames.$(OBJEXT) dwarf_getabbrev.$(OBJEXT) \
@@ -124,14 +128,15 @@ am_libdw_a_OBJECTS = dwarf_begin.$(OBJEXT) dwarf_begin_elf.$(OBJEXT) \
 	dwarf_getaranges.$(OBJEXT) dwarf_onearange.$(OBJEXT) \
 	dwarf_getarangeinfo.$(OBJEXT) dwarf_getarange_addr.$(OBJEXT) \
 	dwarf_getattrs.$(OBJEXT) dwarf_formflag.$(OBJEXT) \
-	dwarf_getmacros.$(OBJEXT) dwarf_macro_opcode.$(OBJEXT) \
+	dwarf_getmacros.$(OBJEXT) dwarf_macro_getparamcnt.$(OBJEXT) \
+	dwarf_macro_opcode.$(OBJEXT) dwarf_macro_param.$(OBJEXT) \
 	dwarf_macro_param1.$(OBJEXT) dwarf_macro_param2.$(OBJEXT) \
-	dwarf_addrdie.$(OBJEXT) dwarf_getfuncs.$(OBJEXT) \
-	dwarf_decl_file.$(OBJEXT) dwarf_decl_line.$(OBJEXT) \
-	dwarf_decl_column.$(OBJEXT) dwarf_func_inline.$(OBJEXT) \
-	dwarf_getsrc_file.$(OBJEXT) libdw_findcu.$(OBJEXT) \
-	libdw_form.$(OBJEXT) libdw_alloc.$(OBJEXT) \
-	memory-access.$(OBJEXT) libdw_visit_scopes.$(OBJEXT) \
+	dwarf_macro_getsrcfiles.$(OBJEXT) dwarf_addrdie.$(OBJEXT) \
+	dwarf_getfuncs.$(OBJEXT) dwarf_decl_file.$(OBJEXT) \
+	dwarf_decl_line.$(OBJEXT) dwarf_decl_column.$(OBJEXT) \
+	dwarf_func_inline.$(OBJEXT) dwarf_getsrc_file.$(OBJEXT) \
+	libdw_findcu.$(OBJEXT) libdw_form.$(OBJEXT) \
+	libdw_alloc.$(OBJEXT) libdw_visit_scopes.$(OBJEXT) \
 	dwarf_entry_breakpoints.$(OBJEXT) dwarf_next_cfi.$(OBJEXT) \
 	cie.$(OBJEXT) fde.$(OBJEXT) cfi.$(OBJEXT) \
 	frame-cache.$(OBJEXT) dwarf_frame_info.$(OBJEXT) \
@@ -139,12 +144,16 @@ am_libdw_a_OBJECTS = dwarf_begin.$(OBJEXT) dwarf_begin_elf.$(OBJEXT) \
 	dwarf_cfi_addrframe.$(OBJEXT) dwarf_getcfi.$(OBJEXT) \
 	dwarf_getcfi_elf.$(OBJEXT) dwarf_cfi_end.$(OBJEXT) \
 	dwarf_aggregate_size.$(OBJEXT) \
-	dwarf_getlocation_implicit_pointer.$(OBJEXT)
+	dwarf_getlocation_implicit_pointer.$(OBJEXT) \
+	dwarf_getlocation_die.$(OBJEXT) \
+	dwarf_getlocation_attr.$(OBJEXT) dwarf_getalt.$(OBJEXT) \
+	dwarf_setalt.$(OBJEXT) dwarf_cu_getdwarf.$(OBJEXT) \
+	dwarf_cu_die.$(OBJEXT) dwarf_peel_type.$(OBJEXT)
 libdw_a_OBJECTS = $(am_libdw_a_OBJECTS)
 libdw_pic_a_AR = $(AR) $(ARFLAGS)
 libdw_pic_a_LIBADD =
 libdw_pic_a_OBJECTS = $(am_libdw_pic_a_OBJECTS)
-@MUDFLAP_FALSE@am__EXEEXT_1 = libdw.so$(EXEEXT)
+am__EXEEXT_1 = libdw.so$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
 am_libdw_so_OBJECTS =
 libdw_so_OBJECTS = $(am_libdw_so_OBJECTS)
@@ -155,8 +164,17 @@ am__depfiles_maybe = depfiles
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+AM_V_CC = $(am__v_CC_$(V))
+am__v_CC_ = $(am__v_CC_$(AM_DEFAULT_VERBOSITY))
+am__v_CC_0 = @echo "  CC    " $@;
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CCLD = $(am__v_CCLD_$(V))
+am__v_CCLD_ = $(am__v_CCLD_$(AM_DEFAULT_VERBOSITY))
+am__v_CCLD_0 = @echo "  CCLD  " $@;
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libdw_a_SOURCES) $(libdw_pic_a_SOURCES) \
 	$(libdw_so_SOURCES)
 DIST_SOURCES = $(libdw_a_SOURCES) $(libdw_pic_a_SOURCES) \
@@ -167,33 +185,40 @@ CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
+CC_BIARCH = @CC_BIARCH@
 CFLAGS = @CFLAGS@
+CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUGPRED = @DEBUGPRED@
-DEFS = -D_GNU_SOURCE -DHAVE_CONFIG_H -DLOCALEDIR='"${localedir}"' \
-	-DIS_LIBDW
+DEFS = -D_GNU_SOURCE -DHAVE_CONFIG_H -DLOCALEDIR='"${localedir}"'
 DEPDIR = @DEPDIR@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
+EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 GETTEXT_MACRO_VERSION = @GETTEXT_MACRO_VERSION@
 GMSGFMT = @GMSGFMT@
 GMSGFMT_015 = @GMSGFMT_015@
+GREP = @GREP@
+HAVE_BISON = @HAVE_BISON@
+HAVE_BUNZIP2 = @HAVE_BUNZIP2@
+HAVE_FLEX = @HAVE_FLEX@
+HAVE_VALGRIND = @HAVE_VALGRIND@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LDFLAGS = @LDFLAGS@
-LD_AS_NEEDED = @LD_AS_NEEDED@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
@@ -208,22 +233,22 @@ MODVERSION = @MODVERSION@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
+NM = @NM@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
-PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
+READELF = @READELF@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = 1
-WEXTRA = @WEXTRA@
 XGETTEXT = @XGETTEXT@
 XGETTEXT_015 = @XGETTEXT_015@
 XGETTEXT_EXTRA_OPTIONS = @XGETTEXT_EXTRA_OPTIONS@
@@ -239,6 +264,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+argp_LDADD = @argp_LDADD@
 base_cpu = @base_cpu@
 bindir = @bindir@
 build = @build@
@@ -282,23 +308,33 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 zip_LIBS = @zip_LIBS@
-INCLUDES = -I. -I$(srcdir) -I$(top_srcdir)/lib -I.. \
+AM_CPPFLAGS = -I. -I$(srcdir) -I$(top_srcdir)/lib -I.. \
 	-I$(srcdir)/../libelf
-AM_CFLAGS = -std=gnu99 -Wall -Wshadow $(if \
-	$($(*F)_no_Wunused),,-Wunused $(WEXTRA)) $(if \
-	$($(*F)_no_Wformat),-Wno-format,-Wformat=2) $($(*F)_CFLAGS) \
-	$(am__append_1) $(am__append_2) $(am__append_3)
-@MUDFLAP_FALSE@libmudflap = 
-@MUDFLAP_TRUE@libmudflap = -lmudflap
-COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage $(no_mudflap.os),\
-	     		  $(COMPILE))
 
+# Drop the 'u' flag that automake adds by default. It is incompatible
+# with deterministic archives.
+ARFLAGS = cr
+@ADD_STACK_USAGE_WARNING_FALSE@STACK_USAGE_WARNING = 
+
+# Warn about stack usage of more than 256K = 262144 bytes.
+@ADD_STACK_USAGE_WARNING_TRUE@STACK_USAGE_WARNING = -Wstack-usage=262144
+AM_CFLAGS = -std=gnu99 -Wall -Wshadow -Wformat=2 \
+	-Wold-style-definition -Wstrict-prototypes $(if \
+	$($(*F)_no_Werror),,-Werror) $(if \
+	$($(*F)_no_Wunused),,-Wunused -Wextra) $(if \
+	$($(*F)_no_Wstack_usage),,$(STACK_USAGE_WARNING)) \
+	$($(*F)_CFLAGS) $(am__append_2)
+COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage, $(COMPILE))
+DEFS.os = -DPIC -DSHARED $(am__append_1)
 CLEANFILES = *.gcno *.gcda
-textrel_check = if readelf -d $@ | fgrep -q TEXTREL; then exit 1; fi
+textrel_msg = echo "WARNING: TEXTREL found in '$@'"
+@FATAL_TEXTREL_FALSE@textrel_found = $(textrel_msg)
+@FATAL_TEXTREL_TRUE@textrel_found = $(textrel_msg); exit 1
+textrel_check = if $(READELF) -d $@ | fgrep -q TEXTREL; then $(textrel_found); fi
 lib_LIBRARIES = libdw.a
-@MUDFLAP_FALSE@noinst_LIBRARIES = libdw_pic.a
+noinst_LIBRARIES = libdw_pic.a
 include_HEADERS = dwarf.h
-pkginclude_HEADERS = libdw.h
+pkginclude_HEADERS = libdw.h known-dwarf.h
 libdw_a_SOURCES = dwarf_begin.c dwarf_begin_elf.c dwarf_end.c dwarf_getelf.c \
 		  dwarf_getpubnames.c dwarf_getabbrev.c dwarf_tag.c \
 		  dwarf_error.c dwarf_nextcu.c dwarf_diename.c dwarf_offdie.c \
@@ -329,12 +365,14 @@ libdw_a_SOURCES = dwarf_begin.c dwarf_begin_elf.c dwarf_end.c dwarf_getelf.c \
 		  dwarf_getlocation.c dwarf_getstring.c dwarf_offabbrev.c \
 		  dwarf_getaranges.c dwarf_onearange.c dwarf_getarangeinfo.c \
 		  dwarf_getarange_addr.c dwarf_getattrs.c dwarf_formflag.c \
-		  dwarf_getmacros.c dwarf_macro_opcode.c dwarf_macro_param1.c \
-		  dwarf_macro_param2.c dwarf_addrdie.c \
-		  dwarf_getfuncs.c  \
+		  dwarf_getmacros.c dwarf_macro_getparamcnt.c	\
+		  dwarf_macro_opcode.c dwarf_macro_param.c	\
+		  dwarf_macro_param1.c dwarf_macro_param2.c	\
+		  dwarf_macro_getsrcfiles.c			\
+		  dwarf_addrdie.c dwarf_getfuncs.c \
 		  dwarf_decl_file.c dwarf_decl_line.c dwarf_decl_column.c \
 		  dwarf_func_inline.c dwarf_getsrc_file.c \
-		  libdw_findcu.c libdw_form.c libdw_alloc.c memory-access.c \
+		  libdw_findcu.c libdw_form.c libdw_alloc.c \
 		  libdw_visit_scopes.c \
 		  dwarf_entry_breakpoints.c \
 		  dwarf_next_cfi.c \
@@ -342,14 +380,20 @@ libdw_a_SOURCES = dwarf_begin.c dwarf_begin_elf.c dwarf_end.c dwarf_getelf.c \
 		  dwarf_frame_info.c dwarf_frame_cfa.c dwarf_frame_register.c \
 		  dwarf_cfi_addrframe.c \
 		  dwarf_getcfi.c dwarf_getcfi_elf.c dwarf_cfi_end.c \
-		  dwarf_aggregate_size.c dwarf_getlocation_implicit_pointer.c
+		  dwarf_aggregate_size.c dwarf_getlocation_implicit_pointer.c \
+		  dwarf_getlocation_die.c dwarf_getlocation_attr.c \
+		  dwarf_getalt.c dwarf_setalt.c dwarf_cu_getdwarf.c \
+		  dwarf_cu_die.c dwarf_peel_type.c
 
 @MAINTAINER_MODE_TRUE@BUILT_SOURCES = $(srcdir)/known-dwarf.h
 @MAINTAINER_MODE_TRUE@MAINTAINERCLEANFILES = $(srcdir)/known-dwarf.h
-@MUDFLAP_FALSE@libdw_pic_a_SOURCES = 
-@MUDFLAP_FALSE@am_libdw_pic_a_OBJECTS = $(libdw_a_SOURCES:.c=.os)
-@MUDFLAP_FALSE@libdw_so_SOURCES = 
-libdw_a_LIBADD = $(addprefix ../libdwfl/,$(shell $(AR) t ../libdwfl/libdwfl.a))
+libdw_pic_a_SOURCES = 
+am_libdw_pic_a_OBJECTS = $(libdw_a_SOURCES:.c=.os)
+libdw_so_SOURCES = 
+libdwfl_objects = $(shell $(AR) t ../libdwfl/libdwfl.a)
+libdw_a_LIBADD = $(addprefix ../libdwfl/,$(libdwfl_objects)) \
+	$(addprefix ../libdwelf/,$(libdwelf_objects))
+libdwelf_objects = $(shell $(AR) t ../libdwelf/libdwelf.a)
 noinst_HEADERS = libdwP.h memory-access.h dwarf_abbrev_hash.h \
 		 dwarf_sig8_hash.h cfi.h encoded-value.h
 
@@ -426,19 +470,16 @@ clean-libLIBRARIES:
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 libdw.a: $(libdw_a_OBJECTS) $(libdw_a_DEPENDENCIES) 
-	-rm -f libdw.a
-	$(libdw_a_AR) libdw.a $(libdw_a_OBJECTS) $(libdw_a_LIBADD)
-	$(RANLIB) libdw.a
+	$(AM_V_at)-rm -f libdw.a
+	$(AM_V_AR)$(libdw_a_AR) libdw.a $(libdw_a_OBJECTS) $(libdw_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libdw.a
 libdw_pic.a: $(libdw_pic_a_OBJECTS) $(libdw_pic_a_DEPENDENCIES) 
-	-rm -f libdw_pic.a
-	$(libdw_pic_a_AR) libdw_pic.a $(libdw_pic_a_OBJECTS) $(libdw_pic_a_LIBADD)
-	$(RANLIB) libdw_pic.a
+	$(AM_V_at)-rm -f libdw_pic.a
+	$(AM_V_AR)$(libdw_pic_a_AR) libdw_pic.a $(libdw_pic_a_OBJECTS) $(libdw_pic_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libdw_pic.a
 
 clean-noinstPROGRAMS:
 	-test -z "$(noinst_PROGRAMS)" || rm -f $(noinst_PROGRAMS)
-@MUDFLAP_TRUE@libdw.so$(EXEEXT): $(libdw_so_OBJECTS) $(libdw_so_DEPENDENCIES) 
-@MUDFLAP_TRUE@	@rm -f libdw.so$(EXEEXT)
-@MUDFLAP_TRUE@	$(LINK) $(libdw_so_OBJECTS) $(libdw_so_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -463,6 +504,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_cfi_addrframe.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_cfi_end.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_child.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_cu_die.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_cu_getdwarf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_cuoffset.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_decl_column.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_decl_file.Po@am__quote@
@@ -491,6 +534,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getabbrevattr.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getabbrevcode.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getabbrevtag.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getalt.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getarange_addr.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getarangeinfo.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getaranges.Po@am__quote@
@@ -501,6 +545,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getelf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getfuncs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getlocation.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getlocation_attr.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getlocation_die.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getlocation_implicit_pointer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getmacros.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_getpubnames.Po@am__quote@
@@ -532,7 +578,10 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_lineprologueend.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_linesrc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_lowpc.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_macro_getparamcnt.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_macro_getsrcfiles.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_macro_opcode.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_macro_param.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_macro_param1.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_macro_param2.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_next_cfi.Po@am__quote@
@@ -541,7 +590,9 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_offdie.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_onearange.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_onesrcline.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_peel_type.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_ranges.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_setalt.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_siblingof.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_sig8_hash.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dwarf_srclang.Po@am__quote@
@@ -554,18 +605,19 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdw_findcu.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdw_form.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libdw_visit_scopes.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memory-access.Po@am__quote@
 
 .c.o:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c $<
 
 .c.obj:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
@@ -700,11 +752,8 @@ installdirs:
 	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(includedir)" "$(DESTDIR)$(pkgincludedir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
-@MUDFLAP_TRUE@install: $(BUILT_SOURCES)
-@MUDFLAP_TRUE@	$(MAKE) $(AM_MAKEFLAGS) install-am
 install-exec: install-exec-am
 install-data: install-data-am
-@MUDFLAP_TRUE@uninstall: uninstall-am
 
 install-am: all-am
 	@$(MAKE) $(AM_MAKEFLAGS) install-exec-am install-data-am
@@ -820,40 +869,43 @@ uninstall-am: uninstall-includeHEADERS uninstall-libLIBRARIES \
 
 
 %.os: %.c %.o
-@AMDEP_TRUE@	if $(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED -MT $@ -MD -MP \
+@AMDEP_TRUE@	$(AM_V_CC)if $(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) -MT $@ -MD -MP \
 @AMDEP_TRUE@	  -MF "$(DEPDIR)/$*.Tpo" `test -f '$<' || echo '$(srcdir)/'`$<; \
 @AMDEP_TRUE@	then cat "$(DEPDIR)/$*.Tpo" >> "$(DEPDIR)/$*.Po"; \
 @AMDEP_TRUE@	     rm -f "$(DEPDIR)/$*.Tpo"; \
 @AMDEP_TRUE@	else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; \
 @AMDEP_TRUE@	fi
-@AMDEP_FALSE@	$(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED $<
+@AMDEP_FALSE@	$(AM_V_CC)$(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) $<
+
+print-%:
+	@echo $*=$($*)
 @MAINTAINER_MODE_TRUE@$(srcdir)/known-dwarf.h: $(top_srcdir)/config/known-dwarf.awk $(srcdir)/dwarf.h
 @MAINTAINER_MODE_TRUE@	gawk -f $^ > $@.new
 @MAINTAINER_MODE_TRUE@	mv -f $@.new $@
-@MUDFLAP_FALSE@libdw.so: $(srcdir)/libdw.map libdw_pic.a \
-@MUDFLAP_FALSE@	  ../libdwfl/libdwfl_pic.a ../libebl/libebl.a \
-@MUDFLAP_FALSE@	  ../libelf/libelf.so
+libdw.so$(EXEEXT): $(srcdir)/libdw.map libdw_pic.a ../libdwelf/libdwelf_pic.a \
+	  ../libdwfl/libdwfl_pic.a ../libebl/libebl.a \
+	  ../libelf/libelf.so
 # The rpath is necessary for libebl because its $ORIGIN use will
 # not fly in a setuid executable that links in libdw.
-@MUDFLAP_FALSE@	$(LINK) -shared -o $@ -Wl,--soname,$@.$(VERSION),-z,defs \
-@MUDFLAP_FALSE@		-Wl,--enable-new-dtags,-rpath,$(pkglibdir) \
-@MUDFLAP_FALSE@		-Wl,--version-script,$<,--no-undefined \
-@MUDFLAP_FALSE@		-Wl,--whole-archive $(filter-out $<,$^) -Wl,--no-whole-archive\
-@MUDFLAP_FALSE@		-ldl $(zip_LIBS)
-@MUDFLAP_FALSE@	if readelf -d $@ | fgrep -q TEXTREL; then exit 1; fi
-@MUDFLAP_FALSE@	ln -fs $@ $@.$(VERSION)
+	$(AM_V_CCLD)$(LINK) -shared -o $@ -Wl,--soname,$@.$(VERSION),-z,defs \
+		-Wl,--enable-new-dtags,-rpath,$(pkglibdir) \
+		-Wl,--version-script,$<,--no-undefined \
+		-Wl,--whole-archive $(filter-out $<,$^) -Wl,--no-whole-archive\
+		-ldl $(argp_LDADD) $(zip_LIBS)
+	@$(textrel_check)
+	$(AM_V_at)ln -fs $@ $@.$(VERSION)
 
-@MUDFLAP_FALSE@install: install-am libdw.so
-@MUDFLAP_FALSE@	$(mkinstalldirs) $(DESTDIR)$(libdir)
-@MUDFLAP_FALSE@	$(INSTALL_PROGRAM) libdw.so $(DESTDIR)$(libdir)/libdw-$(PACKAGE_VERSION).so
-@MUDFLAP_FALSE@	ln -fs libdw-$(PACKAGE_VERSION).so $(DESTDIR)$(libdir)/libdw.so.$(VERSION)
-@MUDFLAP_FALSE@	ln -fs libdw.so.$(VERSION) $(DESTDIR)$(libdir)/libdw.so
+install: install-am libdw.so
+	$(mkinstalldirs) $(DESTDIR)$(libdir)
+	$(INSTALL_PROGRAM) libdw.so $(DESTDIR)$(libdir)/libdw-$(PACKAGE_VERSION).so
+	ln -fs libdw-$(PACKAGE_VERSION).so $(DESTDIR)$(libdir)/libdw.so.$(VERSION)
+	ln -fs libdw.so.$(VERSION) $(DESTDIR)$(libdir)/libdw.so
 
-@MUDFLAP_FALSE@uninstall: uninstall-am
-@MUDFLAP_FALSE@	rm -f $(DESTDIR)$(libdir)/libdw-$(PACKAGE_VERSION).so
-@MUDFLAP_FALSE@	rm -f $(DESTDIR)$(libdir)/libdw.so.$(VERSION)
-@MUDFLAP_FALSE@	rm -f $(DESTDIR)$(libdir)/libdw.so
-@MUDFLAP_FALSE@	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(includedir)/elfutils
+uninstall: uninstall-am
+	rm -f $(DESTDIR)$(libdir)/libdw-$(PACKAGE_VERSION).so
+	rm -f $(DESTDIR)$(libdir)/libdw.so.$(VERSION)
+	rm -f $(DESTDIR)$(libdir)/libdw.so
+	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(includedir)/elfutils
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

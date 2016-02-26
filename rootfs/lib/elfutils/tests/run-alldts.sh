@@ -1,34 +1,28 @@
 #! /bin/sh
 # Copyright (C) 2011 Red Hat, Inc.
-# This file is part of Red Hat elfutils.
+# This file is part of elfutils.
 #
-# Red Hat elfutils is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by the
-# Free Software Foundation; version 2 of the License.
+# This file is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
 #
-# Red Hat elfutils is distributed in the hope that it will be useful, but
+# elfutils is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License along
-# with Red Hat elfutils; if not, write to the Free Software Foundation,
-# Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-#
-# Red Hat elfutils is an included package of the Open Invention Network.
-# An included package of the Open Invention Network is a package for which
-# Open Invention Network licensees cross-license their patents.  No patent
-# license is granted, either expressly or impliedly, by designation as an
-# included package.  Should you wish to participate in the Open Invention
-# Network licensing program, please visit www.openinventionnetwork.com
-# <http://www.openinventionnetwork.com>.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 . $srcdir/test-subr.sh
 
-# This will produce "testfile-alldts" file
-./alldts
+tempfiles testfile-alldts
 
-testrun_compare ../src/readelf -d testfile-alldts <<\EOF
+# This will produce "testfile-alldts" file
+testrun ${abs_builddir}/alldts
+
+testrun_compare ${abs_top_builddir}/src/readelf -d testfile-alldts <<\EOF
 
 Dynamic segment contains 66 entries:
  Addr: 0x000001a0  Offset: 0x000078  Link to section: [ 0] ''
@@ -100,7 +94,5 @@ Dynamic segment contains 66 entries:
   AUXILIARY         0xdeadbeef
   FILTER            0xdeadbeef
 EOF
-
-rm -f testfile-alldts
 
 exit 0

@@ -1,66 +1,83 @@
 ## Common automake fragments for elfutils subdirectory makefiles.
 ##
-## Copyright (C) 2010-2011 Red Hat, Inc.
-## This file is part of Red Hat elfutils.
+## Copyright (C) 2010, 2014 Red Hat, Inc.
 ##
-## Red Hat elfutils is free software; you can redistribute it and/or modify
-## it under the terms of the GNU General Public License as published by the
-## Free Software Foundation; version 2 of the License.
+## This file is part of elfutils.
 ##
-## Red Hat elfutils is distributed in the hope that it will be useful, but
+## This file is free software; you can redistribute it and/or modify
+## it under the terms of either
+##
+##   * the GNU Lesser General Public License as published by the Free
+##     Software Foundation; either version 3 of the License, or (at
+##     your option) any later version
+##
+## or
+##
+##   * the GNU General Public License as published by the Free
+##     Software Foundation; either version 2 of the License, or (at
+##     your option) any later version
+##
+## or both in parallel, as here.
+##
+## elfutils is distributed in the hope that it will be useful, but
 ## WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 ## General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License along
-## with Red Hat elfutils; if not, write to the Free Software Foundation,
-## Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
+## You should have received copies of the GNU General Public License and
+## the GNU Lesser General Public License along with this program.  If
+## not, see <http://www.gnu.org/licenses/>.
 ##
-## Red Hat elfutils is an included package of the Open Invention Network.
-## An included package of the Open Invention Network is a package for which
-## Open Invention Network licensees cross-license their patents.  No patent
-## license is granted, either expressly or impliedly, by designation as an
-## included package.  Should you wish to participate in the Open Invention
-## Network licensing program, please visit www.openinventionnetwork.com
-## <http://www.openinventionnetwork.com>.
-##
-
-WEXTRA = @WEXTRA@
-LD_AS_NEEDED = @LD_AS_NEEDED@
 
 DEFS = -D_GNU_SOURCE -DHAVE_CONFIG_H -DLOCALEDIR='"${localedir}"'
-INCLUDES = -I. -I$(srcdir) -I$(top_srcdir)/lib -I..
-AM_CFLAGS = -std=gnu99 -Wall -Wshadow \
-	    $(if $($(*F)_no_Wunused),,-Wunused $(WEXTRA)) \
-	    $(if $($(*F)_no_Wformat),-Wno-format,-Wformat=2) \
+AM_CPPFLAGS = -I. -I$(srcdir) -I$(top_srcdir)/lib -I..
+
+# Drop the 'u' flag that automake adds by default. It is incompatible
+# with deterministic archives.
+ARFLAGS = cr
+
+# Warn about stack usage of more than 256K = 262144 bytes.
+if ADD_STACK_USAGE_WARNING
+STACK_USAGE_WARNING=-Wstack-usage=262144
+else
+STACK_USAGE_WARNING=
+endif
+AM_CFLAGS = -std=gnu99 -Wall -Wshadow -Wformat=2 \
+	    -Wold-style-definition -Wstrict-prototypes \
+	    $(if $($(*F)_no_Werror),,-Werror) \
+	    $(if $($(*F)_no_Wunused),,-Wunused -Wextra) \
+	    $(if $($(*F)_no_Wstack_usage),,$(STACK_USAGE_WARNING)) \
 	    $($(*F)_CFLAGS)
 
-if BUILD_WERROR
-AM_CFLAGS += $(if $($(*F)_no_Werror),,-Werror)
-endif
+COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage, $(COMPILE))
 
-if MUDFLAP
-AM_CFLAGS += -fmudflap
-libmudflap = -lmudflap
+DEFS.os = -DPIC -DSHARED
+if SYMBOL_VERSIONING
+DEFS.os += -DSYMBOL_VERSIONING
 else
-libmudflap =
 endif
-
-COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage $(no_mudflap.os),\
-	     		  $(COMPILE))
 
 %.os: %.c %.o
 if AMDEP
-	if $(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED -MT $@ -MD -MP \
+	$(AM_V_CC)if $(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) -MT $@ -MD -MP \
 	  -MF "$(DEPDIR)/$*.Tpo" `test -f '$<' || echo '$(srcdir)/'`$<; \
 	then cat "$(DEPDIR)/$*.Tpo" >> "$(DEPDIR)/$*.Po"; \
 	     rm -f "$(DEPDIR)/$*.Tpo"; \
 	else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; \
 	fi
 else
-	$(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED $<
+	$(AM_V_CC)$(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) $<
 endif
 
 CLEANFILES = *.gcno *.gcda
 
-textrel_check = if readelf -d $@ | fgrep -q TEXTREL; then exit 1; fi
+textrel_msg = echo "WARNING: TEXTREL found in '$@'"
+if FATAL_TEXTREL
+textrel_found = $(textrel_msg); exit 1
+else
+textrel_found = $(textrel_msg)
+endif
+textrel_check = if $(READELF) -d $@ | fgrep -q TEXTREL; then $(textrel_found); fi
+
+print-%:
+	@echo $*=$($*)

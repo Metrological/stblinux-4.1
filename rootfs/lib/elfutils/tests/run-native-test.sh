@@ -1,27 +1,19 @@
 #! /bin/sh
-# Copyright (C) 2005, 2006 Red Hat, Inc.
-# This file is part of Red Hat elfutils.
+# Copyright (C) 2005, 2006, 2013 Red Hat, Inc.
+# This file is part of elfutils.
 #
-# Red Hat elfutils is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by the
-# Free Software Foundation; version 2 of the License.
+# This file is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
 #
-# Red Hat elfutils is distributed in the hope that it will be useful, but
+# elfutils is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License along
-# with Red Hat elfutils; if not, write to the Free Software Foundation,
-# Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-#
-# Red Hat elfutils is an included package of the Open Invention Network.
-# An included package of the Open Invention Network is a package for which
-# Open Invention Network licensees cross-license their patents.  No patent
-# license is granted, either expressly or impliedly, by designation as an
-# included package.  Should you wish to participate in the Open Invention
-# Network licensing program, please visit www.openinventionnetwork.com
-# <http://www.openinventionnetwork.com>.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 . $srcdir/test-subr.sh
@@ -53,7 +45,14 @@ native_cleanup()
   test_cleanup
 }
 
-trap native_cleanup 0 1 2 15
+native_exit()
+{
+  native_cleanup
+  exit_cleanup
+}
+
+trap native_cleanup 1 2 15
+trap native_exit 0
 
 for cc in "$HOSTCC" "$HOST_CC" cc gcc "$CC"; do
   test "x$cc" != x || continue
@@ -78,8 +77,8 @@ native_test()
   test $native -eq 0 || testrun "$@" -p $native > /dev/null
 }
 
-native_test ./allregs
-native_test ./funcretval
+native_test ${abs_builddir}/allregs
+native_test ${abs_builddir}/funcretval
 
 # We do this explicitly rather than letting the trap 0 cover it,
 # because as of version 3.1 bash prints the "Killed" report for

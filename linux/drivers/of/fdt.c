@@ -453,6 +453,9 @@ int __initdata dt_root_addr_cells;
 int __initdata dt_root_size_cells;
 
 void *initial_boot_params;
+#ifdef CONFIG_BRCMSTB
+EXPORT_SYMBOL(initial_boot_params);
+#endif
 
 #ifdef CONFIG_OF_EARLY_FLATTREE
 

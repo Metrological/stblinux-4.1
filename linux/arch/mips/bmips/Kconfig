@@ -57,6 +57,23 @@ config DT_BCM97425SVMB
 	bool "BCM97425SVMB"
 	select BUILTIN_DTB
 
+config DT_BCM97429SVMB
+	bool "BCM97429SVMB"
+	select BUILTIN_DTB
+
+config DT_BCM97435SVMB
+	bool "BCM97435SVMB"
+	select BUILTIN_DTB
+
+config DT_BCM974XX
+	bool "BCM974xx"
+	select FW_CFE
+	select BUILTIN_DTB
+	help
+		Broadcom unified device tree for BCM974xx boards, supported
+		platforms are BCM97425, BCM97429 and BCM97435. Do not select
+		this for other BCM974xx platforms.
+
 endchoice
 
 endif

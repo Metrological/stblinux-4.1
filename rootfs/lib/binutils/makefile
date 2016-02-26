@@ -11,8 +11,9 @@ export CC CFLAGS
 .PHONY: all
 all::
 	if [ ! -e Makefile ]; then \
-		./configure --disable-shared --host=$(MACHINE)-linux || \
-			exit 1 ; \
+		./configure --disable-shared --host=$(MACHINE)-linux \
+			--disable-nls --disable-etc \
+			--disable-gas || exit 1 ; \
 	fi
 	$(MAKE) -f Makefile configure-host
 	find . -name Makefile | xargs sed -i 's/\(SUBDIRS.*\) doc/\1/g'

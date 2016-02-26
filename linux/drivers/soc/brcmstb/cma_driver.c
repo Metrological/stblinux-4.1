@@ -1,7 +1,7 @@
 /*
  *  cma_driver.c - Broadcom STB platform CMA driver
  *
- *  Copyright © 2009 - 2015 Broadcom Corporation
+ *  Copyright © 2009 - 2016 Broadcom
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include <linux/sched.h>
 #include <linux/spinlock.h>
 #include <linux/brcmstb/cma_driver.h>
+#include <linux/brcmstb/memory_api.h>
 #include <linux/mmzone.h>
 #include <linux/memblock.h>
 #include <linux/device.h>
@@ -112,6 +113,20 @@ static int __init cma_low_kern_rsv_pct_set(char *p)
 }
 early_param("brcm_cma_low_kern_rsv_pct", cma_low_kern_rsv_pct_set);
 
+static int __init __cma_rsv_setup(phys_addr_t addr, phys_addr_t size)
+{
+	if (n_cma_regions == MAX_CMA_AREAS) {
+		pr_warn_once("%s: too many regions, ignoring extras\n",
+				__func__);
+		return -EINVAL;
+	}
+
+	cma_rsv_setup_data[n_cma_regions].addr = addr;
+	cma_rsv_setup_data[n_cma_regions].size = size;
+	n_cma_regions++;
+	return 0;
+}
+
 /*
  * We don't do too much checking here because it will be handled by the CMA
  * reservation code
@@ -120,6 +135,7 @@ static int __init cma_rsv_setup(char *str)
 {
 	phys_addr_t addr = 0;
 	phys_addr_t size = 0;
+	int ret;
 
 	size = (phys_addr_t) memparse(str, &str);
 	if (*str == '@')
@@ -131,17 +147,10 @@ static int __init cma_rsv_setup(char *str)
 		return 0;
 	}
 
-	if (n_cma_regions == MAX_CMA_AREAS) {
-		pr_warn_once("%s: too many regions, ignoring extras\n",
-				__func__);
-		return -EINVAL;
-	}
-
-	cma_rsv_setup_data[n_cma_regions].addr = addr;
-	cma_rsv_setup_data[n_cma_regions].size = size;
-	n_cma_regions++;
-	return 0;
-
+	ret = __cma_rsv_setup(addr, size);
+	if (!ret)
+		brcmstb_memory_override_defaults = true;
+	return ret;
 }
 early_param("brcm_cma", cma_rsv_setup);
 
@@ -177,6 +186,20 @@ static void __init cma_reserve_one(int region_idx)
 	}
 }
 
+void __init cma_setup_defaults(void)
+{
+	int ret, iter = 0;
+
+	do {
+		phys_addr_t start, size;
+		/* fill in start and size */
+		ret = brcmstb_memory_get_default_reserve(iter, &start, &size);
+		if (!ret)
+			(void) __cma_rsv_setup(start, size);
+		iter++;
+	} while (ret != -ENOMEM);
+}
+
 void __init cma_reserve(void)
 {
 	int i;
@@ -185,6 +208,11 @@ void __init cma_reserve(void)
 		n_cma_regions = 0;
 		return;
 	}
+
+	if (brcmstb_default_reserve == BRCMSTB_RESERVE_CMA &&
+			!n_cma_regions &&
+			!brcmstb_memory_override_defaults)
+		cma_setup_defaults();
 
 	for (i = 0; i < n_cma_regions; ++i)
 		cma_reserve_one(i);

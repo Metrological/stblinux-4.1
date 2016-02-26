@@ -21,6 +21,9 @@
 #include "xhci.h"
 #include "usb-brcm.h"
 
+static struct hc_driver __read_mostly xhci_brcm_hc_driver;
+
+
 #define BRCM_DRIVER_DESC "xHCI BRCM driver"
 #define BRCM_DRIVER_NAME "xhci-brcm"
 
@@ -61,56 +64,6 @@ static int xhci_brcm_setup(struct usb_hcd *hcd)
 {
 	return xhci_gen_setup(hcd, xhci_brcm_quirks);
 }
-
-static struct hc_driver xhci_brcm_hc_driver = {
-	.description =		"xhci-hcd",
-	.product_desc =		"xHCI Host Controller",
-	.hcd_priv_size =	sizeof(struct brcm_hcd),
-
-	/*
-	 * generic hardware linkage
-	 */
-	.irq =			xhci_irq,
-	.flags =		HCD_MEMORY | HCD_USB3 | HCD_SHARED,
-
-	/*
-	 * basic lifecycle operations
-	 */
-	.reset =		xhci_brcm_setup,
-	.start =		xhci_run,
-	.stop =			xhci_stop,
-	.shutdown =		xhci_shutdown,
-
-	/*
-	 * managing i/o requests and associated device resources
-	 */
-	.urb_enqueue =		xhci_urb_enqueue,
-	.urb_dequeue =		xhci_urb_dequeue,
-	.alloc_dev =		xhci_alloc_dev,
-	.free_dev =		xhci_free_dev,
-	.alloc_streams =	xhci_alloc_streams,
-	.free_streams =		xhci_free_streams,
-	.add_endpoint =		xhci_add_endpoint,
-	.drop_endpoint =	xhci_drop_endpoint,
-	.endpoint_reset =	xhci_endpoint_reset,
-	.check_bandwidth =	xhci_check_bandwidth,
-	.reset_bandwidth =	xhci_reset_bandwidth,
-	.address_device =	xhci_address_device,
-	.enable_device =	xhci_enable_device,
-	.update_hub_device =	xhci_update_hub_device,
-	.reset_device =		xhci_discover_or_reset_device,
-
-	/*
-	 * scheduling support
-	 */
-	.get_frame_number =	xhci_get_frame,
-
-	/* Root hub support */
-	.hub_control =		xhci_hub_control,
-	.hub_status_data =	xhci_hub_status_data,
-	.bus_suspend =		xhci_bus_suspend,
-	.bus_resume =		xhci_bus_resume,
-};
 
 static int xhci_brcm_probe(struct platform_device *pdev)
 {
@@ -214,6 +167,7 @@ static SIMPLE_DEV_PM_OPS(xhci_brcm_pm_ops, xhci_brcm_suspend,
 static const struct of_device_id brcm_xhci_of_match[] = {
 	{ .compatible = "xhci-platform" },
 	{ .compatible = "brcm,xhci-brcm" },
+	{ .compatible = "brcm,xhci-brcm-v2" },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, brcm_xhci_of_match);
@@ -234,6 +188,8 @@ static int __init xhci_brcm_init(void)
 	if (usb_disabled())
 		return -ENODEV;
 	pr_info("%s: " BRCM_DRIVER_DESC "\n", BRCM_DRIVER_NAME);
+	xhci_init_driver(&xhci_brcm_hc_driver, xhci_brcm_setup);
+	xhci_brcm_hc_driver.hcd_priv_size = sizeof(struct brcm_hcd);
 	return platform_driver_register(&xhci_brcm_driver);
 }
 module_init(xhci_brcm_init);

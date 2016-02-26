@@ -115,6 +115,7 @@ static SIMPLE_DEV_PM_OPS(ohci_brcm_pm_ops, ohci_brcm_suspend,
 #ifdef CONFIG_OF
 static const struct of_device_id brcm_ohci_of_match[] = {
 	{ .compatible = "brcm,ohci-brcm", },
+	{ .compatible = "brcm,ohci-brcm-v2", },
 	{}
 };
 

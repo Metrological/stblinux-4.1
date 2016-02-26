@@ -75,6 +75,7 @@ dir_$(CONFIG_LIB_SNAPGEAR)       += libsnapgear libconfigdd
 dir_$(CONFIG_LIB_UARGP)          += libuargp
 dir_$(CONFIG_LIB_GETTEXT)        += gettext
 dir_$(CONFIG_LIB_LIBELF)         += elfutils
+dir_$(CONFIG_LIB_LIBUNWIND)      += libunwind
 
 
 ifneq ($(INITRD_SUBDIR),) 

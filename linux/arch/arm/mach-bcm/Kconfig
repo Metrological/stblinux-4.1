@@ -165,7 +165,6 @@ choice
 
 config BCM3390A0
 	bool "3390 Ax"
-	select BCM7145
 	select BRCM_HAS_NAND_MAJOR_7
 	select BRCM_HAS_NAND_MINOR_1
 	select BRCM_HAS_BSPI_V4
@@ -174,16 +173,8 @@ config BCM3390A0
 
 config BCM3390B0
 	bool "3390 Bx"
-	select BCM7145
 	select BRCM_HAS_NAND_MAJOR_7
 	select BRCM_HAS_NAND_MINOR_1
-	select BRCM_HAS_BSPI_V4
-	select BRCM_HAS_MOCA_20_GEN23
-	select BRCM_MSPI_64B_WORDS
-
-config BCM7145B0
-	bool "7145 Bx"
-	select BCM7145
 	select BRCM_HAS_BSPI_V4
 	select BRCM_HAS_MOCA_20_GEN23
 	select BRCM_MSPI_64B_WORDS
@@ -295,6 +286,8 @@ config BRCM_USB
 	select BRCM_USB_OHCI if USB_OHCI_HCD
 	select BRCM_USB_EHCI if USB_EHCI_HCD
 	select BRCM_USB_XHCI if USB_XHCI_HCD
+	select BRCM_USB_PHY if USB_OHCI_HCD || USB_EHCI_HCD || USB_XHCI_HCD
+	select GENERIC_PHY if BRCM_USB_PHY
 	default y
 	help
 	  Say Y to enable the drivers for the onchip USB controllers.
@@ -320,9 +313,6 @@ config BRCM_SDIO
 #####################################################################
 
 config BRCMSTB
-	bool
-
-config BCM7145
 	bool
 
 config BCM7250
@@ -434,4 +424,7 @@ config BRCM_USB_EHCI
        tristate
 
 config BRCM_USB_XHCI
+       tristate
+
+config BRCM_USB_PHY
        tristate

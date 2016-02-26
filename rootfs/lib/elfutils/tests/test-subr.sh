@@ -1,27 +1,19 @@
 #! /bin/sh
-# Copyright (C) 2005-2012 Red Hat, Inc.
-# This file is part of Red Hat elfutils.
+# Copyright (C) 2005-2015 Red Hat, Inc.
+# This file is part of elfutils.
 #
-# Red Hat elfutils is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by the
-# Free Software Foundation; version 2 of the License.
+# This file is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
 #
-# Red Hat elfutils is distributed in the hope that it will be useful, but
+# elfutils is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License along
-# with Red Hat elfutils; if not, write to the Free Software Foundation,
-# Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-#
-# Red Hat elfutils is an included package of the Open Invention Network.
-# An included package of the Open Invention Network is a package for which
-# Open Invention Network licensees cross-license their patents.  No patent
-# license is granted, either expressly or impliedly, by designation as an
-# included package.  Should you wish to participate in the Open Invention
-# Network licensing program, please visit www.openinventionnetwork.com
-# <http://www.openinventionnetwork.com>.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 # This file is sourced by ". $srcdir/test-subr.sh" at the start of
@@ -30,11 +22,22 @@
 
 set -e
 
+# Each test runs in its own directory to make sure they can run in parallel.
+test_dir="test-$$"
+mkdir -p "$test_dir"
+cd "$test_dir"
+
 #LC_ALL=C
 #export LC_ALL
 
 remove_files=
-trap 'rm -f $remove_files' 0
+
+# Tests that trap EXIT (0) themselves should call this explicitly.
+exit_cleanup()
+{
+  rm -f $remove_files; cd ..; rmdir $test_dir
+}
+trap exit_cleanup 0
 
 tempfiles()
 {
@@ -44,7 +47,7 @@ tempfiles()
 testfiles()
 {
   for file; do
-    bunzip2 -c $srcdir/${file}.bz2 > ${file} 2>/dev/null || exit 77
+    bunzip2 -c ${abs_srcdir}/${file}.bz2 > ${file} || exit 77
     remove_files="$remove_files $file"
   done
 }
@@ -80,7 +83,7 @@ testrun()
 built_testrun()
 {
   LD_LIBRARY_PATH="${built_library_path}${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH"\
-  "$@"
+  $VALGRIND_CMD "$@"
 }
 
 installed_testrun()
@@ -88,26 +91,64 @@ installed_testrun()
   program="$1"
   shift
   case "$program" in
-  ./*)
+  ${abs_builddir}/*)
     if [ "x$elfutils_tests_rpath" != xno ]; then
       echo >&2 installcheck not possible with --enable-tests-rpath
       exit 77
     fi
     ;;
-  ../*)
+  ${abs_top_builddir}/src/*)
     program=${bindir}/`program_transform ${program##*/}`
     ;;
   esac
   if [ "${libdir}" != /usr/lib ] && [ "${libdir}" != /usr/lib64 ]; then
     LD_LIBRARY_PATH="${libdir}:${libdir}/elfutils\
 ${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH" \
-    $program ${1+"$@"}
+    $VALGRIND_CMD $program ${1+"$@"}
   else
-    $program ${1+"$@"}
+    $VALGRIND_CMD $program ${1+"$@"}
   fi
 }
 
 program_transform()
 {
   echo "$*" | sed "${program_transform_name}"
+}
+
+self_test_files=`echo ${abs_top_builddir}/src/addr2line \
+${abs_top_builddir}/src/elfcmp ${abs_top_builddir}/src/elflint \
+${abs_top_builddir}/src/nm ${abs_top_builddir}/src/objdump \
+${abs_top_builddir}/src/readelf \
+${abs_top_builddir}/src/size.o ${abs_top_builddir}/src/strip.o \
+${abs_top_builddir}/libelf/libelf.so \
+${abs_top_builddir}/libdw/libdw.so \
+${abs_top_builddir}/backends/libebl_i386.so \
+${abs_top_builddir}/backends/libebl_x86_64.so`
+
+# Provide a command to run on all self-test files with testrun.
+testrun_on_self()
+{
+  exit_status=0
+
+  for file in $self_test_files; do
+      testrun $* $file \
+	  || { echo "*** failure in $* $file"; exit_status=1; }
+  done
+
+  # Only exit if something failed
+  if test $exit_status != 0; then exit $exit_status; fi
+}
+
+# Same as above, but redirects stdout to /dev/null
+testrun_on_self_quiet()
+{
+  exit_status=0
+
+  for file in $self_test_files; do
+      testrun $* $file > /dev/null \
+	  || { echo "*** failure in $* $file"; exit_status=1; }
+  done
+
+  # Only exit if something failed
+  if test $exit_status != 0; then exit $exit_status; fi
 }

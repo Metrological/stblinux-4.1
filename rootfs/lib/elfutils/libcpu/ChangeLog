@@ -1,3 +1,36 @@
+2015-10-05  Josh Stone  <jistone@redhat.com>
+
+	* Makefile.am (%_defs): Add AM_V_GEN and AM_V_at silencers.
+	($(srcdir)/%_dis.h): Ditto.
+	(%.mnemonics): Add AM_V_GEN silencer.
+
+2014-10-29  Jose E. Marchesi  <jose.marchesi@oracle.com>
+
+	* Makefile.am (AM_CFLAGS): Use -fPIC instead of -fpic to avoid
+	relocation overflows in some platforms.
+
+2014-04-13  Mark Wielaard  <mjw@redhat.com>
+
+	* Makefile.am (i386_gendis_LDADD): Remove libmudflap.
+
+2013-04-24  Mark Wielaard  <mjw@redhat.com>
+
+	* Makefile.am: Use AM_CPPFLAGS instead of INCLUDES.
+
+2012-10-10  Roland McGrath  <roland@hack.frob.com>
+
+	* Makefile.am (%_defs, $(srcdir)/%_dis.h): Redirect to temp file,
+	mv into place with separate command.
+
+2012-06-26  Roland McGrath  <roland@hack.frob.com>
+
+	* Makefile.am [!MAINTAINER_MODE] ($(srcdir)/%_dis.h): New rule.
+
+2012-02-24  Mark Wielaard  <mjw@redhat.com>
+
+	* Makefile.am (CLEANFILES): Move %_dis.h to...
+	(MAINTAINERCLEANFILES): here.
+
 2012-01-21  Ulrich Drepper  <drepper@gmail.com>
 
 	* i386_disasm.c (ADD_NSTRING): Define.
@@ -28,9 +61,6 @@
 	default on every machine.
 
 2009-01-23  Roland McGrath  <roland@redhat.com>
-
-	* i386_disasm.c (i386_disasm): Add abort after assert-constant for old
-	compilers that don't realize it's noreturn.
 
 	* Makefile.am (i386_parse_CFLAGS): Use quotes around command
 	substitution that can produce leading whitespace.
@@ -360,11 +390,6 @@
 	* defs/i386: New file.
 	* defs/i386.doc: New file.
 	* defs/x86_64: New file.
-
-2005-04-04  Roland McGrath  <roland@redhat.com>
-
-	* Makefile.am (WEXTRA): New variable, substituted by configure.
-	(AM_CFLAGS): Use it instead of -Wextra.
 
 2005-02-15  Ulrich Drepper  <drepper@redhat.com>
 

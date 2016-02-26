@@ -1,27 +1,31 @@
 /* x86-64 specific core note handling.
    Copyright (C) 2005, 2007, 2008 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) H.J. Lu <hjl.tools@gmail.com>, 2015.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -33,7 +37,13 @@
 #include <stdio.h>
 #include <sys/time.h>
 
-#define BACKEND		x86_64_
+#ifndef BITS
+# define BITS 		64
+# define BACKEND	x86_64_
+#else
+# define BITS 		32
+# define BACKEND	x32_
+#endif
 #include "libebl_CPU.h"
 
 
@@ -74,15 +84,35 @@ static const Ebl_Register_Location prstatus_regs[] =
   };
 #define PRSTATUS_REGS_SIZE	(27 * 8)
 
-#define	ULONG			uint64_t
+#if BITS == 32
+# define ULONG			uint32_t
+# define ALIGN_ULONG		4
+# define TYPE_ULONG		ELF_T_WORD
+# define PRPSINFO_UID_T		uint16_t
+# define ALIGN_PRPSINFO_UID_T	2
+# define TYPE_PRPSINFO_UID_T	ELF_T_HALF
+# define PRPSINFO_GID_T		uint16_t
+# define ALIGN_PRPSINFO_GID_T	2
+# define TYPE_PRPSINFO_GID_T	ELF_T_HALF
+#else
+# define ULONG			uint64_t
+# define ALIGN_ULONG		8
+# define TYPE_ULONG		ELF_T_XWORD
+# define PRPSINFO_UID_T		uint32_t
+# define ALIGN_PRPSINFO_UID_T	4
+# define TYPE_PRPSINFO_UID_T	TYPE_UID_T
+# define PRPSINFO_GID_T		uint32_t
+# define ALIGN_PRPSINFO_GID_T	4
+# define TYPE_PRPSINFO_GID_T	TYPE_GID_T
+#endif
+#define PR_REG			uint64_t
+#define ALIGN_PR_REG		8
 #define PID_T			int32_t
 #define	UID_T			uint32_t
 #define	GID_T			uint32_t
-#define ALIGN_ULONG		8
 #define ALIGN_PID_T		4
 #define ALIGN_UID_T		4
 #define ALIGN_GID_T		4
-#define TYPE_ULONG		ELF_T_XWORD
 #define TYPE_PID_T		ELF_T_SWORD
 #define TYPE_UID_T		ELF_T_SWORD
 #define TYPE_GID_T		ELF_T_SWORD

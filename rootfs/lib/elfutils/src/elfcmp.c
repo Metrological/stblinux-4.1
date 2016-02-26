@@ -1,28 +1,20 @@
 /* Compare relevant content of two ELF files.
-   Copyright (C) 2005-2012 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2005-2012, 2014, 2015 Red Hat, Inc.
+   This file is part of elfutils.
    Written by Ulrich Drepper <drepper@redhat.com>, 2005.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -295,7 +287,8 @@ main (int argc, char *argv[])
 
       /* Compare the headers.  We allow the name to be at a different
 	 location.  */
-      if (unlikely (strcmp (sname1, sname2) != 0))
+      if (unlikely (sname1 == NULL || sname2 == NULL
+		    || strcmp (sname1, sname2) != 0))
 	{
 	  error (0, 0, gettext ("%s %s differ: section [%zu], [%zu] name"),
 		 fname1, fname2, elf_ndxscn (scn1), elf_ndxscn (scn2));
@@ -303,8 +296,8 @@ main (int argc, char *argv[])
 	}
 
       /* We ignore certain sections.  */
-      if (strcmp (sname1, ".gnu_debuglink") == 0
-	  || strcmp (sname1, ".gnu.prelink_undo") == 0)
+      if ((sname1 != NULL && strcmp (sname1, ".gnu_debuglink") == 0)
+	  || (sname1 != NULL && strcmp (sname1, ".gnu.prelink_undo") == 0))
 	continue;
 
       if (shdr1->sh_type != shdr2->sh_type
@@ -341,6 +334,11 @@ main (int argc, char *argv[])
 	{
 	case SHT_DYNSYM:
 	case SHT_SYMTAB:
+	  if (shdr1->sh_entsize == 0)
+	    error (2, 0,
+		   gettext ("symbol table [%zu] in '%s' has zero sh_entsize"),
+		   elf_ndxscn (scn1), fname1);
+
 	  /* Iterate over the symbol table.  We ignore the st_size
 	     value of undefined symbols.  */
 	  for (int ndx = 0; ndx < (int) (shdr1->sh_size / shdr1->sh_entsize);
@@ -363,7 +361,8 @@ main (int argc, char *argv[])
 					      sym1->st_name);
 	      const char *name2 = elf_strptr (elf2, shdr2->sh_link,
 					      sym2->st_name);
-	      if (unlikely (strcmp (name1, name2) != 0
+	      if (unlikely (name1 == NULL || name2 == NULL
+			    || strcmp (name1, name2) != 0
 			    || sym1->st_value != sym2->st_value
 			    || (sym1->st_size != sym2->st_size
 				&& sym1->st_shndx != SHN_UNDEF)
@@ -512,6 +511,7 @@ cannot read note section [%zu] '%s' in '%s': %s"),
 
 	  if (unlikely (data1->d_size != data2->d_size
 			|| (shdr1->sh_type != SHT_NOBITS
+			    && data1->d_size != 0
 			    && memcmp (data1->d_buf, data2->d_buf,
 				       data1->d_size) != 0)))
 	    {
@@ -598,13 +598,13 @@ cannot read note section [%zu] '%s' in '%s': %s"),
     {
       GElf_Phdr phdr1_mem;
       GElf_Phdr *phdr1 = gelf_getphdr (elf1, ndx, &phdr1_mem);
-      if (ehdr1 == NULL)
+      if (phdr1 == NULL)
 	error (2, 0,
 	       gettext ("cannot get program header entry %d of '%s': %s"),
 	       ndx, fname1, elf_errmsg (-1));
       GElf_Phdr phdr2_mem;
       GElf_Phdr *phdr2 = gelf_getphdr (elf2, ndx, &phdr2_mem);
-      if (ehdr2 == NULL)
+      if (phdr2 == NULL)
 	error (2, 0,
 	       gettext ("cannot get program header entry %d of '%s': %s"),
 	       ndx, fname2, elf_errmsg (-1));
@@ -767,7 +767,7 @@ search_for_copy_reloc (Ebl *ebl, size_t scnndx, int symndx)
 	       gettext ("cannot get content of section %zu: %s"),
 	       elf_ndxscn (scn), elf_errmsg (-1));
 
-      if (shdr->sh_type == SHT_REL)
+      if (shdr->sh_type == SHT_REL && shdr->sh_entsize != 0)
 	for (int ndx = 0; ndx < (int) (shdr->sh_size / shdr->sh_entsize);
 	     ++ndx)
 	  {
@@ -781,7 +781,7 @@ search_for_copy_reloc (Ebl *ebl, size_t scnndx, int symndx)
 		&& ebl_copy_reloc_p (ebl, GELF_R_TYPE (rel->r_info)))
 	      return true;
 	  }
-      else
+      else if (shdr->sh_entsize != 0)
 	for (int ndx = 0; ndx < (int) (shdr->sh_size / shdr->sh_entsize);
 	     ++ndx)
 	  {
@@ -818,8 +818,7 @@ compare_Elf32_Word (const void *p1, const void *p2)
 {
   const Elf32_Word *w1 = p1;
   const Elf32_Word *w2 = p2;
-  assert (sizeof (int) >= sizeof (*w1));
-  return (int) *w1 - (int) *w2;
+  return *w1 < *w2 ? -1 : *w1 > *w2 ? 1 : 0;
 }
 
 static int

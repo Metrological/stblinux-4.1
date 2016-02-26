@@ -1,26 +1,18 @@
-/* Copyright (C) 2005, 2006 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+/* Copyright (C) 2005, 2006, 2015 Red Hat, Inc.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -36,42 +28,24 @@
 #include ELFUTILS_HEADER(dwfl)
 #include <dwarf.h>
 
+#include "../libdw/known-dwarf.h"
 
 static const char *
 dwarf_encoding_string (unsigned int code)
 {
-  static const char *known[] =
+  static const char *const known[] =
     {
-      [DW_ATE_void] = "void",
-      [DW_ATE_address] = "address",
-      [DW_ATE_boolean] = "boolean",
-      [DW_ATE_complex_float] = "complex_float",
-      [DW_ATE_float] = "float",
-      [DW_ATE_signed] = "signed",
-      [DW_ATE_signed_char] = "signed_char",
-      [DW_ATE_unsigned] = "unsigned",
-      [DW_ATE_unsigned_char] = "unsigned_char",
-      [DW_ATE_imaginary_float] = "imaginary_float",
-      [DW_ATE_packed_decimal] = "packed_decimal",
-      [DW_ATE_numeric_string] = "numeric_string",
-      [DW_ATE_edited] = "edited",
-      [DW_ATE_signed_fixed] = "signed_fixed",
-      [DW_ATE_unsigned_fixed] = "unsigned_fixed",
-      [DW_ATE_decimal_float] = "decimal_float",
+#define DWARF_ONE_KNOWN_DW_ATE(NAME, CODE) [CODE] = #NAME,
+      DWARF_ALL_KNOWN_DW_ATE
+#undef DWARF_ONE_KNOWN_DW_ATE
     };
 
-  if (code < sizeof (known) / sizeof (known[0]))
+  if (likely (code < sizeof (known) / sizeof (known[0])))
     return known[code];
 
-  if (code >= DW_ATE_lo_user && code <= DW_ATE_hi_user)
-    {
-      static char buf[30];
-      snprintf (buf, sizeof (buf), "lo_user+%u", code - DW_ATE_lo_user);
-      return buf;
-    }
-
-  return "???";
+  return NULL;
 }
+
 
 static int
 first_module (Dwfl_Module *mod,

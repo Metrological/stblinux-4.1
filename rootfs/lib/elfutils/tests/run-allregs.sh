@@ -1,27 +1,20 @@
 #! /bin/sh
-# Copyright (C) 2005, 2006, 2007 Red Hat, Inc.
-# This file is part of Red Hat elfutils.
+# Copyright (C) 2005, 2006, 2007, 2012, 2013 Red Hat, Inc.
+# Copyright (C) H.J. Lu <hjl.tools@gmail.com>, 2015.
+# This file is part of elfutils.
 #
-# Red Hat elfutils is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by the
-# Free Software Foundation; version 2 of the License.
+# This file is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
 #
-# Red Hat elfutils is distributed in the hope that it will be useful, but
+# elfutils is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License along
-# with Red Hat elfutils; if not, write to the Free Software Foundation,
-# Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-#
-# Red Hat elfutils is an included package of the Open Invention Network.
-# An included package of the Open Invention Network is a package for which
-# Open Invention Network licensees cross-license their patents.  No patent
-# license is granted, either expressly or impliedly, by designation as an
-# included package.  Should you wish to participate in the Open Invention
-# Network licensing program, please visit www.openinventionnetwork.com
-# <http://www.openinventionnetwork.com>.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 . $srcdir/test-subr.sh
 
@@ -30,7 +23,7 @@ regs_test()
   tempfiles good.regs
   cat > good.regs
   testfiles "$@"
-  for f; do testrun_compare ./allregs -e $f < good.regs; done
+  for f; do testrun_compare ${abs_builddir}/allregs -e $f < good.regs; done
   test_cleanup
 }
 
@@ -2592,4 +2585,289 @@ FPU registers:
 	 63: $fpcr (fpcr), unsigned 64 bits
 EOF
 
+regs_test testfile60 <<\EOF
+integer registers:
+	  0: r0 (r0), signed 64 bits
+	  1: r1 (r1), signed 64 bits
+	  2: r2 (r2), signed 64 bits
+	  3: r3 (r3), signed 64 bits
+	  4: r4 (r4), signed 64 bits
+	  5: r5 (r5), signed 64 bits
+	  6: r6 (r6), signed 64 bits
+	  7: r7 (r7), signed 64 bits
+	  8: r8 (r8), signed 64 bits
+	  9: r9 (r9), signed 64 bits
+	 10: r10 (r10), signed 64 bits
+	 11: r11 (r11), signed 64 bits
+	 12: r12 (r12), signed 64 bits
+	 13: r13 (r13), signed 64 bits
+	 14: r14 (r14), signed 64 bits
+	 15: r15 (r15), signed 64 bits
+	 16: r16 (r16), signed 64 bits
+	 17: r17 (r17), signed 64 bits
+	 18: r18 (r18), signed 64 bits
+	 19: r19 (r19), signed 64 bits
+	 20: r20 (r20), signed 64 bits
+	 21: r21 (r21), signed 64 bits
+	 22: r22 (r22), signed 64 bits
+	 23: r23 (r23), signed 64 bits
+	 24: r24 (r24), signed 64 bits
+	 25: r25 (r25), signed 64 bits
+	 26: r26 (r26), signed 64 bits
+	 27: r27 (r27), signed 64 bits
+	 28: r28 (r28), signed 64 bits
+	 29: r29 (r29), signed 64 bits
+	 30: r30 (r30), signed 64 bits
+	 31: r31 (r31), signed 64 bits
+	 32: r32 (r32), signed 64 bits
+	 33: r33 (r33), signed 64 bits
+	 34: r34 (r34), signed 64 bits
+	 35: r35 (r35), signed 64 bits
+	 36: r36 (r36), signed 64 bits
+	 37: r37 (r37), signed 64 bits
+	 38: r38 (r38), signed 64 bits
+	 39: r39 (r39), signed 64 bits
+	 40: r40 (r40), signed 64 bits
+	 41: r41 (r41), signed 64 bits
+	 42: r42 (r42), signed 64 bits
+	 43: r43 (r43), signed 64 bits
+	 44: r44 (r44), signed 64 bits
+	 45: r45 (r45), signed 64 bits
+	 46: r46 (r46), signed 64 bits
+	 47: r47 (r47), signed 64 bits
+	 48: r48 (r48), signed 64 bits
+	 49: r49 (r49), signed 64 bits
+	 50: r50 (r50), signed 64 bits
+	 51: r51 (r51), signed 64 bits
+	 52: r52 (r52), signed 64 bits
+	 53: tp (tp), address 64 bits
+	 54: sp (sp), address 64 bits
+	 55: lr (lr), address 64 bits
+	 56: sn (sn), unsigned 64 bits
+	 57: idn0 (idn0), unsigned 64 bits
+	 58: idn1 (idn1), unsigned 64 bits
+	 59: udn0 (udn0), unsigned 64 bits
+	 60: udn1 (udn1), unsigned 64 bits
+	 61: udn2 (udn2), unsigned 64 bits
+	 62: udn3 (udn3), unsigned 64 bits
+	 63: zero (zero), unsigned 64 bits
+	 64: pc (pc), address 64 bits
+EOF
+
+regs_test testfile61 <<\EOF
+integer registers:
+	  0: r0 (r0), signed 32 bits
+	  1: r1 (r1), signed 32 bits
+	  2: r2 (r2), signed 32 bits
+	  3: r3 (r3), signed 32 bits
+	  4: r4 (r4), signed 32 bits
+	  5: r5 (r5), signed 32 bits
+	  6: r6 (r6), signed 32 bits
+	  7: r7 (r7), signed 32 bits
+	  8: r8 (r8), signed 32 bits
+	  9: r9 (r9), signed 32 bits
+	 10: r10 (r10), signed 32 bits
+	 11: r11 (r11), signed 32 bits
+	 12: r12 (r12), signed 32 bits
+	 13: sp (sp), address 32 bits
+	 14: lr (lr), address 32 bits
+	 15: pc (pc), address 32 bits
+	128: spsr (spsr), unsigned 32 bits
+FPA registers:
+	 16: f0 (f0), float 96 bits
+	 17: f1 (f1), float 96 bits
+	 18: f2 (f2), float 96 bits
+	 19: f3 (f3), float 96 bits
+	 20: f4 (f4), float 96 bits
+	 21: f5 (f5), float 96 bits
+	 22: f6 (f6), float 96 bits
+	 23: f7 (f7), float 96 bits
+	 96: f0 (f0), float 96 bits
+	 97: f1 (f1), float 96 bits
+	 98: f2 (f2), float 96 bits
+	 99: f3 (f3), float 96 bits
+	100: f4 (f4), float 96 bits
+	101: f5 (f5), float 96 bits
+	102: f6 (f6), float 96 bits
+	103: f7 (f7), float 96 bits
+VFP registers:
+	256: d0 (d0), float 64 bits
+	257: d1 (d1), float 64 bits
+	258: d2 (d2), float 64 bits
+	259: d3 (d3), float 64 bits
+	260: d4 (d4), float 64 bits
+	261: d5 (d5), float 64 bits
+	262: d6 (d6), float 64 bits
+	263: d7 (d7), float 64 bits
+	264: d8 (d8), float 64 bits
+	265: d9 (d9), float 64 bits
+	266: d10 (d10), float 64 bits
+	267: d11 (d11), float 64 bits
+	268: d12 (d12), float 64 bits
+	269: d13 (d13), float 64 bits
+	270: d14 (d14), float 64 bits
+	271: d15 (d15), float 64 bits
+	272: d16 (d16), float 64 bits
+	273: d17 (d17), float 64 bits
+	274: d18 (d18), float 64 bits
+	275: d19 (d19), float 64 bits
+	276: d20 (d20), float 64 bits
+	277: d21 (d21), float 64 bits
+	278: d22 (d22), float 64 bits
+	279: d23 (d23), float 64 bits
+	280: d24 (d24), float 64 bits
+	281: d25 (d25), float 64 bits
+	282: d26 (d26), float 64 bits
+	283: d27 (d27), float 64 bits
+	284: d28 (d28), float 64 bits
+	285: d29 (d29), float 64 bits
+	286: d30 (d30), float 64 bits
+	287: d31 (d31), float 64 bits
+EOF
+
+# See run-readelf-mixed-corenote.sh for instructions to regenerate
+# this core file.
+regs_test testfile_aarch64_core <<\EOF
+integer registers:
+	  0: x0 (x0), signed 64 bits
+	  1: x1 (x1), signed 64 bits
+	  2: x2 (x2), signed 64 bits
+	  3: x3 (x3), signed 64 bits
+	  4: x4 (x4), signed 64 bits
+	  5: x5 (x5), signed 64 bits
+	  6: x6 (x6), signed 64 bits
+	  7: x7 (x7), signed 64 bits
+	  8: x8 (x8), signed 64 bits
+	  9: x9 (x9), signed 64 bits
+	 10: x10 (x10), signed 64 bits
+	 11: x11 (x11), signed 64 bits
+	 12: x12 (x12), signed 64 bits
+	 13: x13 (x13), signed 64 bits
+	 14: x14 (x14), signed 64 bits
+	 15: x15 (x15), signed 64 bits
+	 16: x16 (x16), signed 64 bits
+	 17: x17 (x17), signed 64 bits
+	 18: x18 (x18), signed 64 bits
+	 19: x19 (x19), signed 64 bits
+	 20: x20 (x20), signed 64 bits
+	 21: x21 (x21), signed 64 bits
+	 22: x22 (x22), signed 64 bits
+	 23: x23 (x23), signed 64 bits
+	 24: x24 (x24), signed 64 bits
+	 25: x25 (x25), signed 64 bits
+	 26: x26 (x26), signed 64 bits
+	 27: x27 (x27), signed 64 bits
+	 28: x28 (x28), signed 64 bits
+	 29: x29 (x29), signed 64 bits
+	 30: x30 (x30), signed 64 bits
+	 31: sp (sp), address 64 bits
+	 33: elr (elr), address 64 bits
+FP/SIMD registers:
+	 64: v0 (v0), unsigned 128 bits
+	 65: v1 (v1), unsigned 128 bits
+	 66: v2 (v2), unsigned 128 bits
+	 67: v3 (v3), unsigned 128 bits
+	 68: v4 (v4), unsigned 128 bits
+	 69: v5 (v5), unsigned 128 bits
+	 70: v6 (v6), unsigned 128 bits
+	 71: v7 (v7), unsigned 128 bits
+	 72: v8 (v8), unsigned 128 bits
+	 73: v9 (v9), unsigned 128 bits
+	 74: v10 (v10), unsigned 128 bits
+	 75: v11 (v11), unsigned 128 bits
+	 76: v12 (v12), unsigned 128 bits
+	 77: v13 (v13), unsigned 128 bits
+	 78: v14 (v14), unsigned 128 bits
+	 79: v15 (v15), unsigned 128 bits
+	 80: v16 (v16), unsigned 128 bits
+	 81: v17 (v17), unsigned 128 bits
+	 82: v18 (v18), unsigned 128 bits
+	 83: v19 (v19), unsigned 128 bits
+	 84: v20 (v20), unsigned 128 bits
+	 85: v21 (v21), unsigned 128 bits
+	 86: v22 (v22), unsigned 128 bits
+	 87: v23 (v23), unsigned 128 bits
+	 88: v24 (v24), unsigned 128 bits
+	 89: v25 (v25), unsigned 128 bits
+	 90: v26 (v26), unsigned 128 bits
+	 91: v27 (v27), unsigned 128 bits
+	 92: v28 (v28), unsigned 128 bits
+	 93: v29 (v29), unsigned 128 bits
+	 94: v30 (v30), unsigned 128 bits
+	 95: v31 (v31), unsigned 128 bits
+EOF
+
+# See run-readelf-mixed-corenote.sh for instructions to regenerate
+# this core file.
+regs_test testfile-x32-core <<\EOF
+integer registers:
+	  0: %rax (rax), signed 64 bits
+	  1: %rdx (rdx), signed 64 bits
+	  2: %rcx (rcx), signed 64 bits
+	  3: %rbx (rbx), signed 64 bits
+	  4: %rsi (rsi), signed 64 bits
+	  5: %rdi (rdi), signed 64 bits
+	  6: %rbp (rbp), address 64 bits
+	  7: %rsp (rsp), address 64 bits
+	  8: %r8 (r8), signed 64 bits
+	  9: %r9 (r9), signed 64 bits
+	 10: %r10 (r10), signed 64 bits
+	 11: %r11 (r11), signed 64 bits
+	 12: %r12 (r12), signed 64 bits
+	 13: %r13 (r13), signed 64 bits
+	 14: %r14 (r14), signed 64 bits
+	 15: %r15 (r15), signed 64 bits
+	 16: %rip (rip), address 64 bits
+	 49: %rflags (rflags), unsigned 64 bits
+MMX registers:
+	 41: %mm0 (mm0), unsigned 64 bits
+	 42: %mm1 (mm1), unsigned 64 bits
+	 43: %mm2 (mm2), unsigned 64 bits
+	 44: %mm3 (mm3), unsigned 64 bits
+	 45: %mm4 (mm4), unsigned 64 bits
+	 46: %mm5 (mm5), unsigned 64 bits
+	 47: %mm6 (mm6), unsigned 64 bits
+	 48: %mm7 (mm7), unsigned 64 bits
+SSE registers:
+	 17: %xmm0 (xmm0), unsigned 128 bits
+	 18: %xmm1 (xmm1), unsigned 128 bits
+	 19: %xmm2 (xmm2), unsigned 128 bits
+	 20: %xmm3 (xmm3), unsigned 128 bits
+	 21: %xmm4 (xmm4), unsigned 128 bits
+	 22: %xmm5 (xmm5), unsigned 128 bits
+	 23: %xmm6 (xmm6), unsigned 128 bits
+	 24: %xmm7 (xmm7), unsigned 128 bits
+	 25: %xmm8 (xmm8), unsigned 128 bits
+	 26: %xmm9 (xmm9), unsigned 128 bits
+	 27: %xmm10 (xmm10), unsigned 128 bits
+	 28: %xmm11 (xmm11), unsigned 128 bits
+	 29: %xmm12 (xmm12), unsigned 128 bits
+	 30: %xmm13 (xmm13), unsigned 128 bits
+	 31: %xmm14 (xmm14), unsigned 128 bits
+	 32: %xmm15 (xmm15), unsigned 128 bits
+control registers:
+	 62: %tr (tr), unsigned 64 bits
+	 63: %ldtr (ldtr), unsigned 64 bits
+	 64: %mxcsr (mxcsr), unsigned 64 bits
+	 65: %fcw (fcw), unsigned 16 bits
+	 66: %fsw (fsw), unsigned 16 bits
+segment registers:
+	 50: %es (es), unsigned 16 bits
+	 51: %cs (cs), unsigned 16 bits
+	 52: %ss (ss), unsigned 16 bits
+	 53: %ds (ds), unsigned 16 bits
+	 54: %fs (fs), unsigned 16 bits
+	 55: %gs (gs), unsigned 16 bits
+	 58: %fs.base (fs.base), address 64 bits
+	 59: %gs.base (gs.base), address 64 bits
+x87 registers:
+	 33: %st0 (st0), float 80 bits
+	 34: %st1 (st1), float 80 bits
+	 35: %st2 (st2), float 80 bits
+	 36: %st3 (st3), float 80 bits
+	 37: %st4 (st4), float 80 bits
+	 38: %st5 (st5), float 80 bits
+	 39: %st6 (st6), float 80 bits
+	 40: %st7 (st7), float 80 bits
+EOF
 exit 0

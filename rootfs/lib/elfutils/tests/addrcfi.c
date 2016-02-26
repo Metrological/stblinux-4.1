@@ -1,27 +1,19 @@
 /* Test program for CFI handling.
-   Copyright (C) 2009-2010 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2009-2010, 2013, 2015 Red Hat, Inc.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <config.h>
 #include <assert.h>
@@ -33,9 +25,25 @@
 #include <stdio_ext.h>
 #include <locale.h>
 #include <stdlib.h>
-#include <error.h>
 #include <string.h>
 
+#include "../libdw/known-dwarf.h"
+
+static const char *
+op_name (unsigned int code)
+{
+  static const char *const known[] =
+    {
+#define DWARF_ONE_KNOWN_DW_OP(NAME, CODE) [CODE] = #NAME,
+      DWARF_ALL_KNOWN_DW_OP
+#undef DWARF_ONE_KNOWN_DW_OP
+    };
+
+  if (likely (code < sizeof (known) / sizeof (known[0])))
+    return known[code];
+
+  return NULL;
+}
 
 static void
 print_detail (int result, const Dwarf_Op *ops, size_t nops, Dwarf_Addr bias)
@@ -43,13 +51,13 @@ print_detail (int result, const Dwarf_Op *ops, size_t nops, Dwarf_Addr bias)
   if (result < 0)
     printf ("indeterminate (%s)\n", dwarf_errmsg (-1));
   else if (nops == 0)
-    printf ("%s\n", result == 0 ? "same_value" : "undefined");
+    printf ("%s\n", ops == NULL ? "same_value" : "undefined");
   else
     {
       printf ("%s expression:", result == 0 ? "location" : "value");
       for (size_t i = 0; i < nops; ++i)
 	{
-	  printf (" %#x", ops[i].atom);
+	  printf (" %s", op_name(ops[i].atom));
 	  if (ops[i].number2 == 0)
 	    {
 	      if (ops[i].atom == DW_OP_addr)
@@ -97,10 +105,16 @@ static int
 handle_cfi (Dwfl *dwfl, const char *which, Dwarf_CFI *cfi,
 	    GElf_Addr pc, struct stuff *stuff)
 {
+  if (cfi == NULL)
+    {
+      printf ("handle_cfi no CFI (%s): %s\n", which, dwarf_errmsg (-1));
+      return -1;
+    }
+
   int result = dwarf_cfi_addrframe (cfi, pc - stuff->bias, &stuff->frame);
   if (result != 0)
     {
-      error (0, 0, "dwarf_cfi_addrframe (%s): %s", which, dwarf_errmsg (-1));
+      printf ("dwarf_cfi_addrframe (%s): %s\n", which, dwarf_errmsg (-1));
       return 1;
     }
 
@@ -124,7 +138,10 @@ handle_cfi (Dwfl *dwfl, const char *which, Dwarf_CFI *cfi,
     printf ("\treturn address in reg%u%s\n",
 	    ra_regno, signalp ? " (signal frame)" : "");
 
-  Dwarf_Op *cfa_ops;
+  // Point cfa_ops to dummy to match print_detail expectations.
+  // (nops == 0 && cfa_ops != NULL => "undefined")
+  Dwarf_Op dummy;
+  Dwarf_Op *cfa_ops = &dummy;
   size_t cfa_nops;
   result = dwarf_frame_cfa (stuff->frame, &cfa_ops, &cfa_nops);
 

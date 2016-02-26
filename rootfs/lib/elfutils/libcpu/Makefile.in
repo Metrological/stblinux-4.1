@@ -39,12 +39,12 @@ host_triplet = @host@
 DIST_COMMON = $(am__noinst_HEADERS_DIST) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(top_srcdir)/config/eu.am ChangeLog \
 	i386_lex.c i386_parse.c
-@BUILD_WERROR_TRUE@am__append_1 = $(if $($(*F)_no_Werror),,-Werror)
-@MUDFLAP_TRUE@am__append_2 = -fmudflap
+@SYMBOL_VERSIONING_TRUE@am__append_1 = -DSYMBOL_VERSIONING
 @MAINTAINER_MODE_TRUE@noinst_PROGRAMS = i386_gendis$(EXEEXT)
 subdir = libcpu
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/biarch.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
 	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/m4/zip.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -55,7 +55,12 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 LIBRARIES = $(noinst_LIBRARIES)
 AR = ar
-ARFLAGS = cru
+AM_V_AR = $(am__v_AR_$(V))
+am__v_AR_ = $(am__v_AR_$(AM_DEFAULT_VERBOSITY))
+am__v_AR_0 = @echo "  AR    " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
 libcpu_i386_a_AR = $(AR) $(ARFLAGS)
 libcpu_i386_a_LIBADD =
 am_libcpu_i386_a_OBJECTS = i386_disasm.$(OBJEXT)
@@ -68,20 +73,34 @@ PROGRAMS = $(noinst_PROGRAMS)
 am_i386_gendis_OBJECTS = i386_gendis.$(OBJEXT) i386_lex.$(OBJEXT) \
 	i386_parse.$(OBJEXT)
 i386_gendis_OBJECTS = $(am_i386_gendis_OBJECTS)
-am__DEPENDENCIES_1 =
-i386_gendis_DEPENDENCIES = $(libeu) $(am__DEPENDENCIES_1)
+i386_gendis_DEPENDENCIES = $(libeu)
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+AM_V_CC = $(am__v_CC_$(V))
+am__v_CC_ = $(am__v_CC_$(AM_DEFAULT_VERBOSITY))
+am__v_CC_0 = @echo "  CC    " $@;
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CCLD = $(am__v_CCLD_$(V))
+am__v_CCLD_ = $(am__v_CCLD_$(AM_DEFAULT_VERBOSITY))
+am__v_CCLD_0 = @echo "  CCLD  " $@;
 @MAINTAINER_MODE_FALSE@am__skiplex = test -f $@ ||
+AM_V_LEX = $(am__v_LEX_$(V))
+am__v_LEX_ = $(am__v_LEX_$(AM_DEFAULT_VERBOSITY))
+am__v_LEX_0 = @echo "  LEX   " $@;
 YLWRAP = $(top_srcdir)/config/ylwrap
 @MAINTAINER_MODE_FALSE@am__skipyacc = test -f $@ ||
 YACCCOMPILE = $(YACC) $(YFLAGS) $(AM_YFLAGS)
+AM_V_YACC = $(am__v_YACC_$(V))
+am__v_YACC_ = $(am__v_YACC_$(AM_DEFAULT_VERBOSITY))
+am__v_YACC_0 = @echo "  YACC  " $@;
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libcpu_i386_a_SOURCES) $(libcpu_x86_64_a_SOURCES) \
 	$(i386_gendis_SOURCES)
 DIST_SOURCES = $(libcpu_i386_a_SOURCES) $(libcpu_x86_64_a_SOURCES) \
@@ -93,13 +112,16 @@ CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
+CC_BIARCH = @CC_BIARCH@
 CFLAGS = @CFLAGS@
+CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUGPRED = @DEBUGPRED@
@@ -108,17 +130,22 @@ DEPDIR = @DEPDIR@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
+EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 GETTEXT_MACRO_VERSION = @GETTEXT_MACRO_VERSION@
 GMSGFMT = @GMSGFMT@
 GMSGFMT_015 = @GMSGFMT_015@
+GREP = @GREP@
+HAVE_BISON = @HAVE_BISON@
+HAVE_BUNZIP2 = @HAVE_BUNZIP2@
+HAVE_FLEX = @HAVE_FLEX@
+HAVE_VALGRIND = @HAVE_VALGRIND@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LDFLAGS = @LDFLAGS@
-LD_AS_NEEDED = @LD_AS_NEEDED@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = lex.$(<F:lex.l=)
@@ -133,22 +160,22 @@ MODVERSION = @MODVERSION@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
+NM = @NM@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
-PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
+READELF = @READELF@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = @VERSION@
-WEXTRA = @WEXTRA@
 XGETTEXT = @XGETTEXT@
 XGETTEXT_015 = @XGETTEXT_015@
 XGETTEXT_EXTRA_OPTIONS = @XGETTEXT_EXTRA_OPTIONS@
@@ -164,6 +191,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+argp_LDADD = @argp_LDADD@
 base_cpu = @base_cpu@
 bindir = @bindir@
 build = @build@
@@ -207,21 +235,31 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 zip_LIBS = @zip_LIBS@
-INCLUDES = -I. -I$(srcdir) -I$(top_srcdir)/lib -I.. \
+AM_CPPFLAGS = -I. -I$(srcdir) -I$(top_srcdir)/lib -I.. \
 	-I$(srcdir)/../libelf -I$(srcdir)/../libebl \
 	-I$(srcdir)/../libdw -I$(srcdir)/../libasm
-AM_CFLAGS = -std=gnu99 -Wall -Wshadow $(if \
-	$($(*F)_no_Wunused),,-Wunused $(WEXTRA)) $(if \
-	$($(*F)_no_Wformat),-Wno-format,-Wformat=2) $($(*F)_CFLAGS) \
-	$(am__append_1) $(am__append_2) -fpic -fdollars-in-identifiers
-@MUDFLAP_FALSE@libmudflap = 
-@MUDFLAP_TRUE@libmudflap = -lmudflap
-COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage $(no_mudflap.os),\
-	     		  $(COMPILE))
 
+# Drop the 'u' flag that automake adds by default. It is incompatible
+# with deterministic archives.
+ARFLAGS = cr
+@ADD_STACK_USAGE_WARNING_FALSE@STACK_USAGE_WARNING = 
+
+# Warn about stack usage of more than 256K = 262144 bytes.
+@ADD_STACK_USAGE_WARNING_TRUE@STACK_USAGE_WARNING = -Wstack-usage=262144
+AM_CFLAGS = -std=gnu99 -Wall -Wshadow -Wformat=2 \
+	-Wold-style-definition -Wstrict-prototypes $(if \
+	$($(*F)_no_Werror),,-Werror) $(if \
+	$($(*F)_no_Wunused),,-Wunused -Wextra) $(if \
+	$($(*F)_no_Wstack_usage),,$(STACK_USAGE_WARNING)) \
+	$($(*F)_CFLAGS) -fPIC -fdollars-in-identifiers
+COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage, $(COMPILE))
+DEFS.os = -DPIC -DSHARED $(am__append_1)
 CLEANFILES = *.gcno *.gcda $(foreach P,i386 x86_64,$P_defs \
-	$P.mnemonics $P_dis.h)
-textrel_check = if readelf -d $@ | fgrep -q TEXTREL; then exit 1; fi
+	$P.mnemonics)
+textrel_msg = echo "WARNING: TEXTREL found in '$@'"
+@FATAL_TEXTREL_FALSE@textrel_found = $(textrel_msg)
+@FATAL_TEXTREL_TRUE@textrel_found = $(textrel_msg); exit 1
+textrel_check = if $(READELF) -d $@ | fgrep -q TEXTREL; then $(textrel_found); fi
 LEXCOMPILE = $(LEX) $(LFLAGS) $(AM_LFLAGS) -P$(<F:lex.l=)
 AM_YFLAGS = -p$(<F:parse.y=)
 noinst_LIBRARIES = libcpu_i386.a libcpu_x86_64.a
@@ -233,8 +271,9 @@ i386_lex_no_Werror = yes
 libeu = ../lib/libeu.a
 i386_lex_CFLAGS = -Wno-unused-label -Wno-unused-function -Wno-sign-compare
 i386_parse_CFLAGS = -DNMNES="`wc -l < i386.mnemonics`"
-i386_gendis_LDADD = $(libeu) -lm $(libmudflap)
+i386_gendis_LDADD = $(libeu) -lm
 EXTRA_DIST = defs/i386
+MAINTAINERCLEANFILES = $(foreach P,i386 x86_64, $P_dis.h)
 all: all-am
 
 .SUFFIXES:
@@ -273,19 +312,19 @@ $(am__aclocal_m4_deps):
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 libcpu_i386.a: $(libcpu_i386_a_OBJECTS) $(libcpu_i386_a_DEPENDENCIES) 
-	-rm -f libcpu_i386.a
-	$(libcpu_i386_a_AR) libcpu_i386.a $(libcpu_i386_a_OBJECTS) $(libcpu_i386_a_LIBADD)
-	$(RANLIB) libcpu_i386.a
+	$(AM_V_at)-rm -f libcpu_i386.a
+	$(AM_V_AR)$(libcpu_i386_a_AR) libcpu_i386.a $(libcpu_i386_a_OBJECTS) $(libcpu_i386_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libcpu_i386.a
 libcpu_x86_64.a: $(libcpu_x86_64_a_OBJECTS) $(libcpu_x86_64_a_DEPENDENCIES) 
-	-rm -f libcpu_x86_64.a
-	$(libcpu_x86_64_a_AR) libcpu_x86_64.a $(libcpu_x86_64_a_OBJECTS) $(libcpu_x86_64_a_LIBADD)
-	$(RANLIB) libcpu_x86_64.a
+	$(AM_V_at)-rm -f libcpu_x86_64.a
+	$(AM_V_AR)$(libcpu_x86_64_a_AR) libcpu_x86_64.a $(libcpu_x86_64_a_OBJECTS) $(libcpu_x86_64_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libcpu_x86_64.a
 
 clean-noinstPROGRAMS:
 	-test -z "$(noinst_PROGRAMS)" || rm -f $(noinst_PROGRAMS)
 i386_gendis$(EXEEXT): $(i386_gendis_OBJECTS) $(i386_gendis_DEPENDENCIES) 
 	@rm -f i386_gendis$(EXEEXT)
-	$(LINK) $(i386_gendis_OBJECTS) $(i386_gendis_LDADD) $(LIBS)
+	$(AM_V_CCLD)$(LINK) $(i386_gendis_OBJECTS) $(i386_gendis_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -300,24 +339,26 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/x86_64_disasm.Po@am__quote@
 
 .c.o:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c $<
 
 .c.obj:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
 
 .l.c:
-	$(am__skiplex) $(SHELL) $(YLWRAP) $< $(LEX_OUTPUT_ROOT).c $@ -- $(LEXCOMPILE)
+	$(AM_V_LEX)$(am__skiplex) $(SHELL) $(YLWRAP) $< $(LEX_OUTPUT_ROOT).c $@ -- $(LEXCOMPILE)
 
 .y.c:
-	$(am__skipyacc) $(SHELL) $(YLWRAP) $< y.tab.c $@ y.tab.h $*.h y.output $*.output -- $(YACCCOMPILE)
+	$(AM_V_YACC)$(am__skipyacc) $(SHELL) $(YLWRAP) $< y.tab.c $@ y.tab.h $*.h y.output $*.output -- $(YACCCOMPILE)
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
@@ -433,6 +474,7 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 	-rm -f i386_lex.c
 	-rm -f i386_parse.c
+	-test -z "$(MAINTAINERCLEANFILES)" || rm -f $(MAINTAINERCLEANFILES)
 clean: clean-am
 
 clean-am: clean-generic clean-noinstLIBRARIES clean-noinstPROGRAMS \
@@ -520,25 +562,34 @@ uninstall-am:
 
 
 %.os: %.c %.o
-@AMDEP_TRUE@	if $(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED -MT $@ -MD -MP \
+@AMDEP_TRUE@	$(AM_V_CC)if $(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) -MT $@ -MD -MP \
 @AMDEP_TRUE@	  -MF "$(DEPDIR)/$*.Tpo" `test -f '$<' || echo '$(srcdir)/'`$<; \
 @AMDEP_TRUE@	then cat "$(DEPDIR)/$*.Tpo" >> "$(DEPDIR)/$*.Po"; \
 @AMDEP_TRUE@	     rm -f "$(DEPDIR)/$*.Tpo"; \
 @AMDEP_TRUE@	else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; \
 @AMDEP_TRUE@	fi
-@AMDEP_FALSE@	$(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED $<
+@AMDEP_FALSE@	$(AM_V_CC)$(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) $<
+
+print-%:
+	@echo $*=$($*)
 
 i386_disasm.o: i386.mnemonics $(srcdir)/i386_dis.h
 x86_64_disasm.o: x86_64.mnemonics $(srcdir)/x86_64_dis.h
 
 %_defs: $(srcdir)/defs/i386
-	m4 -D$* -DDISASSEMBLER $< > $@
+	$(AM_V_GEN)m4 -D$* -DDISASSEMBLER $< > $@T
+	$(AM_V_at)mv -f $@T $@
 
 @MAINTAINER_MODE_TRUE@$(srcdir)/%_dis.h: %_defs i386_gendis
-@MAINTAINER_MODE_TRUE@	./i386_gendis $< > $@
+@MAINTAINER_MODE_TRUE@	$(AM_V_GEN)./i386_gendis $< > $@T
+@MAINTAINER_MODE_TRUE@	$(AM_V_at)mv -f $@T $@
+
+@MAINTAINER_MODE_FALSE@$(srcdir)/%_dis.h:
+@MAINTAINER_MODE_FALSE@	@echo '*** missing $@; configure with --enable-maintainer-mode'
+@MAINTAINER_MODE_FALSE@	@false
 
 %.mnemonics: %_defs
-	sed '1,/^%%/d;/^#/d;/^[[:space:]]*$$/d;s/[^:]*:\([^[:space:]]*\).*/MNE(\1)/;s/{[^}]*}//g;/INVALID/d' \
+	$(AM_V_GEN)sed '1,/^%%/d;/^#/d;/^[[:space:]]*$$/d;s/[^:]*:\([^[:space:]]*\).*/MNE(\1)/;s/{[^}]*}//g;/INVALID/d' \
 	  $< | sort -u > $@
 i386_parse.o: i386_parse.c i386.mnemonics
 i386_lex.o: i386_parse.h

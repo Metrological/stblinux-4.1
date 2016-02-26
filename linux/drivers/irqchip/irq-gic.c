@@ -945,7 +945,14 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 		gic_irqs = 1020;
 	gic->gic_irqs = gic_irqs;
 
+	/* BRCMSTB only: Nexus does not support a non 1:1 + offset mapping of
+	 * L1 interrupts
+	 */
+#ifdef CONFIG_BRCMSTB
+	if (0) {
+#else
 	if (node) {		/* DT case */
+#endif
 		gic->domain = irq_domain_add_linear(node, gic_irqs,
 						    &gic_irq_domain_hierarchy_ops,
 						    gic);

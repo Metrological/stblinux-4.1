@@ -137,10 +137,11 @@ static int file_exists(const char *path)
 	return !access(path, F_OK);
 }
 
-static int sysfs_get(const char *path, unsigned int *out)
+static int sysfs_get(const char *path, unsigned *out)
 {
 	FILE *f;
-	unsigned int tmp;
+	unsigned long tmp;
+	char *errp;
 	char buf[BUF_SIZE];
 
 	f = fopen(path, "r");
@@ -151,7 +152,9 @@ static int sysfs_get(const char *path, unsigned int *out)
 		return -1;
 	}
 	fclose(f);
-	if (sscanf(buf, "0x%x", &tmp) != 1 && sscanf(buf, "%u", &tmp) != 1)
+	tmp = strtoul(buf, &errp, 0);
+	/* fgets() leaves the trailing \n in place, so account for it here */
+	if (errp[0] != '\n' && errp[0] != '\0')
 		return -1;
 	*out = tmp;
 	return 0;
@@ -160,18 +163,16 @@ static int sysfs_get(const char *path, unsigned int *out)
 static int sysfs_set(const char *path, int in)
 {
 	FILE *f;
-	char buf[BUF_SIZE];
+	int rc = 0;
 
 	f = fopen(path, "w");
 	if (!f)
 		return -1;
-	sprintf(buf, "%u", in);
-	if ((fputs(buf, f) < 0) || (fflush(f) < 0)) {
-		fclose(f);
-		return -1;
-	}
-	fclose(f);
-	return 0;
+	if (fprintf(f, "%u", in) < 0)
+		rc = -1;
+	if (fclose(f) < 0)
+		rc = -1;
+	return rc;
 }
 
 static int sysfs_set_string(const char *path, const char *in)
@@ -197,7 +198,7 @@ static int sysfs_get_string(const char *path, char *in, int size)
 	f = fopen(path, "r");
 	if (!f)
 		return -1;
-	if (fgets(in, size, f) < 0) {
+	if (fgets(in, size, f) != in) {
 		fclose(f);
 		return -1;
 	}
@@ -212,19 +213,22 @@ static int run(char *prog, ...)
 {
 	va_list ap;
 	int status, i = 1;
+	int rc = 0;
 	pid_t pid;
 	char *args[MAX_ARGS], *a;
 
 	va_start(ap, prog);
 
 	pid = fork();
-	if (pid < 0)
-		return -1;
+	if (pid < 0) {
+		rc = -1;
+		goto out;
+	}
 
 	if (pid != 0) {
 		wait(&status);
-		va_end(ap);
-		return WEXITSTATUS(status) ? -1 : 0;
+		rc = WEXITSTATUS(status) ? -1 : 0;
+		goto out;
 	}
 
 	/* child */
@@ -237,8 +241,9 @@ static int run(char *prog, ...)
 	execv(prog, args);
 	_exit(1);
 
-	va_end(ap);		/* never reached */
-	return 0;
+out:
+	va_end(ap);
+	return rc;
 }
 
 static int brcm_pm_eth1_check(void)
@@ -257,7 +262,9 @@ static int brcm_pm_eth1_check(void)
 
 	drvinfo.cmd = ETHTOOL_GDRVINFO;
 	ifr.ifr_data = (caddr_t)&drvinfo;
-	strcpy(ifr.ifr_name, "eth1");
+	strncpy(ifr.ifr_name, "eth1", sizeof(ifr.ifr_name));
+	/* strncpy doesn't guarantee NULL termination, so we have to */
+	ifr.ifr_name[sizeof(ifr.ifr_name) - 1] = '\0';
 
 	if (ioctl(fd, SIOCETHTOOL, &ifr) == 0) {
 		if (strcmp(drvinfo.driver, "BCMINTMAC") == 0)
@@ -382,10 +389,10 @@ int brcm_pm_get_status(void *vctx, struct brcm_pm_state *st)
 		st->cpufreq_setspeed = BRCM_PM_UNDEF;
 	if (sysfs_get_string(SYS_CPUFREQ_AVAIL, st->cpufreq_avail,
 			     CPUFREQ_AVAIL_MAXLEN) != 0)
-		strcpy(st->cpufreq_avail, "");
+		st->cpufreq_avail[0] = '\0';
 	if (sysfs_get_string(SYS_CPUFREQ_GOV, st->cpufreq_gov,
 			     CPUFREQ_GOV_MAXLEN) != 0)
-		strcpy(st->cpufreq_gov, "");
+		st->cpufreq_gov[0] = '\0';
 
 	st->sata_status = get_sata_status();
 
@@ -541,7 +548,7 @@ int brcm_pm_set_status(void *vctx, struct brcm_pm_state *st)
 	return ret;
 }
 
-int brcm_pm_suspend(void *vctx, int suspend_mode)
+int brcm_pm_suspend(__attribute__((unused))void *vctx, int suspend_mode)
 {
 	if (suspend_mode == BRCM_PM_STANDBY)
 		return sysfs_set_string(SYS_STANDBY, "standby");

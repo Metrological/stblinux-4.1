@@ -12622,7 +12622,7 @@ esac
   # points somewhere with bfd, with -I/foo/lib and -L/foo/lib.  We
   # always want our bfd.
   CFLAGS="-I${srcdir}/../include -I../bfd -I${srcdir}/../bfd $CFLAGS"
-  LDFLAGS="-L../bfd -L../libiberty -L../intl $LDFLAGS"
+  LDFLAGS="-L../bfd -L../libiberty $LDFLAGS"
   intl=`echo $LIBINTL | sed 's,${top_builddir}/,,g'`
   # -ldl is provided by bfd/Makfile.am (LIBDL) <PLUGINS>.
   if test "$plugins" = "yes"; then
@@ -12683,7 +12683,7 @@ if test "$ac_res" != no; then :
 fi
 
   fi
-  LIBS="-lbfd -liberty -lintl $intl $LIBS"
+  LIBS="-lbfd -liberty $intl $LIBS"
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ELF support in BFD" >&5
 $as_echo_n "checking for ELF support in BFD... " >&6; }
 if test "${gdb_cv_var_elf+set}" = set; then :

@@ -131,7 +131,7 @@ struct brcmstb_thermal_priv {
 /* Convert a HW code to a temperature reading (millidegree celsius) */
 static inline int avs_tmon_code_to_temp(u32 code)
 {
-	return (4100400U - code * 4870U) / 10U;
+	return (410040 - (int)((code & 0x3FF) * 487));
 }
 
 /*
@@ -140,18 +140,25 @@ static inline int avs_tmon_code_to_temp(u32 code)
  * @temp: temperature to convert
  * @low: if true, round toward the low side
  */
-static inline u32 avs_tmon_temp_to_code(unsigned long temp, bool low)
+static inline u32 avs_tmon_temp_to_code(int temp, bool low)
 {
+	if (temp < -88161)
+		return 0x3FF;	/* Maximum code value */
+
+	if (temp >= 410040)
+		return 0;	/* Minimum code value */
+
 	if (low)
-		return DIV_ROUND_UP(4100400U - temp * 10U, 4870U);
+		return (u32)(DIV_ROUND_UP(410040 - temp, 487));
 	else
-		return (4100400U - temp * 10U) / 4870U;
+		return (u32)((410040 - temp) / 487);
 }
 
 static int brcmstb_get_temp(void *data, long *temp)
 {
 	struct brcmstb_thermal_priv *priv = data;
 	u32 val;
+	long t;
 
 	val = __raw_readl(priv->tmon_base + AVS_TMON_STATUS);
 
@@ -163,7 +170,11 @@ static int brcmstb_get_temp(void *data, long *temp)
 
 	val = (val & AVS_TMON_STATUS_data_msk) >> AVS_TMON_STATUS_data_shift;
 
-	*temp = avs_tmon_code_to_temp(val);
+	t = avs_tmon_code_to_temp(val);
+	if (t < 0)
+		*temp = 0;
+	else
+		*temp = t;
 
 	return 0;
 }
@@ -207,12 +218,12 @@ static int avs_tmon_get_trip_temp(struct brcmstb_thermal_priv *priv,
 
 static void avs_tmon_set_trip_temp(struct brcmstb_thermal_priv *priv,
 				   enum avs_tmon_trip_type type,
-				   unsigned long temp)
+				   int temp)
 {
 	struct avs_tmon_trip *trip = &avs_tmon_trips[type];
 	u32 val, orig;
 
-	pr_debug("set temp %d to %lu\n", type, temp);
+	pr_debug("set temp %d to %d\n", type, temp);
 
 	/* round toward low temp for the low interrupt */
 	val = avs_tmon_temp_to_code(temp, type == TMON_TRIP_TYPE_LOW);
@@ -238,13 +249,13 @@ static int avs_tmon_get_intr_temp(struct brcmstb_thermal_priv *priv)
 static irqreturn_t brcmstb_tmon_irq_thread(int irq, void *data)
 {
 	struct brcmstb_thermal_priv *priv = data;
-	unsigned long low, high, intr;
+	int low, high, intr;
 
 	low = avs_tmon_get_trip_temp(priv, TMON_TRIP_TYPE_LOW);
 	high = avs_tmon_get_trip_temp(priv, TMON_TRIP_TYPE_HIGH);
 	intr = avs_tmon_get_intr_temp(priv);
 
-	dev_dbg(priv->dev, "low/intr/high: %lu/%lu/%lu\n",
+	dev_dbg(priv->dev, "low/intr/high: %d/%d/%d\n",
 			low, intr, high);
 
 	/* Disable high-temp until next threshold shift */
@@ -270,14 +281,20 @@ static int brcmstb_set_trips(void *data, unsigned long low, unsigned long high)
 	pr_debug("set trips %lu <--> %lu\n", low, high);
 
 	if (low) {
-		avs_tmon_set_trip_temp(priv, TMON_TRIP_TYPE_LOW, low);
+		if (low > INT_MAX) {
+			low = INT_MAX;
+		}
+		avs_tmon_set_trip_temp(priv, TMON_TRIP_TYPE_LOW, (int)low);
 		avs_tmon_trip_enable(priv, TMON_TRIP_TYPE_LOW, 1);
 	} else {
 		avs_tmon_trip_enable(priv, TMON_TRIP_TYPE_LOW, 0);
 	}
 
 	if (high < ULONG_MAX) {
-		avs_tmon_set_trip_temp(priv, TMON_TRIP_TYPE_HIGH, high);
+		if (high > INT_MAX) {
+			high = INT_MAX;
+		}
+		avs_tmon_set_trip_temp(priv, TMON_TRIP_TYPE_HIGH, (int)high);
 		avs_tmon_trip_enable(priv, TMON_TRIP_TYPE_HIGH, 1);
 	} else {
 		avs_tmon_trip_enable(priv, TMON_TRIP_TYPE_HIGH, 0);

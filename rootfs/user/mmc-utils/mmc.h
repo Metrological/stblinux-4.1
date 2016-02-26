@@ -35,6 +35,9 @@
 #define MMC_SWITCH_MODE_WRITE_BYTE	0x03	/* Set target to value */
 #define MMC_READ_MULTIPLE_BLOCK  18   /* adtc [31:0] data addr   R1  */
 #define MMC_WRITE_MULTIPLE_BLOCK 25   /* adtc                    R1  */
+#define MMC_SET_WRITE_PROT	28    /* ac   [31:0] data addr   R1b */
+#define MMC_CLEAR_WRITE_PROT	29    /* ac   [31:0] data addr   R1b */
+#define MMC_SEND_WRITE_PROT_TYPE 31   /* ac   [31:0] data addr   R1  */
 
 /*
  * EXT_CSD fields
@@ -47,6 +50,8 @@
 #define EXT_CSD_CACHE_SIZE_1		250
 #define EXT_CSD_CACHE_SIZE_0		249
 #define EXT_CSD_BOOT_INFO		228	/* R/W */
+#define EXT_CSD_HC_ERASE_GRP_SIZE	224
+#define EXT_CSD_HC_WP_GRP_SIZE		221
 #define EXT_CSD_SEC_COUNT_3		215
 #define EXT_CSD_SEC_COUNT_2		214
 #define EXT_CSD_SEC_COUNT_1		213
@@ -58,6 +63,7 @@
 #define EXT_CSD_BOOT_BUS_CONDITIONS	177
 #define EXT_CSD_ERASE_GROUP_DEF		175
 #define EXT_CSD_BOOT_WP			173
+#define EXT_CSD_USER_WP			171
 #define EXT_CSD_WR_REL_SET		167
 #define EXT_CSD_WR_REL_PARAM		166
 #define EXT_CSD_SANITIZE_START		165

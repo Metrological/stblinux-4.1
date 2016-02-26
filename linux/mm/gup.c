@@ -410,7 +410,8 @@ static int brcmstb_get_page(struct mm_struct *mm, unsigned long start,
 		goto out;
 
 #ifdef CONFIG_BRCMSTB_BMEM
-	if (likely(bmem_find_region(pfn << PAGE_SHIFT, PAGE_SIZE) >= 0))
+	if (likely(bmem_find_region((phys_addr_t)pfn << PAGE_SHIFT, PAGE_SIZE)
+		   >= 0))
 		goto found_page;
 #endif
 
@@ -541,8 +542,10 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 #ifdef CONFIG_BRCMSTB
 			/* handle direct I/O on CMA or BMEM regions */
 			if (vma && (!brcmstb_get_page(mm, start,
-					pages ? &pages[i] : NULL)))
+					pages ? &pages[i] : NULL))) {
+				page_mask = 0;
 				goto next_page;
+			}
 #endif
 
 			if (!vma || check_vma_flags(vma, gup_flags))
@@ -556,8 +559,10 @@ long __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 		}
 retry:
 #ifdef CONFIG_BRCMSTB
-		if (!brcmstb_get_page(mm, start, pages ? &pages[i] : NULL))
+		if (!brcmstb_get_page(mm, start, pages ? &pages[i] : NULL)) {
+			page_mask = 0;
 			goto next_page;
+		}
 #endif
 		/*
 		 * If we have a pending SIGKILL, don't keep faulting pages and

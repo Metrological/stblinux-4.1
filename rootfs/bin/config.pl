@@ -260,11 +260,18 @@ sub populate_linux_defaults($$)
 		$arch_config_options{"ARCH"} = "mips";
 	} else {
 		print "\n";
-		print "ERROR: No Linux configuration for $chip\n";
-		print "Attempted to open: $LINUXDIR/arch/arm/configs/brcmstb_defconfig,\n";
-		print "                   $linux_defaults\n";
-		print "\n";
-		exit 1;
+		print "WARNING: can't find $LINUXDIR/include/linux/brcmstb/*\n";
+		if (-r "$LINUXDIR/arch/arm/configs/brcmstb_defconfig") {
+			print "But brcmstb_defconfig exists. Using it.\n";
+			$linux_defaults = "$LINUXDIR/arch/arm/configs/brcmstb_defconfig";
+			$arch_config_options{"ARCH"} = "arm";
+		} else {
+			print "ERROR: No Linux configuration for $chip\n";
+			print "Attempted to open: $LINUXDIR/arch/arm/configs/brcmstb_defconfig,\n";
+			print "                   $linux_defaults\n";
+			print "\n";
+			exit 1;
+		}
 	}
 	($linux_new_defaults = $linux_defaults) =~ s/defconfig$/new_defconfig/;
 }
@@ -549,8 +556,8 @@ sub cmd_defaults($)
 		$vendor{"CONFIG_USER_MOCA_MOCA1"} = "n";
 		$vendor{"CONFIG_USER_MOCA_NONE"} = "n";
 		$vendor{"CONFIG_USER_MOCA_MOCA2"} = "y";
-		$vendor{"CONFIG_USER_MOCA_GEN1"} = "n";
-		$vendor{"CONFIG_USER_MOCA_GEN2"} = "n";
+		$vendor{"CONFIG_USER_MOCA_GEN1"} = "y";
+		$vendor{"CONFIG_USER_MOCA_GEN2"} = "y";
 		$vendor{"CONFIG_USER_MOCA_GEN3"} = "y";
 	}
 

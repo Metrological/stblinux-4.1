@@ -16,10 +16,12 @@ export CC CFLAGS
 .PHONY: all
 all:
 	if [ ! -e Makefile ]; then \
-		./configure --host=$(MACHINE)-linux --prefix=$(ROMFSDIR) \
+		./configure --host=$(MACHINE)-linux \
+		--prefix=$(shell pwd)/install-tmp \
+		--exec-prefix=$(shell pwd)/install-tmp \
 		--disable-nls --disable-werror; \
 	fi
-	make -f Makefile SUBDIRS=libelf
+	make -f Makefile install SUBDIRS="libelf libebl libdwfl libdwelf libdw"
 
 .PHONY: clean distclean
 clean distclean::
@@ -31,6 +33,9 @@ romfs:
 	cp -af libelf/libelf.so libelf/libelf.so*[0-9] \
 		$(ROMFSDIR)/lib/
 	$(STRIP) $(ROMFSDIR)/lib/libelf.so
+	cp -af libdw/libdw.so libdw/libdw.so*[0-9] \
+		$(ROMFSDIR)/lib/
+	$(STRIP) $(ROMFSDIR)/lib/libdw.so
 
 # These targets must not be passed through to the original Makefile
 .PHONY: $(BOGUS_TARGETS)

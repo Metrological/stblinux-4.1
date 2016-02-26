@@ -92,10 +92,14 @@ void sdhci_get_of_property(struct platform_device *pdev)
 	if (of_get_property(np, "no-1-8-v", NULL))
 		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 
+	if (of_get_property(np, "broken-64-bit-dma", NULL))
+		host->quirks2 |= SDHCI_QUIRK2_BROKEN_64_BIT_DMA;
+
 	if (of_device_is_compatible(np, "fsl,p2020-rev1-esdhc"))
 		host->quirks |= SDHCI_QUIRK_BROKEN_DMA;
 
-	if (of_device_is_compatible(np, "fsl,p2020-esdhc") ||
+	if (of_get_property(np, "broken-timeout-value", NULL) ||
+	    of_device_is_compatible(np, "fsl,p2020-esdhc") ||
 	    of_device_is_compatible(np, "fsl,p1010-esdhc") ||
 	    of_device_is_compatible(np, "fsl,t4240-esdhc") ||
 	    of_device_is_compatible(np, "fsl,mpc8536-esdhc"))
@@ -110,6 +114,10 @@ void sdhci_get_of_property(struct platform_device *pdev)
 
 	if (of_find_property(np, "enable-sdio-wakeup", NULL))
 		host->mmc->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
+	if (of_find_property(np, "broken-sdr50", NULL))
+		host->quirks2 |= SDHCI_QUIRK2_BROKEN_SDR50;
+	if (of_find_property(np, "broken-ddr50", NULL))
+		host->quirks2 |= SDHCI_QUIRK2_BROKEN_DDR50;
 }
 #else
 void sdhci_get_of_property(struct platform_device *pdev) {}

@@ -1,52 +1,31 @@
 /* Update data structures for changes.
-   Copyright (C) 2000-2010 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2000-2010, 2015 Red Hat, Inc.
+   This file is part of elfutils.
    Written by Ulrich Drepper <drepper@redhat.com>, 2000.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   In addition, as a special exception, Red Hat, Inc. gives You the
-   additional right to link the code of Red Hat elfutils with code licensed
-   under any Open Source Initiative certified open source license
-   (http://www.opensource.org/licenses/index.php) which requires the
-   distribution of source code with any binary distribution and to
-   distribute linked combinations of the two.  Non-GPL Code permitted under
-   this exception must only link to the code of Red Hat elfutils through
-   those well defined interfaces identified in the file named EXCEPTION
-   found in the source code files (the "Approved Interfaces").  The files
-   of Non-GPL Code may instantiate templates or use macros or inline
-   functions from the Approved Interfaces without causing the resulting
-   work to be covered by the GNU General Public License.  Only Red Hat,
-   Inc. may make changes or additions to the list of Approved Interfaces.
-   Red Hat's grant of this exception is conditioned upon your not adding
-   any new exceptions.  If you wish to add a new Approved Interface or
-   exception, please contact Red Hat.  You must obey the GNU General Public
-   License in all respects for all of the Red Hat elfutils code and other
-   code used in conjunction with Red Hat elfutils except the Non-GPL Code
-   covered by this exception.  If you modify this file, you may extend this
-   exception to your version of the file, but you are not obligated to do
-   so.  If you do not wish to provide this exception without modification,
-   you must delete this exception statement from your version and license
-   this file solely under the GPL without exception.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -105,8 +84,12 @@ ELFW(default_ehdr,LIBELFBITS) (Elf *elf, ElfW2(LIBELFBITS,Ehdr) *ehdr,
   update_if_changed (ehdr->e_ident[EI_VERSION], EV_CURRENT,
 		     elf->state.ELFW(elf,LIBELFBITS).ehdr_flags);
 
-  if (unlikely (ehdr->e_version == EV_NONE)
-      || unlikely (ehdr->e_version >= EV_NUM))
+  if (unlikely (ehdr->e_version == EV_NONE))
+    {
+      ehdr->e_version = EV_CURRENT;
+      elf->state.ELFW(elf,LIBELFBITS).ehdr_flags |= ELF_F_DIRTY;
+    }
+  else if (unlikely (ehdr->e_version >= EV_NUM))
     {
       __libelf_seterrno (ELF_E_UNKNOWN_VERSION);
       return 1;
@@ -124,6 +107,14 @@ ELFW(default_ehdr,LIBELFBITS) (Elf *elf, ElfW2(LIBELFBITS,Ehdr) *ehdr,
   if (unlikely (ehdr->e_ehsize != elf_typesize (LIBELFBITS, ELF_T_EHDR, 1)))
     {
       ehdr->e_ehsize = elf_typesize (LIBELFBITS, ELF_T_EHDR, 1);
+      elf->state.ELFW(elf,LIBELFBITS).ehdr_flags |= ELF_F_DIRTY;
+    }
+
+  /* If phnum is zero make sure e_phoff is also zero and not some random
+     value.  That would cause trouble in update_file.  */
+  if (ehdr->e_phnum == 0 && ehdr->e_phoff != 0)
+    {
+      ehdr->e_phoff = 0;
       elf->state.ELFW(elf,LIBELFBITS).ehdr_flags |= ELF_F_DIRTY;
     }
 
@@ -223,6 +214,11 @@ __elfw2(LIBELFBITS,updatenull_wrlock) (Elf *elf, int *change_bop, size_t shnum)
 	      assert (shdr != NULL);
 	      ElfW2(LIBELFBITS,Word) sh_entsize = shdr->sh_entsize;
 	      ElfW2(LIBELFBITS,Word) sh_align = shdr->sh_addralign ?: 1;
+	      if (unlikely (! powerof2 (sh_align)))
+		{
+		  __libelf_seterrno (ELF_E_INVALID_ALIGN);
+		  return -1;
+		}
 
 	      /* Set the sh_entsize value if we can reliably detect it.  */
 	      switch (shdr->sh_type)
@@ -339,9 +335,8 @@ __elfw2(LIBELFBITS,updatenull_wrlock) (Elf *elf, int *change_bop, size_t shnum)
 	      if (elf->flags & ELF_F_LAYOUT)
 		{
 		  size = MAX ((GElf_Word) size,
-			      shdr->sh_offset
-			      + (shdr->sh_type != SHT_NOBITS
-				 ? shdr->sh_size : 0));
+			      (shdr->sh_type != SHT_NOBITS
+			       ? shdr->sh_offset + shdr->sh_size : 0));
 
 		  /* The alignment must be a power of two.  This is a
 		     requirement from the ELF specification.  Additionally
@@ -349,7 +344,7 @@ __elfw2(LIBELFBITS,updatenull_wrlock) (Elf *elf, int *change_bop, size_t shnum)
 		     enough for the largest alignment required by a data
 		     block.  */
 		  if (unlikely (! powerof2 (shdr->sh_addralign))
-		      || unlikely (shdr->sh_addralign < sh_align))
+		      || unlikely ((shdr->sh_addralign ?: 1) < sh_align))
 		    {
 		      __libelf_seterrno (ELF_E_INVALID_ALIGN);
 		      return -1;
@@ -403,6 +398,8 @@ __elfw2(LIBELFBITS,updatenull_wrlock) (Elf *elf, int *change_bop, size_t shnum)
       while ((list = list->next) != NULL);
 
       /* Store section information.  */
+      update_if_changed (ehdr->e_shentsize,
+			 elf_typesize (LIBELFBITS, ELF_T_SHDR, 1), ehdr_flags);
       if (elf->flags & ELF_F_LAYOUT)
 	{
 	  /* The user is supposed to fill out e_shoff.  Use it and
@@ -423,9 +420,6 @@ __elfw2(LIBELFBITS,updatenull_wrlock) (Elf *elf, int *change_bop, size_t shnum)
 	  size = (size + SHDR_ALIGN - 1) & ~(SHDR_ALIGN - 1);
 
 	  update_if_changed (ehdr->e_shoff, (GElf_Word) size, elf->flags);
-	  update_if_changed (ehdr->e_shentsize,
-			     elf_typesize (LIBELFBITS, ELF_T_SHDR, 1),
-			     ehdr_flags);
 
 	  /* Account for the section header size.  */
 	  size += elf_typesize (LIBELFBITS, ELF_T_SHDR, shnum);

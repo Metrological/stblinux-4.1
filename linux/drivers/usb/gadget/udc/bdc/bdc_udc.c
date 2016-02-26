@@ -528,11 +528,10 @@ int bdc_udc_init(struct bdc *bdc)
 	bdc->gadget.max_speed = USB_SPEED_SUPER;
 	bdc->gadget.speed = USB_SPEED_UNKNOWN;
 	bdc->gadget.dev.parent = bdc->dev;
-
 	bdc->gadget.sg_supported = false;
-
-
 	bdc->gadget.name = BRCM_BDC_NAME;
+
+	pr_info("%s: " BRCM_BDC_DESC "\n", bdc->gadget.name);
 	ret = devm_request_irq(bdc->dev, bdc->irq, bdc_udc_interrupt,
 				IRQF_SHARED , BRCM_BDC_NAME, bdc);
 	if (ret) {

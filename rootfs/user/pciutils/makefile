@@ -13,7 +13,8 @@ MAKE_FLAGS		+= \
 			   HOST="Linux" \
 			   CROSS_COMPILE="$(CROSS_COMPILE)" \
 			   ZLIB="yes" \
-			   HWDB="no"
+			   HWDB="no" \
+			   LIBKMOD="no"
 
 export CC CFLAGS
 

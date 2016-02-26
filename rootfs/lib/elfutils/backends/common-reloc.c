@@ -1,27 +1,30 @@
 /* Common code for ebl reloc functions.
    Copyright (C) 2005, 2006 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #include "libebl_CPU.h"
 #include <assert.h>
@@ -84,6 +87,10 @@ EBLHOOK(reloc_type_name) (int reloc,
 			  char *buf __attribute__ ((unused)),
 			  size_t len __attribute__ ((unused)))
 {
+#ifdef RELOC_TYPE_ID
+  reloc = RELOC_TYPE_ID (reloc);
+#endif
+
   if (reloc >= 0 && reloc < nreloc && EBLHOOK(reloc_nameidx)[reloc] != 0)
     return &reloc_namestr[EBLHOOK(reloc_nameidx)[reloc]];
   return NULL;
@@ -92,19 +99,28 @@ EBLHOOK(reloc_type_name) (int reloc,
 bool
 EBLHOOK(reloc_type_check) (int reloc)
 {
+#ifdef RELOC_TYPE_ID
+  reloc = RELOC_TYPE_ID (reloc);
+#endif
+
   return reloc >= 0 && reloc < nreloc && EBLHOOK(reloc_nameidx)[reloc] != 0;
 }
 
 bool
 EBLHOOK(reloc_valid_use) (Elf *elf, int reloc)
 {
-  uint8_t uses = EBLHOOK(reloc_valid)[reloc];
+  uint8_t uses;
 
   GElf_Ehdr ehdr_mem;
   GElf_Ehdr *ehdr = gelf_getehdr (elf, &ehdr_mem);
   assert (ehdr != NULL);
   uint8_t type = ehdr->e_type;
 
+#ifdef RELOC_TYPE_ID
+  reloc = RELOC_TYPE_ID (reloc);
+#endif
+
+  uses = EBLHOOK(reloc_valid)[reloc];
   return type > ET_NONE && type < ET_CORE && (uses & (1 << (type - 1)));
 }
 

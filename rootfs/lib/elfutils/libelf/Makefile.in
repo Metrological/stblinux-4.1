@@ -39,15 +39,14 @@ host_triplet = @host@
 DIST_COMMON = $(include_HEADERS) $(noinst_HEADERS) \
 	$(pkginclude_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(top_srcdir)/config/eu.am ChangeLog
-@BUILD_WERROR_TRUE@am__append_1 = $(if $($(*F)_no_Werror),,-Werror)
-@MUDFLAP_TRUE@am__append_2 = -fmudflap
-@BUILD_STATIC_TRUE@am__append_3 = -fpic
-@MUDFLAP_FALSE@noinst_PROGRAMS = $(am__EXEEXT_1)
-@MUDFLAP_TRUE@am_libelf_pic_a_OBJECTS =
-@MUDFLAP_FALSE@@USE_LOCKS_TRUE@am__append_4 = -lpthread
+@SYMBOL_VERSIONING_TRUE@am__append_1 = -DSYMBOL_VERSIONING
+@BUILD_STATIC_TRUE@am__append_2 = -fPIC
+noinst_PROGRAMS = $(am__EXEEXT_1)
+@USE_LOCKS_TRUE@am__append_3 = -lpthread
 subdir = libelf
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/biarch.m4 \
+	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
 	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/m4/zip.m4 \
 	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -81,7 +80,12 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(includedir)" \
 	"$(DESTDIR)$(pkgincludedir)"
 LIBRARIES = $(lib_LIBRARIES) $(noinst_LIBRARIES)
 AR = ar
-ARFLAGS = cru
+AM_V_AR = $(am__v_AR_$(V))
+am__v_AR_ = $(am__v_AR_$(AM_DEFAULT_VERBOSITY))
+am__v_AR_0 = @echo "  AR    " $@;
+AM_V_at = $(am__v_at_$(V))
+am__v_at_ = $(am__v_at_$(AM_DEFAULT_VERBOSITY))
+am__v_at_0 = @
 libelf_a_AR = $(AR) $(ARFLAGS)
 libelf_a_LIBADD =
 am_libelf_a_OBJECTS = elf_version.$(OBJEXT) elf_hash.$(OBJEXT) \
@@ -142,7 +146,7 @@ libelf_a_OBJECTS = $(am_libelf_a_OBJECTS)
 libelf_pic_a_AR = $(AR) $(ARFLAGS)
 libelf_pic_a_LIBADD =
 libelf_pic_a_OBJECTS = $(am_libelf_pic_a_OBJECTS)
-@MUDFLAP_FALSE@am__EXEEXT_1 = libelf.so$(EXEEXT)
+am__EXEEXT_1 = libelf.so$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
 am_libelf_so_OBJECTS =
 libelf_so_OBJECTS = $(am_libelf_so_OBJECTS)
@@ -153,8 +157,17 @@ am__depfiles_maybe = depfiles
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
+AM_V_CC = $(am__v_CC_$(V))
+am__v_CC_ = $(am__v_CC_$(AM_DEFAULT_VERBOSITY))
+am__v_CC_0 = @echo "  CC    " $@;
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
+AM_V_CCLD = $(am__v_CCLD_$(V))
+am__v_CCLD_ = $(am__v_CCLD_$(AM_DEFAULT_VERBOSITY))
+am__v_CCLD_0 = @echo "  CCLD  " $@;
+AM_V_GEN = $(am__v_GEN_$(V))
+am__v_GEN_ = $(am__v_GEN_$(AM_DEFAULT_VERBOSITY))
+am__v_GEN_0 = @echo "  GEN   " $@;
 SOURCES = $(libelf_a_SOURCES) $(libelf_pic_a_SOURCES) \
 	$(libelf_so_SOURCES)
 DIST_SOURCES = $(libelf_a_SOURCES) $(libelf_pic_a_SOURCES) \
@@ -165,13 +178,16 @@ CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMTAR = @AMTAR@
+AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AUTOCONF = @AUTOCONF@
 AUTOHEADER = @AUTOHEADER@
 AUTOMAKE = @AUTOMAKE@
 AWK = @AWK@
 CC = @CC@
 CCDEPMODE = @CCDEPMODE@
+CC_BIARCH = @CC_BIARCH@
 CFLAGS = @CFLAGS@
+CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEBUGPRED = @DEBUGPRED@
@@ -180,17 +196,22 @@ DEPDIR = @DEPDIR@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
+EGREP = @EGREP@
 EXEEXT = @EXEEXT@
 GETTEXT_MACRO_VERSION = @GETTEXT_MACRO_VERSION@
 GMSGFMT = @GMSGFMT@
 GMSGFMT_015 = @GMSGFMT_015@
+GREP = @GREP@
+HAVE_BISON = @HAVE_BISON@
+HAVE_BUNZIP2 = @HAVE_BUNZIP2@
+HAVE_FLEX = @HAVE_FLEX@
+HAVE_VALGRIND = @HAVE_VALGRIND@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LDFLAGS = @LDFLAGS@
-LD_AS_NEEDED = @LD_AS_NEEDED@
 LEX = @LEX@
 LEXLIB = @LEXLIB@
 LEX_OUTPUT_ROOT = @LEX_OUTPUT_ROOT@
@@ -205,22 +226,22 @@ MODVERSION = @MODVERSION@
 MSGFMT = @MSGFMT@
 MSGFMT_015 = @MSGFMT_015@
 MSGMERGE = @MSGMERGE@
+NM = @NM@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
 PACKAGE_STRING = @PACKAGE_STRING@
 PACKAGE_TARNAME = @PACKAGE_TARNAME@
-PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 RANLIB = @RANLIB@
+READELF = @READELF@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 USE_NLS = @USE_NLS@
 VERSION = 1
-WEXTRA = @WEXTRA@
 XGETTEXT = @XGETTEXT@
 XGETTEXT_015 = @XGETTEXT_015@
 XGETTEXT_EXTRA_OPTIONS = @XGETTEXT_EXTRA_OPTIONS@
@@ -236,6 +257,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+argp_LDADD = @argp_LDADD@
 base_cpu = @base_cpu@
 bindir = @bindir@
 build = @build@
@@ -279,22 +301,32 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 zip_LIBS = @zip_LIBS@
-INCLUDES = -I. -I$(srcdir) -I$(top_srcdir)/lib -I..
-AM_CFLAGS = -std=gnu99 -Wall -Wshadow $(if \
-	$($(*F)_no_Wunused),,-Wunused $(WEXTRA)) $(if \
-	$($(*F)_no_Wformat),-Wno-format,-Wformat=2) $($(*F)_CFLAGS) \
-	$(am__append_1) $(am__append_2) $(am__append_3)
-@MUDFLAP_FALSE@libmudflap = 
-@MUDFLAP_TRUE@libmudflap = -lmudflap
-COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage $(no_mudflap.os),\
-	     		  $(COMPILE))
+AM_CPPFLAGS = -I. -I$(srcdir) -I$(top_srcdir)/lib -I..
 
+# Drop the 'u' flag that automake adds by default. It is incompatible
+# with deterministic archives.
+ARFLAGS = cr
+@ADD_STACK_USAGE_WARNING_FALSE@STACK_USAGE_WARNING = 
+
+# Warn about stack usage of more than 256K = 262144 bytes.
+@ADD_STACK_USAGE_WARNING_TRUE@STACK_USAGE_WARNING = -Wstack-usage=262144
+AM_CFLAGS = -std=gnu99 -Wall -Wshadow -Wformat=2 \
+	-Wold-style-definition -Wstrict-prototypes $(if \
+	$($(*F)_no_Werror),,-Werror) $(if \
+	$($(*F)_no_Wunused),,-Wunused -Wextra) $(if \
+	$($(*F)_no_Wstack_usage),,$(STACK_USAGE_WARNING)) \
+	$($(*F)_CFLAGS) $(am__append_2)
+COMPILE.os = $(filter-out -fprofile-arcs -ftest-coverage, $(COMPILE))
+DEFS.os = -DPIC -DSHARED $(am__append_1)
 CLEANFILES = *.gcno *.gcda $(am_libelf_pic_a_OBJECTS) \
 	libelf.so.$(VERSION)
-textrel_check = if readelf -d $@ | fgrep -q TEXTREL; then exit 1; fi
+textrel_msg = echo "WARNING: TEXTREL found in '$@'"
+@FATAL_TEXTREL_FALSE@textrel_found = $(textrel_msg)
+@FATAL_TEXTREL_TRUE@textrel_found = $(textrel_msg); exit 1
+textrel_check = if $(READELF) -d $@ | fgrep -q TEXTREL; then $(textrel_found); fi
 GCC_INCLUDE = -I$(shell $(CC) -print-file-name=include)
 lib_LIBRARIES = libelf.a
-@MUDFLAP_FALSE@noinst_LIBRARIES = libelf_pic.a
+noinst_LIBRARIES = libelf_pic.a
 include_HEADERS = libelf.h gelf.h nlist.h
 pkginclude_HEADERS = elf-knowledge.h
 libelf_a_SOURCES = elf_version.c elf_hash.c elf_error.c elf_fill.c \
@@ -346,10 +378,10 @@ libelf_a_SOURCES = elf_version.c elf_hash.c elf_error.c elf_fill.c \
 		   elf_gnu_hash.c \
 		   elf_scnshndx.c
 
-@MUDFLAP_FALSE@libelf_pic_a_SOURCES = 
-@MUDFLAP_FALSE@am_libelf_pic_a_OBJECTS = $(libelf_a_SOURCES:.c=.os)
-@MUDFLAP_FALSE@libelf_so_LDLIBS = $(am__append_4)
-@MUDFLAP_FALSE@libelf_so_SOURCES = 
+libelf_pic_a_SOURCES = 
+am_libelf_pic_a_OBJECTS = $(libelf_a_SOURCES:.c=.os)
+libelf_so_LDLIBS = $(am__append_3)
+libelf_so_SOURCES = 
 noinst_HEADERS = elf.h abstract.h common.h exttypes.h gelf_xlate.h libelfP.h \
 		 version_xlate.h gnuhash_xlate.h note_xlate.h dl-hash.h
 
@@ -424,19 +456,16 @@ clean-libLIBRARIES:
 clean-noinstLIBRARIES:
 	-test -z "$(noinst_LIBRARIES)" || rm -f $(noinst_LIBRARIES)
 libelf.a: $(libelf_a_OBJECTS) $(libelf_a_DEPENDENCIES) 
-	-rm -f libelf.a
-	$(libelf_a_AR) libelf.a $(libelf_a_OBJECTS) $(libelf_a_LIBADD)
-	$(RANLIB) libelf.a
+	$(AM_V_at)-rm -f libelf.a
+	$(AM_V_AR)$(libelf_a_AR) libelf.a $(libelf_a_OBJECTS) $(libelf_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libelf.a
 libelf_pic.a: $(libelf_pic_a_OBJECTS) $(libelf_pic_a_DEPENDENCIES) 
-	-rm -f libelf_pic.a
-	$(libelf_pic_a_AR) libelf_pic.a $(libelf_pic_a_OBJECTS) $(libelf_pic_a_LIBADD)
-	$(RANLIB) libelf_pic.a
+	$(AM_V_at)-rm -f libelf_pic.a
+	$(AM_V_AR)$(libelf_pic_a_AR) libelf_pic.a $(libelf_pic_a_OBJECTS) $(libelf_pic_a_LIBADD)
+	$(AM_V_at)$(RANLIB) libelf_pic.a
 
 clean-noinstPROGRAMS:
 	-test -z "$(noinst_PROGRAMS)" || rm -f $(noinst_PROGRAMS)
-@MUDFLAP_TRUE@libelf.so$(EXEEXT): $(libelf_so_OBJECTS) $(libelf_so_DEPENDENCIES) 
-@MUDFLAP_TRUE@	@rm -f libelf.so$(EXEEXT)
-@MUDFLAP_TRUE@	$(LINK) $(libelf_so_OBJECTS) $(libelf_so_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -557,15 +586,17 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nlist.Po@am__quote@
 
 .c.o:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c $<
 
 .c.obj:
-@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCC_TRUE@	$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_FALSE@	$(AM_V_CC) @AM_BACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(COMPILE) -c `$(CYGPATH_W) '$<'`
@@ -699,10 +730,8 @@ installdirs:
 	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(includedir)" "$(DESTDIR)$(pkgincludedir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
 	done
-@MUDFLAP_TRUE@install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
-@MUDFLAP_TRUE@uninstall: uninstall-am
 
 install-am: all-am
 	@$(MAKE) $(AM_MAKEFLAGS) install-exec-am install-data-am
@@ -815,30 +844,33 @@ uninstall-am: uninstall-includeHEADERS uninstall-libLIBRARIES \
 
 
 %.os: %.c %.o
-@AMDEP_TRUE@	if $(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED -MT $@ -MD -MP \
+@AMDEP_TRUE@	$(AM_V_CC)if $(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) -MT $@ -MD -MP \
 @AMDEP_TRUE@	  -MF "$(DEPDIR)/$*.Tpo" `test -f '$<' || echo '$(srcdir)/'`$<; \
 @AMDEP_TRUE@	then cat "$(DEPDIR)/$*.Tpo" >> "$(DEPDIR)/$*.Po"; \
 @AMDEP_TRUE@	     rm -f "$(DEPDIR)/$*.Tpo"; \
 @AMDEP_TRUE@	else rm -f "$(DEPDIR)/$*.Tpo"; exit 1; \
 @AMDEP_TRUE@	fi
-@AMDEP_FALSE@	$(COMPILE.os) -c -o $@ -fpic -DPIC -DSHARED $<
-@MUDFLAP_FALSE@libelf.so: libelf_pic.a libelf.map
-@MUDFLAP_FALSE@	$(LINK) -shared -o $@ -Wl,--whole-archive,$<,--no-whole-archive \
-@MUDFLAP_FALSE@		-Wl,--version-script,$(srcdir)/libelf.map,--no-undefined \
-@MUDFLAP_FALSE@		-Wl,--soname,$@.$(VERSION),-z,defs,-z,relro $(libelf_so_LDLIBS)
-@MUDFLAP_FALSE@	if readelf -d $@ | fgrep -q TEXTREL; then exit 1; fi
-@MUDFLAP_FALSE@	ln -fs $@ $@.$(VERSION)
+@AMDEP_FALSE@	$(AM_V_CC)$(COMPILE.os) -c -o $@ -fPIC $(DEFS.os) $<
 
-@MUDFLAP_FALSE@install: install-am libelf.so
-@MUDFLAP_FALSE@	$(mkinstalldirs) $(DESTDIR)$(libdir)
-@MUDFLAP_FALSE@	$(INSTALL_PROGRAM) libelf.so $(DESTDIR)$(libdir)/libelf-$(PACKAGE_VERSION).so
-@MUDFLAP_FALSE@	ln -fs libelf-$(PACKAGE_VERSION).so $(DESTDIR)$(libdir)/libelf.so.$(VERSION)
-@MUDFLAP_FALSE@	ln -fs libelf.so.$(VERSION) $(DESTDIR)$(libdir)/libelf.so
+print-%:
+	@echo $*=$($*)
+libelf.so$(EXEEXT): libelf_pic.a libelf.map
+	$(AM_V_CCLD)$(LINK) -shared -o $@ -Wl,--whole-archive,$<,--no-whole-archive \
+		-Wl,--version-script,$(srcdir)/libelf.map,--no-undefined \
+		-Wl,--soname,$@.$(VERSION),-z,defs,-z,relro $(libelf_so_LDLIBS)
+	@$(textrel_check)
+	$(AM_V_at)ln -fs $@ $@.$(VERSION)
 
-@MUDFLAP_FALSE@uninstall: uninstall-am
-@MUDFLAP_FALSE@	rm -f $(DESTDIR)$(libdir)/libelf-$(PACKAGE_VERSION).so
-@MUDFLAP_FALSE@	rm -f $(DESTDIR)$(libdir)/libelf.so.$(VERSION)
-@MUDFLAP_FALSE@	rm -f $(DESTDIR)$(libdir)/libelf.so
+install: install-am libelf.so
+	$(mkinstalldirs) $(DESTDIR)$(libdir)
+	$(INSTALL_PROGRAM) libelf.so $(DESTDIR)$(libdir)/libelf-$(PACKAGE_VERSION).so
+	ln -fs libelf-$(PACKAGE_VERSION).so $(DESTDIR)$(libdir)/libelf.so.$(VERSION)
+	ln -fs libelf.so.$(VERSION) $(DESTDIR)$(libdir)/libelf.so
+
+uninstall: uninstall-am
+	rm -f $(DESTDIR)$(libdir)/libelf-$(PACKAGE_VERSION).so
+	rm -f $(DESTDIR)$(libdir)/libelf.so.$(VERSION)
+	rm -f $(DESTDIR)$(libdir)/libelf.so
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

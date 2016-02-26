@@ -34,6 +34,7 @@ struct brcmstb_memc {
 	struct device *dev;
 	void __iomem *ddr_ctrl;
 	unsigned int timeout_cycles;
+	u32 frequency;
 };
 
 static int brcmstb_memc_srpd_config(struct brcmstb_memc *memc,
@@ -56,6 +57,14 @@ static int brcmstb_memc_srpd_config(struct brcmstb_memc *memc,
 	(void)__raw_readl(cfg);
 
 	return 0;
+}
+
+static ssize_t show_attr_freq(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	struct brcmstb_memc *memc = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", memc->frequency);
 }
 
 static ssize_t show_attr_srpd(struct device *dev,
@@ -85,9 +94,11 @@ static ssize_t store_attr_srpd(struct device *dev,
 	return count;
 }
 
+static DEVICE_ATTR(frequency, S_IRUGO, show_attr_freq, NULL);
 static DEVICE_ATTR(srpd, S_IRUSR | S_IWUSR, show_attr_srpd, store_attr_srpd);
 
 static struct attribute *dev_attrs[] = {
+	&dev_attr_frequency.attr,
 	&dev_attr_srpd.attr,
 	NULL,
 };
@@ -113,6 +124,9 @@ static int brcmstb_memc_probe(struct platform_device *pdev)
 	memc->ddr_ctrl = devm_ioremap_resource(dev, res);
 	if (IS_ERR(memc->ddr_ctrl))
 		return PTR_ERR(memc->ddr_ctrl);
+
+	of_property_read_u32(pdev->dev.of_node, "clock-frequency",
+			     &memc->frequency);
 
 	ret = sysfs_create_group(&dev->kobj, &dev_attr_group);
 	if (ret) {

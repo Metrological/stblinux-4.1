@@ -17,4 +17,8 @@ romfs:
 	$(ROMFSINST) -e CONFIG_USER_MOCA_MOCA2 \
 		$(MACHINE).$(LIBCDIR)/mocap /bin/mocactl
 	$(ROMFSINST) -e CONFIG_USER_MOCA_MOCA2 \
+		fw/moca20core-gen21.bin /etc/moca/moca20core-gen21.bin
+	$(ROMFSINST) -e CONFIG_USER_MOCA_MOCA2 \
+		fw/moca20core-gen22.bin /etc/moca/moca20core-gen22.bin
+	$(ROMFSINST) -e CONFIG_USER_MOCA_MOCA2 \
 		fw/moca20core-gen23.bin /etc/moca/moca20core-gen23.bin

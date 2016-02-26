@@ -1,29 +1,32 @@
 /* Functions to compute SHA1 message digest of files or memory blocks.
    according to the definition of SHA1 in FIPS 180-1 from April 1997.
-   Copyright (C) 2008-2011 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2008-2011, 2015 Red Hat, Inc.
+   This file is part of elfutils.
    Written by Ulrich Drepper <drepper@redhat.com>, 2008.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -45,8 +48,7 @@ static const unsigned char fillbuf[64] = { 0x80, 0 /* , 0, 0, ...  */ };
 
 /* Initialize structure containing state of computation.  */
 void
-sha1_init_ctx (ctx)
-     struct sha1_ctx *ctx;
+sha1_init_ctx (struct sha1_ctx *ctx)
 {
   ctx->A = 0x67452301;
   ctx->B = 0xefcdab89;
@@ -64,9 +66,7 @@ sha1_init_ctx (ctx)
    IMPORTANT: On some systems it is required that RESBUF is correctly
    aligned for a 32 bits value.  */
 void *
-sha1_read_ctx (ctx, resbuf)
-     const struct sha1_ctx *ctx;
-     void *resbuf;
+sha1_read_ctx (const struct sha1_ctx *ctx, void *resbuf)
 {
   ((sha1_uint32 *) resbuf)[0] = SWAP (ctx->A);
   ((sha1_uint32 *) resbuf)[1] = SWAP (ctx->B);
@@ -90,9 +90,7 @@ be64_copy (char *dest, uint64_t x)
    IMPORTANT: On some systems it is required that RESBUF is correctly
    aligned for a 32 bits value.  */
 void *
-sha1_finish_ctx (ctx, resbuf)
-     struct sha1_ctx *ctx;
-     void *resbuf;
+sha1_finish_ctx (struct sha1_ctx *ctx, void *resbuf)
 {
   /* Take yet unprocessed bytes into account.  */
   sha1_uint32 bytes = ctx->buflen;
@@ -120,10 +118,7 @@ sha1_finish_ctx (ctx, resbuf)
 
 
 void
-sha1_process_bytes (buffer, len, ctx)
-     const void *buffer;
-     size_t len;
-     struct sha1_ctx *ctx;
+sha1_process_bytes (const void *buffer, size_t len, struct sha1_ctx *ctx)
 {
   /* When we already have some bits in our internal buffer concatenate
      both inputs first.  */
@@ -217,10 +212,7 @@ sha1_process_bytes (buffer, len, ctx)
    It is assumed that LEN % 64 == 0.  */
 
 void
-sha1_process_block (buffer, len, ctx)
-     const void *buffer;
-     size_t len;
-     struct sha1_ctx *ctx;
+sha1_process_block (const void *buffer, size_t len, struct sha1_ctx *ctx)
 {
   sha1_uint32 computed_words[16];
 #define W(i) computed_words[(i) % 16]

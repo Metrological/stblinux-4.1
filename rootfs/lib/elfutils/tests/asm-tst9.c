@@ -1,27 +1,19 @@
 /* Copyright (C) 2002-2010 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   This file is part of elfutils.
    Written by Ulrich Drepper <drepper@redhat.com>, 2002.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -218,7 +210,7 @@ main (void)
       escn = elf_getscn (elf, cnt);
       if (escn == NULL)
 	{
-	  printf ("cannot get section %Zd: %s\n", cnt, elf_errmsg (-1));
+	  printf ("cannot get section %zd: %s\n", cnt, elf_errmsg (-1));
 	  result = 1;
 	  continue;
 	}
@@ -226,7 +218,7 @@ main (void)
       shdr = gelf_getshdr (escn, &shdr_mem);
       if (shdr == NULL)
 	{
-	  printf ("cannot get section header for section %Zd: %s\n",
+	  printf ("cannot get section header for section %zd: %s\n",
 		  cnt, elf_errmsg (-1));
 	  result = 1;
 	  continue;
@@ -235,7 +227,7 @@ main (void)
       if (strcmp (elf_strptr (elf, ehdr->e_shstrndx, shdr->sh_name),
 		  scnnames[cnt]) != 0)
 	{
-	  printf ("section %Zd's name differs: %s vs %s\n", cnt,
+	  printf ("section %zd's name differs: %s vs %s\n", cnt,
 		  elf_strptr (elf, ehdr->e_shstrndx, shdr->sh_name),
 		  scnnames[cnt]);
 	  result = 1;
@@ -243,20 +235,20 @@ main (void)
 
       if (shdr->sh_type != (cnt == 2 ? SHT_STRTAB : SHT_PROGBITS))
 	{
-	  printf ("section %Zd's type differs\n", cnt);
+	  printf ("section %zd's type differs\n", cnt);
 	  result = 1;
 	}
 
       if ((cnt == 1 && shdr->sh_flags != (SHF_ALLOC | SHF_WRITE))
 	  || (cnt == 2 && shdr->sh_flags != 0))
 	{
-	  printf ("section %Zd's flags differs\n", cnt);
+	  printf ("section %zd's flags differs\n", cnt);
 	  result = 1;
 	}
 
       if (shdr->sh_addr != 0)
 	{
-	  printf ("section %Zd's address differs\n", cnt);
+	  printf ("section %zd's address differs\n", cnt);
 	  result = 1;
 	}
 
@@ -265,39 +257,39 @@ main (void)
 	      && shdr->sh_offset != (((sizeof (Elf32_Ehdr) + 15) & ~15)
 				     + sizeof (expecteddata))))
 	{
-	  printf ("section %Zd's offset differs\n", cnt);
+	  printf ("section %zd's offset differs\n", cnt);
 	  result = 1;
 	}
 
       if ((cnt == 1 && shdr->sh_size != sizeof (expecteddata))
 	  || (cnt == 2 && shdr->sh_size != 17))
 	{
-	  printf ("section %Zd's size differs\n", cnt);
+	  printf ("section %zd's size differs\n", cnt);
 	  result = 1;
 	}
 
       if (shdr->sh_link != 0)
 	{
-	  printf ("section %Zd's link differs\n", cnt);
+	  printf ("section %zd's link differs\n", cnt);
 	  result = 1;
 	}
 
       if (shdr->sh_info != 0)
 	{
-	  printf ("section %Zd's info differs\n", cnt);
+	  printf ("section %zd's info differs\n", cnt);
 	  result = 1;
 	}
 
       if ((cnt == 1 && shdr->sh_addralign != 16)
 	  || (cnt != 1 && shdr->sh_addralign != 1))
 	{
-	  printf ("section %Zd's addralign differs\n", cnt);
+	  printf ("section %zd's addralign differs\n", cnt);
 	  result = 1;
 	}
 
       if (shdr->sh_entsize != 0)
 	{
-	  printf ("section %Zd's entsize differs\n", cnt);
+	  printf ("section %zd's entsize differs\n", cnt);
 	  result = 1;
 	}
 
@@ -307,14 +299,14 @@ main (void)
 
 	  if (data == NULL)
 	    {
-	      printf ("cannot get data of section %Zd\n", cnt);
+	      printf ("cannot get data of section %zd\n", cnt);
 	      result = 1;
 	    }
 	  else
 	    {
 	      if (data->d_size != sizeof (expecteddata))
 		{
-		  printf ("data block size of section %Zd wrong: got %Zd, "
+		  printf ("data block size of section %zd wrong: got %zd, "
 			  "expected 96\n", cnt, data->d_size);
 		  result = 1;
 		}
@@ -322,7 +314,7 @@ main (void)
 	      if (memcmp (data->d_buf, expecteddata, sizeof (expecteddata))
 		  != 0)
 		{
-		  printf ("data block content of section %Zd wrong\n", cnt);
+		  printf ("data block content of section %zd wrong\n", cnt);
 		  result = 1;
 		}
 	    }

@@ -518,12 +518,36 @@ static int bdc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int bdc_resume(struct platform_device *pdev)
+{
+	struct bdc *bdc = platform_get_drvdata(pdev);
+	int ret;
+
+	ret = bdc_reinit(bdc);
+	if (ret) {
+		dev_err(bdc->dev, "err in bdc reinit\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static const struct of_device_id bdc_of_match[] = {
+	{ .compatible = "brcm,bdc-udc-v0.16" },
+	{ .compatible = "brcm,bdc-udc" },
+	{ .compatible = "brcm,bdc-udc-v2" },
+	{ /* sentinel */ }
+};
+
 static struct platform_driver bdc_driver = {
 	.driver		= {
 		.name	= BRCM_BDC_NAME,
+		.owner	= THIS_MODULE,
+		.of_match_table	= bdc_of_match,
 	},
 	.probe		= bdc_probe,
 	.remove		= bdc_remove,
+	.resume		= bdc_resume,
 };
 
 module_platform_driver(bdc_driver);

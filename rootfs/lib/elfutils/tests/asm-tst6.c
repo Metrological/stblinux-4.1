@@ -1,27 +1,19 @@
 /* Copyright (C) 2002-2012 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   This file is part of elfutils.
    Written by Ulrich Drepper <drepper@redhat.com>, 2002.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-   General Public License for more details.
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -70,11 +62,11 @@ main (void)
       AsmScn_t *scn;
       AsmSym_t *sym;
 
-      snprintf (buf, sizeof (buf), ".grp%Zu", cnt);
+      snprintf (buf, sizeof (buf), ".grp%zu", cnt);
       grp = asm_newscngrp (ctx, buf, NULL, 0);
       if (grp == NULL)
 	{
-	  printf ("cannot section group %Zu: %s\n", cnt, asm_errmsg (-1));
+	  printf ("cannot section group %zu: %s\n", cnt, asm_errmsg (-1));
 	  asm_abort (ctx);
 	  return 1;
 	}
@@ -83,14 +75,14 @@ main (void)
 			      SHF_ALLOC | SHF_WRITE, grp);
       if (scn == NULL)
 	{
-	  printf ("cannot data section for group %Zu: %s\n",
+	  printf ("cannot data section for group %zu: %s\n",
 		  cnt, asm_errmsg (-1));
 	  asm_abort (ctx);
 	  return 1;
 	}
 
       /* Add a name.  */
-      snprintf (buf, sizeof (buf), "%Zu", cnt);
+      snprintf (buf, sizeof (buf), "%zu", cnt);
       sym = asm_newsym (scn, buf, sizeof (uint32_t), STT_OBJECT,
 			STB_GLOBAL);
       if (sym == NULL)
@@ -112,7 +104,7 @@ main (void)
       /* Now we have a symbol, use it as the signature.  */
       if (asm_scngrp_newsignature (grp, sym) != 0)
 	{
-	  printf ("cannot set signature for section group %Zu: %s\n",
+	  printf ("cannot set signature for section group %zu: %s\n",
 		  cnt, asm_errmsg (-1));
 	  asm_abort (ctx);
 	  return 1;
@@ -122,7 +114,7 @@ main (void)
       scn = asm_newscn_ingrp (ctx, ".stab", SHT_PROGBITS, 0, grp);
       if (scn == NULL)
 	{
-	  printf ("cannot stab section for group %Zu: %s\n",
+	  printf ("cannot stab section for group %zu: %s\n",
 		  cnt, asm_errmsg (-1));
 	  asm_abort (ctx);
 	  return 1;

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2015 Broadcom Corporation
+ * Copyright © 2015-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -56,6 +56,9 @@ enum {
 };
 
 /* -------------------- Shared and local vars -------------------- */
+
+const enum brcmstb_reserve_type brcmstb_default_reserve = BRCMSTB_RESERVE_BMEM;
+bool brcmstb_memory_override_defaults = false;
 
 static struct {
 	struct brcmstb_range range[MAX_BRCMSTB_RESERVED_RANGE];
@@ -250,6 +253,207 @@ static int populate_reserved(struct brcmstb_memory *mem)
 #endif
 }
 
+/*
+ * brcmstb_memory_get_default_reserve() - find default reservation for given ID
+ * @bank_nr: bank index
+ * @pstart: pointer to the start address (output)
+ * @psize: pointer to the size address (output)
+ *
+ * NOTE: This interface will change in future kernels that do not have meminfo
+ *
+ * This takes in the bank number and determines the size and address of the
+ * default region reserved for refsw within the bank.
+ */
+int __init brcmstb_memory_get_default_reserve(int bank_nr,
+		phys_addr_t *pstart, phys_addr_t *psize)
+{
+	/* min alignment for mm core */
+	const phys_addr_t alignment =
+		PAGE_SIZE << max(MAX_ORDER - 1, pageblock_order);
+	phys_addr_t start, end;
+	phys_addr_t size, adj = 0;
+	phys_addr_t newstart, newsize;
+	const void *fdt = initial_boot_params;
+	int mem_offset;
+	const struct fdt_property *prop;
+	int addr_cells = 1, size_cells = 1;
+	int proplen, cellslen;
+	int i;
+	u64 tmp;
+
+	if (!fdt) {
+		pr_err("No device tree?\n");
+		return -ENOMEM;
+	}
+
+	/* Get root size and address cells if specified */
+	prop = fdt_get_property(fdt, 0, "#size-cells", &proplen);
+	if (prop)
+		size_cells = DT_PROP_DATA_TO_U32(prop->data, 0);
+	pr_debug("size_cells = %x\n", size_cells);
+
+	prop = fdt_get_property(fdt, 0, "#address-cells", &proplen);
+	if (prop)
+		addr_cells = DT_PROP_DATA_TO_U32(prop->data, 0);
+	pr_debug("address_cells = %x\n", addr_cells);
+
+	mem_offset = fdt_path_offset(fdt, "/memory");
+
+	if (mem_offset < 0) {
+		pr_err("No memory node?\n");
+		return -ENOMEM;
+	}
+
+	prop = fdt_get_property(fdt, mem_offset, "reg", &proplen);
+	cellslen = (int)sizeof(u32) * (addr_cells + size_cells);
+	if ((proplen % cellslen) != 0) {
+		pr_err("Invalid length of reg prop: %d\n", proplen);
+		return -ENOMEM;
+	}
+
+	if (bank_nr >= proplen / cellslen)
+		return -ENOMEM;
+
+	if (!pstart || !psize)
+		return -EFAULT;
+
+	tmp = 0;
+	for (i = 0; i < addr_cells; ++i) {
+		int offset = (cellslen * bank_nr) + (sizeof(u32) * i);
+		tmp |= (u64)DT_PROP_DATA_TO_U32(prop->data, offset) <<
+			((addr_cells - i - 1) * 32);
+	}
+	start = (phys_addr_t)tmp;
+	if (start != tmp) {
+		pr_err("phys_addr_t is smaller than provided address 0x%llx!\n",
+				tmp);
+		return -EINVAL;
+	}
+
+	tmp = 0;
+	for (i = 0; i < size_cells; ++i) {
+		int offset = (cellslen * bank_nr) +
+			(sizeof(u32) * (i + addr_cells));
+		tmp |= (u64)DT_PROP_DATA_TO_U32(prop->data, offset) <<
+			((size_cells - i - 1) * 32);
+	}
+	size = (phys_addr_t)tmp;
+
+	end = start + size;
+
+	if (bank_nr == 0) {
+		if (end <= memblock_get_current_limit() &&
+		    end == memblock_end_of_DRAM()) {
+			if (size < SZ_32M) {
+				pr_err("low memory too small for default bmem\n");
+				return -EINVAL;
+			}
+
+			if (brcmstb_default_reserve == BRCMSTB_RESERVE_BMEM) {
+				if (size <= SZ_128M)
+					return -EINVAL;
+
+				adj = SZ_128M;
+			}
+
+			/* kernel reserves X percent, bmem gets the rest */
+			tmp = ((u64)(size - adj)) * (100 - DEFAULT_LOWMEM_PCT);
+			do_div(tmp, 100);
+			size = tmp;
+			start = end - size;
+		} else if(end > memblock_get_current_limit()) {
+			start = memblock_get_current_limit();
+			size = end - start;
+		} else {
+			if (size >= SZ_1G)
+				start += SZ_512M;
+			else if (size >= SZ_512M)
+				start += SZ_256M;
+			else
+				return -EINVAL;
+			size = end - start;
+		}
+	} else if (start >= VME_A32_MAX && size > SZ_64M) {
+		/*
+		 * Nexus doesn't use the address extension range yet, just
+		 * reserve 64 MiB in these areas until we have a firmer
+		 * specification
+		 */
+		size = SZ_64M;
+	}
+
+	/*
+	 * To keep things simple, we only handle the case where reserved memory
+	 * is at the start or end of a region.
+	 */
+	i = 0;
+	while (i < memblock.reserved.cnt) {
+		struct memblock_region *region = &memblock.reserved.regions[i];
+		newstart = start;
+		newsize = size;
+
+		if (start >= region->base &&
+				start < region->base + region->size) {
+			/* adjust for reserved region at beginning */
+			newstart = region->base + region->size;
+			newsize = size - (newstart - start);
+		} else if (start < region->base) {
+			if (start + size >
+					region->base + region->size) {
+				/* unhandled condition */
+				pr_err("%s: Split region %pa@%pa, reserve will fail\n",
+						__func__, &size, &start);
+				/* enable 'memblock=debug' for dump output */
+				memblock_dump_all();
+				return -EINVAL;
+			}
+			/* adjust for reserved region at end */
+			newsize = min(region->base - start, size);
+		}
+		/* see if we had any modifications */
+		if (newsize != size || newstart != start) {
+			pr_debug("%s: moving default region from %pa@%pa to %pa@%pa\n",
+					__func__, &size, &start, &newsize,
+					&newstart);
+			size = newsize;
+			start = newstart;
+			i = 0; /* start over */
+		} else {
+			++i;
+		}
+	}
+
+	/* Fix up alignment */
+	newstart = ALIGN(start, alignment);
+	if (newstart != start) {
+		pr_debug("adjusting start from %pa to %pa\n",
+				&start, &newstart);
+
+		if (size > (newstart - start))
+			size -= (newstart - start);
+		else
+			size = 0;
+
+		start = newstart;
+	}
+	newsize = round_down(size, alignment);
+	if (newsize != size) {
+		pr_debug("adjusting size from %pa to %pa\n",
+				&size, &newsize);
+		size = newsize;
+	}
+
+	if (size == 0) {
+		pr_debug("size available in bank was 0 - skipping\n");
+		return -EINVAL;
+	}
+
+	*pstart = start;
+	*psize = size;
+
+	return 0;
+}
+
 /**
  * brcmstb_memory_reserve() - fill in static brcmstb_memory structure
  *
@@ -322,7 +526,7 @@ int brcmstb_memory_get(struct brcmstb_memory *mem)
 
 	ret = populate_lowmem(mem);
 	if (ret)
-		return ret;
+		pr_debug("no lowmem defined\n");
 
 	ret = populate_bmem(mem);
 	if (ret)

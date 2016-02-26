@@ -1,5 +1,5 @@
 /*
- * Copyright © 2015 Broadcom Corporation
+ * Copyright © 2015-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License, version 2, as
@@ -94,5 +94,17 @@ static inline int brcmstb_memory_get(struct brcmstb_memory *mem)
 #define for_each_range_of_memc(bm, memc, range)				\
 	for (memc = 0; memc < MAX_BRCMSTB_MEMC; memc++)			\
 		for_each_range(bm, memc, range)				\
+
+/* The following relate to the default reservation scheme */
+
+enum brcmstb_reserve_type {
+	BRCMSTB_RESERVE_BMEM,
+	BRCMSTB_RESERVE_CMA,
+};
+
+/* Determines what type of memory reservation will be used w/o CLI params */
+extern const enum brcmstb_reserve_type brcmstb_default_reserve;
+/* Should be set to true by any CLI option that overrides default reserve */
+extern bool brcmstb_memory_override_defaults;
 
 #endif  /* _BRCMSTB_MEMORY_API_H */

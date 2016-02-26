@@ -141,6 +141,17 @@ static int brcm_usb_instance_probe(struct platform_device *pdev)
 	int err;
 	const char *device_mode;
 
+	/*
+	 * if there is an alias for "usbphy0", it means we have the new
+	 * style USB device tree without the USB wrapper.
+	 */
+	node = of_find_node_by_path("/aliases");
+	if (node) {
+		const char *usbphy = of_get_property(node, "usbphy0", NULL);
+		if (usbphy)
+			return -ENODEV;
+	}
+
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;

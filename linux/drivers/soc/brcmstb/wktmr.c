@@ -28,18 +28,20 @@
 #include <linux/irqreturn.h>
 #include <linux/pm_wakeup.h>
 #include <linux/reboot.h>
+#include <linux/rtc.h>
 
 #include <asm/mach/time.h>
 
 #define DRV_NAME	"brcm-waketimer"
 
 static struct brcmstb_waketmr {
+	struct rtc_device *rtc;
 	struct device *dev;
 	void __iomem *base;
 	unsigned int irq;
-
 	int wake_timeout;
 	struct notifier_block reboot_notifier;
+	bool alarm_is_active;
 } wktimer;
 
 /* No timeout */
@@ -55,23 +57,27 @@ static inline void brcmstb_waketmr_clear_alarm(struct brcmstb_waketmr *timer)
 {
 	writel_relaxed(1, timer->base + BRCMSTB_WKTMR_EVENT);
 	(void)readl_relaxed(timer->base + BRCMSTB_WKTMR_EVENT);
+	timer->alarm_is_active = false;
 }
 
 static void brcmstb_waketmr_set_alarm(struct brcmstb_waketmr *timer,
-		unsigned int secs)
+		unsigned int secs, bool sysfs)
 {
-	unsigned int t;
+	unsigned int t = 0;
 
 	brcmstb_waketmr_clear_alarm(timer);
 
-	t = readl_relaxed(timer->base + BRCMSTB_WKTMR_COUNTER);
+	if (sysfs)
+		t = readl_relaxed(timer->base + BRCMSTB_WKTMR_COUNTER);
 	writel_relaxed(t + secs + 1, timer->base + BRCMSTB_WKTMR_ALARM);
+	timer->alarm_is_active = true;
 }
 
 static irqreturn_t brcmstb_waketmr_irq(int irq, void *data)
 {
 	struct brcmstb_waketmr *timer = data;
 	pm_wakeup_event(timer->dev, 0);
+	timer->alarm_is_active = false;
 	return IRQ_HANDLED;
 }
 
@@ -122,6 +128,9 @@ static ssize_t brcmstb_waketmr_timeout_store(struct device *dev,
 	int timeout;
 	int ret;
 
+#ifdef CONFIG_RTC_CLASS
+	dev_warn(dev, "Using sysfs attributes, consider using 'rtcwake'\n");
+#endif
 	ret = kstrtoint(buf, 0, &timeout);
 	if (ret < 0)
 		return ret;
@@ -145,13 +154,25 @@ static int brcmstb_waketmr_prepare_suspend(struct brcmstb_waketmr *timer)
 	int ret;
 
 	if (device_may_wakeup(dev) && timer->wake_timeout >= 0) {
+		dev_dbg(dev, "enable wake IRQ\n");
 		ret = enable_irq_wake(timer->irq);
 		if (ret) {
 			dev_err(dev, "failed to enable wake-up interrupt\n");
 			return ret;
 		}
 
-		brcmstb_waketmr_set_alarm(timer, timer->wake_timeout);
+		/*
+		 * Using the ioctl() interface, the alarm timer will have
+		 * already been enabled in brcmstb_waketmr_setalarm().
+		 * However, using the sysfs interface, we have to enable it
+		 * here, because brcmstb_waketmr_setalarm() isn't called.
+		 */
+		if (!timer->alarm_is_active)
+			brcmstb_waketmr_set_alarm(timer, timer->wake_timeout,
+						  true);
+	} else {
+		dev_dbg(dev, "nothing to do: wake_timeout: %d\n",
+				timer->wake_timeout);
 	}
 	return 0;
 }
@@ -169,6 +190,108 @@ static int brcmstb_waketmr_reboot(struct notifier_block *nb,
 
 	return NOTIFY_DONE;
 }
+
+#ifdef CONFIG_RTC_CLASS
+static int brcmstb_waketmr_gettime(struct device *dev,
+				   struct rtc_time *tm)
+{
+	struct wktmr_time now;
+
+	wktmr_read(&now);
+
+	rtc_time_to_tm(now.sec, tm);
+
+	return 0;
+}
+
+static int brcmstb_waketmr_settime(struct device *dev,
+				   struct rtc_time *tm)
+{
+	struct brcmstb_waketmr *timer = dev_get_drvdata(dev);
+	unsigned long sec;
+	int ret;
+
+	ret = rtc_valid_tm(tm);
+	if (ret)
+		return ret;
+
+	rtc_tm_to_time(tm, &sec);
+
+	dev_dbg(dev, "%s: sec=%ld\n", __FUNCTION__, sec);
+	writel_relaxed(sec, timer->base + BRCMSTB_WKTMR_COUNTER);
+
+	return 0;
+}
+
+static int brcmstb_waketmr_getalarm(struct device *dev,
+				    struct rtc_wkalrm *alarm)
+{
+	struct brcmstb_waketmr *timer = dev_get_drvdata(dev);
+	unsigned long sec;
+	u32 reg;
+
+	sec = readl_relaxed(timer->base + BRCMSTB_WKTMR_ALARM);
+	if (sec == 0) {
+		/* Alarm is disabled */
+		alarm->enabled = 0;
+		alarm->time.tm_mon = -1;
+		alarm->time.tm_mday = -1;
+		alarm->time.tm_year = -1;
+		alarm->time.tm_hour = -1;
+		alarm->time.tm_min = -1;
+		alarm->time.tm_sec = -1;
+		dev_dbg(dev, "%s: alarm is disabled\n", __FUNCTION__);
+	} else {
+		/* Alarm is enabled */
+		alarm->enabled = 1;
+		rtc_time_to_tm(sec, &alarm->time);
+		dev_dbg(dev, "%s: alarm is enabled\n", __FUNCTION__);
+	}
+
+	reg = readl_relaxed(timer->base + BRCMSTB_WKTMR_EVENT);
+	alarm->pending = !!(reg & 1);
+	dev_dbg(dev, "%s: alarm pending=%d\n", __FUNCTION__, alarm->pending);
+
+	return 0;
+}
+
+static int brcmstb_waketmr_setalarm(struct device *dev,
+				     struct rtc_wkalrm *alarm)
+{
+	struct brcmstb_waketmr *timer = dev_get_drvdata(dev);
+	unsigned long sec;
+
+	if (alarm->enabled)
+		rtc_tm_to_time(&alarm->time, &sec);
+	else
+		sec = 0;
+
+	timer->wake_timeout = sec;
+	dev_dbg(dev, "%s: timeout=%ld\n", __FUNCTION__, sec);
+	brcmstb_waketmr_set_alarm(timer, sec, false);
+
+	return 0;
+}
+
+/*
+ * Does not do much but keep the RTC class happy. We always support
+ * alarms.
+ */
+static int brcmstb_waketmr_alarm_enable(struct device *dev,
+					unsigned int enabled)
+{
+	dev_dbg(dev, "%s: enabled=%d\n", __FUNCTION__, enabled);
+	return 0;
+}
+
+static const struct rtc_class_ops brcmstb_waketmr_ops = {
+	.read_time	= brcmstb_waketmr_gettime,
+	.set_time	= brcmstb_waketmr_settime,
+	.read_alarm	= brcmstb_waketmr_getalarm,
+	.set_alarm	= brcmstb_waketmr_setalarm,
+	.alarm_irq_enable = brcmstb_waketmr_alarm_enable,
+};
+#endif /* CONFIG_RTC_CLASS */
 
 static int __init brcmstb_waketmr_probe(struct platform_device *pdev)
 {
@@ -209,6 +332,14 @@ static int __init brcmstb_waketmr_probe(struct platform_device *pdev)
 	register_reboot_notifier(&timer->reboot_notifier);
 
 	timer->wake_timeout = BRCMSTB_WKTMR_DEFAULT_TIMEOUT;
+#ifdef CONFIG_RTC_CLASS
+	timer->rtc = rtc_device_register("brcmstb-waketmr", dev,
+					 &brcmstb_waketmr_ops, THIS_MODULE);
+	if (IS_ERR(timer->rtc)) {
+		dev_err(dev, "unable to register device\n");
+		return PTR_ERR(timer->rtc);
+	}
+#endif
 
 	ret = device_create_file(dev, &dev_attr_timeout);
 	if (ret) {
@@ -228,6 +359,9 @@ static int brcmstb_waketmr_remove(struct platform_device *pdev)
 
 	device_remove_file(&pdev->dev, &dev_attr_timeout);
 	unregister_reboot_notifier(&timer->reboot_notifier);
+#ifdef CONFIG_RTC_CLASS
+	rtc_device_unregister(timer->rtc);
+#endif
 
 	return 0;
 }

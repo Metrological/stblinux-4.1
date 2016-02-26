@@ -1,58 +1,38 @@
 /* Update data structures for changes and write them out.
-   Copyright (C) 1999, 2000, 2001, 2002, 2004, 2005, 2006 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 1999, 2000, 2001, 2002, 2004, 2005, 2006, 2015 Red Hat, Inc.
+   This file is part of elfutils.
    Contributed by Ulrich Drepper <drepper@redhat.com>, 1999.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   In addition, as a special exception, Red Hat, Inc. gives You the
-   additional right to link the code of Red Hat elfutils with code licensed
-   under any Open Source Initiative certified open source license
-   (http://www.opensource.org/licenses/index.php) which requires the
-   distribution of source code with any binary distribution and to
-   distribute linked combinations of the two.  Non-GPL Code permitted under
-   this exception must only link to the code of Red Hat elfutils through
-   those well defined interfaces identified in the file named EXCEPTION
-   found in the source code files (the "Approved Interfaces").  The files
-   of Non-GPL Code may instantiate templates or use macros or inline
-   functions from the Approved Interfaces without causing the resulting
-   work to be covered by the GNU General Public License.  Only Red Hat,
-   Inc. may make changes or additions to the list of Approved Interfaces.
-   Red Hat's grant of this exception is conditioned upon your not adding
-   any new exceptions.  If you wish to add a new Approved Interface or
-   exception, please contact Red Hat.  You must obey the GNU General Public
-   License in all respects for all of the Red Hat elfutils code and other
-   code used in conjunction with Red Hat elfutils except the Non-GPL Code
-   covered by this exception.  If you modify this file, you may extend this
-   exception to your version of the file, but you are not obligated to do
-   so.  If you do not wish to provide this exception without modification,
-   you must delete this exception statement from your version and license
-   this file solely under the GPL without exception.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
 
 #include <libelf.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -90,18 +70,35 @@ write_file (Elf *elf, off_t size, int change_bo, size_t shnum)
   /* Try to map the file if this isn't done yet.  */
   if (elf->map_address == NULL && elf->cmd == ELF_C_WRITE_MMAP)
     {
-#if _MUDFLAP
-      /* Mudflap doesn't grok that our mmap'd data is ok.  */
-#else
       elf->map_address = mmap (NULL, size, PROT_READ | PROT_WRITE,
 			       MAP_SHARED, elf->fildes, 0);
       if (unlikely (elf->map_address == MAP_FAILED))
 	elf->map_address = NULL;
-#endif
     }
 
   if (elf->map_address != NULL)
     {
+      /* When using mmap we want to make sure the file content is
+	 really there. Only using ftruncate might mean the file is
+	 extended, but space isn't allocated yet.  This might cause a
+	 SIGBUS once we write into the mmapped space and the disk is
+	 full.  In glibc posix_fallocate is required to extend the
+	 file and allocate enough space even if the underlying
+	 filesystem would normally return EOPNOTSUPP.  But other
+	 implementations might not work as expected.  And the glibc
+	 fallback case might fail (with unexpected errnos) in some cases.
+	 So we only report an error when the call fails and errno is
+	 ENOSPC. Otherwise we ignore the error and treat it as just hint.  */
+      if (elf->parent == NULL
+	  && (elf->maximum_size == ~((size_t) 0)
+	      || (size_t) size > elf->maximum_size)
+	  && unlikely (posix_fallocate (elf->fildes, 0, size) != 0))
+	if (errno == ENOSPC)
+	  {
+	    __libelf_seterrno (ELF_E_WRITE_ERROR);
+	    return -1;
+	  }
+
       /* The file is mmaped.  */
       if ((class == ELFCLASS32
 	   ? __elf32_updatemmap (elf, change_bo, shnum)
@@ -119,6 +116,7 @@ write_file (Elf *elf, off_t size, int change_bo, size_t shnum)
 	size = -1;
     }
 
+  /* Reduce the file size if necessary.  */
   if (size != -1
       && elf->parent == NULL
       && elf->maximum_size != ~((size_t) 0)
@@ -149,9 +147,7 @@ write_file (Elf *elf, off_t size, int change_bo, size_t shnum)
 
 
 off_t
-elf_update (elf, cmd)
-     Elf *elf;
-     Elf_Cmd cmd;
+elf_update (Elf *elf, Elf_Cmd cmd)
 {
   size_t shnum;
   off_t size;

@@ -1,51 +1,30 @@
 /* Get CFI from ELF file's exception-handling info.
-   Copyright (C) 2009-2010 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2009-2010, 2014, 2015 Red Hat, Inc.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   In addition, as a special exception, Red Hat, Inc. gives You the
-   additional right to link the code of Red Hat elfutils with code licensed
-   under any Open Source Initiative certified open source license
-   (http://www.opensource.org/licenses/index.php) which requires the
-   distribution of source code with any binary distribution and to
-   distribute linked combinations of the two.  Non-GPL Code permitted under
-   this exception must only link to the code of Red Hat elfutils through
-   those well defined interfaces identified in the file named EXCEPTION
-   found in the source code files (the "Approved Interfaces").  The files
-   of Non-GPL Code may instantiate templates or use macros or inline
-   functions from the Approved Interfaces without causing the resulting
-   work to be covered by the GNU General Public License.  Only Red Hat,
-   Inc. may make changes or additions to the list of Approved Interfaces.
-   Red Hat's grant of this exception is conditioned upon your not adding
-   any new exceptions.  If you wish to add a new Approved Interface or
-   exception, please contact Red Hat.  You must obey the GNU General Public
-   License in all respects for all of the Red Hat elfutils code and other
-   code used in conjunction with Red Hat elfutils except the Non-GPL Code
-   covered by this exception.  If you modify this file, you may extend this
-   exception to your version of the file, but you are not obligated to do
-   so.  If you do not wish to provide this exception without modification,
-   you must delete this exception statement from your version and license
-   this file solely under the GPL without exception.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -97,7 +76,7 @@ parse_eh_frame_hdr (const uint8_t *hdr, size_t hdr_size, GElf_Addr hdr_vaddr,
 {
   const uint8_t *h = hdr;
 
-  if (*h++ != 1)		/* version */
+  if (hdr_size < 4 || *h++ != 1)		/* version */
     return (void *) -1l;
 
   uint8_t eh_frame_ptr_encoding = *h++;
@@ -146,29 +125,34 @@ parse_eh_frame_hdr (const uint8_t *hdr, size_t hdr_size, GElf_Addr hdr_vaddr,
 static Dwarf_CFI *
 getcfi_gnu_eh_frame (Elf *elf, const GElf_Ehdr *ehdr, const GElf_Phdr *phdr)
 {
-  if (unlikely (phdr->p_filesz < 4))
-    goto invalid;
-
   Elf_Data *data = elf_getdata_rawchunk (elf, phdr->p_offset, phdr->p_filesz,
 					 ELF_T_BYTE);
-  if (data == NULL)
+  if (data == NULL || data->d_buf == NULL)
     {
     invalid_hdr:
-    invalid:
       /* XXX might be read error or corrupt phdr */
       __libdw_seterrno (DWARF_E_INVALID_CFI);
       return NULL;
     }
 
+  size_t vsize, dmax;
   Dwarf_Addr eh_frame_ptr;
-  size_t search_table_entries;
-  uint8_t search_table_encoding;
+  size_t search_table_entries = 0;
+  uint8_t search_table_encoding = 0;
   const uint8_t *search_table = parse_eh_frame_hdr (data->d_buf, phdr->p_filesz,
 						    phdr->p_vaddr, ehdr,
 						    &eh_frame_ptr,
 						    &search_table_entries,
 						    &search_table_encoding);
-  if (search_table == (void *) -1l)
+
+  /* Make sure there is enough room for the entries in the table,
+     each entry consists of 2 encoded values.  */
+  vsize = encoded_value_size (data, ehdr->e_ident, search_table_encoding,
+			      NULL);
+  dmax = phdr->p_filesz - (search_table - (const uint8_t *) data->d_buf);
+  if (unlikely (search_table == (void *) -1l
+		|| vsize == 0
+		|| search_table_entries > (dmax / vsize) / 2))
     goto invalid_hdr;
 
   Dwarf_Off eh_frame_offset = eh_frame_ptr - phdr->p_vaddr + phdr->p_offset;
@@ -196,6 +180,7 @@ getcfi_gnu_eh_frame (Elf *elf, const GElf_Ehdr *ehdr, const GElf_Phdr *phdr)
       if (search_table != NULL)
 	{
 	  cfi->search_table = search_table;
+	  cfi->search_table_len = phdr->p_filesz;
 	  cfi->search_table_vaddr = phdr->p_vaddr;
 	  cfi->search_table_encoding = search_table_encoding;
 	  cfi->search_table_entries = search_table_entries;
@@ -232,7 +217,7 @@ getcfi_scn_eh_frame (Elf *elf, const GElf_Ehdr *ehdr,
 		     Elf_Scn *hdr_scn, GElf_Addr hdr_vaddr)
 {
   Elf_Data *data = elf_rawdata (scn, NULL);
-  if (data == NULL)
+  if (data == NULL || data->d_buf == NULL)
     {
       __libdw_seterrno (DWARF_E_INVALID_ELF);
       return NULL;
@@ -244,8 +229,9 @@ getcfi_scn_eh_frame (Elf *elf, const GElf_Ehdr *ehdr,
       if (hdr_scn != NULL)
 	{
 	  Elf_Data *hdr_data = elf_rawdata (hdr_scn, NULL);
-	  if (hdr_data != NULL)
+	  if (hdr_data != NULL && hdr_data->d_buf != NULL)
 	    {
+	      size_t vsize, dmax;
 	      GElf_Addr eh_frame_vaddr;
 	      cfi->search_table_vaddr = hdr_vaddr;
 	      cfi->search_table
@@ -253,7 +239,17 @@ getcfi_scn_eh_frame (Elf *elf, const GElf_Ehdr *ehdr,
 				      hdr_vaddr, ehdr, &eh_frame_vaddr,
 				      &cfi->search_table_entries,
 				      &cfi->search_table_encoding);
-	      if (cfi->search_table == (void *) -1l)
+	      cfi->search_table_len = hdr_data->d_size;
+
+	      /* Make sure there is enough room for the entries in the table,
+		 each entry consists of 2 encoded values.  */
+	      vsize = encoded_value_size (hdr_data, ehdr->e_ident,
+					  cfi->search_table_encoding, NULL);
+	      dmax = hdr_data->d_size - (cfi->search_table
+					 - (const uint8_t *) hdr_data->d_buf);
+	      if (unlikely (cfi->search_table == (void *) -1l
+			    || vsize == 0
+			    || cfi->search_table_entries > (dmax / vsize) / 2))
 		{
 		  free (cfi);
 		  /* XXX might be read error or corrupt phdr */
@@ -301,8 +297,13 @@ getcfi_shdr (Elf *elf, const GElf_Ehdr *ehdr)
 	      hdr_vaddr = shdr->sh_addr;
 	    }
 	  else if (!strcmp (name, ".eh_frame"))
-	    return getcfi_scn_eh_frame (elf, ehdr, scn, shdr,
-					hdr_scn, hdr_vaddr);
+	    {
+	      if (shdr->sh_type == SHT_PROGBITS)
+		return getcfi_scn_eh_frame (elf, ehdr, scn, shdr,
+					    hdr_scn, hdr_vaddr);
+	      else
+		return NULL;
+	    }
 	}
     }
 
@@ -310,8 +311,7 @@ getcfi_shdr (Elf *elf, const GElf_Ehdr *ehdr)
 }
 
 Dwarf_CFI *
-dwarf_getcfi_elf (elf)
-     Elf *elf;
+dwarf_getcfi_elf (Elf *elf)
 {
   if (elf_kind (elf) != ELF_K_ELF)
     {

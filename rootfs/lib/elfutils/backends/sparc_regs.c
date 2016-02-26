@@ -1,27 +1,30 @@
 /* Register names and numbers for SPARC DWARF.
-   Copyright (C) 2005, 2006 Red Hat, Inc.
-   This file is part of Red Hat elfutils.
+   Copyright (C) 2005, 2006, 2015 Red Hat, Inc.
+   This file is part of elfutils.
 
-   Red Hat elfutils is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by the
-   Free Software Foundation; version 2 of the License.
+   This file is free software; you can redistribute it and/or modify
+   it under the terms of either
 
-   Red Hat elfutils is distributed in the hope that it will be useful, but
+     * the GNU Lesser General Public License as published by the Free
+       Software Foundation; either version 3 of the License, or (at
+       your option) any later version
+
+   or
+
+     * the GNU General Public License as published by the Free
+       Software Foundation; either version 2 of the License, or (at
+       your option) any later version
+
+   or both in parallel, as here.
+
+   elfutils is distributed in the hope that it will be useful, but
    WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along
-   with Red Hat elfutils; if not, write to the Free Software Foundation,
-   Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301 USA.
-
-   Red Hat elfutils is an included package of the Open Invention Network.
-   An included package of the Open Invention Network is a package for which
-   Open Invention Network licensees cross-license their patents.  No patent
-   license is granted, either expressly or impliedly, by designation as an
-   included package.  Should you wish to participate in the Open Invention
-   Network licensing program, please visit www.openinventionnetwork.com
-   <http://www.openinventionnetwork.com>.  */
+   You should have received copies of the GNU General Public License and
+   the GNU Lesser General Public License along with this program.  If
+   not, see <http://www.gnu.org/licenses/>.  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
@@ -39,8 +42,8 @@ sparc_register_info (Ebl *ebl,
 		     const char **prefix, const char **setname,
 		     int *bits, int *type)
 {
-  const int nfp = 32 + (ebl->machine == EM_SPARC ? 0 : 16);
-  const int nspec = ebl->machine == EM_SPARC ? 8 : 6;
+  const int nfp = 32 + (ebl->class == ELFCLASS32 ? 0 : 16);
+  const int nspec = ebl->class == ELFCLASS32 ? 8 : 6;
 
   if (name == NULL)
     return 32 + nfp + nspec;
@@ -48,7 +51,7 @@ sparc_register_info (Ebl *ebl,
   if (regno < 0 || regno >= 32 + nfp + nspec || namelen < 6)
     return -1;
 
-  *bits = ebl->machine == EM_SPARC ? 32 : 64;
+  *bits = ebl->class == ELFCLASS32 ? 32 : 64;
   *type = DW_ATE_signed;
 
   *prefix = "%";
@@ -63,9 +66,9 @@ sparc_register_info (Ebl *ebl,
 	};
       *setname = "control";
       *type = DW_ATE_unsigned;
-      if ((ebl->machine != EM_SPARC ? 0 : 4) + 1 - (unsigned int) regno <= 1)
+      if ((ebl->class == ELFCLASS64 ? 0 : 4) + 1 - (unsigned int) regno <= 1)
 	*type = DW_ATE_address;
-      return stpncpy (name, names[ebl->machine != EM_SPARC][regno],
+      return stpncpy (name, names[ebl->class == ELFCLASS64][regno],
 		      namelen) + 1 - name;
     }
 
