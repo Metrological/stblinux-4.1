@@ -574,6 +574,9 @@ void debug_dma_assert_idle(struct page *page)
 	unsigned long flags;
 	phys_addr_t cln;
 
+	if (dma_debug_disabled())
+		return;
+
 	if (!page)
 		return;
 
@@ -1178,7 +1181,7 @@ static inline bool overlap(void *addr, unsigned long len, void *start, void *end
 
 static void check_for_illegal_area(struct device *dev, void *addr, unsigned long len)
 {
-	if (overlap(addr, len, _text, _etext) ||
+	if (overlap(addr, len, _stext, _etext) ||
 	    overlap(addr, len, __start_rodata, __end_rodata))
 		err_printk(dev, NULL, "DMA-API: device driver maps memory from kernel text or rodata [addr=%p] [len=%lu]\n", addr, len);
 }

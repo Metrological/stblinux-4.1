@@ -49,9 +49,10 @@ distclean::
 # files we actually want from that folder, then copy those to the romfs.
 .PHONY: romfs romfs-rootfs romfs-toolchain
 romfs:: romfs-$(libc-source)
-	$(STRIP) temp/lib/*.so* temp/sbin/ldconfig
+	-$(STRIP) temp/lib/*.so* temp/lib64/*.so* temp/sbin/ldconfig
 	mkdir -p $(ROMFSDIR)/lib
 	cp -df temp/lib/*.so* $(ROMFSDIR)/lib
+	-cp -df temp/lib64/*.so* $(ROMFSDIR)/lib; \
 	$(ROMFSINST) -e CONFIG_LIB_LIBC_LDD temp/bin/ldd /bin/ldd
 	$(ROMFSINST) -e CONFIG_LIB_LIBC_LDCONFIG temp/sbin/ldconfig /sbin/ldconfig
 
@@ -60,8 +61,11 @@ romfs-rootfs::
 	make -C build install DESTDIR=$(CURDIR)/temp
 
 romfs-toolchain::
-	mkdir -p temp/{bin,lib,sbin}
+	mkdir -p temp/{bin,lib,lib64,sbin}
 	cp -df $(GCCSYSROOT)/lib/*.so* temp/lib
+	if [ -d "$(GCCSYSROOT)/lib64" ]; then \
+		cp -df $(GCCSYSROOT)/lib64/*.so* temp/lib64; \
+	fi
 	# FIXME: libgcc was removed from sysroot in stbgcc-4.8-1.1, eventually
 	# delete the next line
 	rm -f temp/lib/libgcc*.so*

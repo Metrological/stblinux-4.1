@@ -19,12 +19,52 @@
 #include <linux/ioport.h>
 #include <linux/of.h>
 
+struct pci_sys_data;
+
+struct hw_pci {
+#ifdef CONFIG_PCI_DOMAINS
+	int		domain;
+#endif
+#ifdef CONFIG_PCI_MSI
+	struct msi_controller *msi_ctrl;
+#endif
+	struct pci_ops	*ops;
+	int		nr_controllers;
+	void		**private_data;
+	int		(*setup)(int nr, struct pci_sys_data *);
+	struct pci_bus *(*scan)(int nr, struct pci_sys_data *);
+	void		(*preinit)(void);
+	void		(*postinit)(void);
+	u8		(*swizzle)(struct pci_dev *dev, u8 *pin);
+	int		(*map_irq)(const struct pci_dev *dev, u8 slot, u8 pin);
+	resource_size_t (*align_resource)(struct pci_dev *dev,
+					  const struct resource *res,
+					  resource_size_t start,
+					  resource_size_t size,
+					  resource_size_t align);
+};
+
+struct pci_sys_data {
+	int busnr;
+	struct list_head resources;
+	void *private_data;
+	u64 mem_offset;	/* bus->cpu memory mapping offset	*/
+	unsigned long	io_offset;	/* bus->cpu IO mapping offset		*/
+	struct resource io_res;
+	char		io_res_name[12];
+					/* Bridge swizzling			*/
+#ifdef CONFIG_PCI_MSI
+	struct msi_controller *msi_ctrl;
+#endif
+};
+
 /*
  * Each pci channel is a top-level PCI bus seem by CPU.	 A machine  with
  * multiple PCI channels may have multiple PCI host controllers or a
  * single controller supporting multiple channels.
  */
 struct pci_controller {
+	struct pci_sys_data sysdata;
 	struct pci_controller *next;
 	struct pci_bus *bus;
 	struct device_node *of_node;
@@ -45,16 +85,35 @@ struct pci_controller {
 
 	int iommu;
 
+	int		(*map_irq)(const struct pci_dev *dev, u8 slot, u8 pin);
+	resource_size_t (*align_resource)(struct pci_dev *dev,
+					  const struct resource *res,
+					  resource_size_t start,
+					  resource_size_t size,
+					  resource_size_t align);
+
 	/* Optional access methods for reading/writing the bus number
 	   of the PCI controller */
 	int (*get_busno)(void);
 	void (*set_busno)(int busno);
 };
 
+extern struct pci_controller *hose_head;
+
+static inline struct pci_controller *
+sysdata_to_hose(struct pci_sys_data *sysdata)
+{
+	return container_of(sysdata, struct pci_controller, sysdata);
+}
+
+extern void pci_common_init_dev(struct device *, struct hw_pci *);
+
 /*
  * Used by boards to register their PCI busses before the actual scanning.
  */
 extern void register_pci_controller(struct pci_controller *hose);
+
+extern void add_pci_controller(struct pci_controller *hose);
 
 /*
  * board supplied pci irq fixup routine
@@ -123,12 +182,19 @@ static inline void pci_dma_burst_advice(struct pci_dev *pdev,
 }
 #endif
 
-#ifdef CONFIG_PCI_DOMAINS
-#define pci_domain_nr(bus) ((struct pci_controller *)(bus)->sysdata)->index
+#ifdef CONFIG_PCI_DOMAINS_GENERIC
 
 static inline int pci_proc_domain(struct pci_bus *bus)
 {
-	struct pci_controller *hose = bus->sysdata;
+	return pci_domain_nr(bus);
+}
+
+#elif defined(CONFIG_PCI_DOMAINS)
+#define pci_domain_nr(bus) (sysdata_to_hose(bus->sysdata)->index)
+
+static inline int pci_proc_domain(struct pci_bus *bus)
+{
+	struct pci_controller *hose = sysdata_to_hose(bus->sysdata);
 	return hose->need_domain_info;
 }
 #endif /* CONFIG_PCI_DOMAINS */

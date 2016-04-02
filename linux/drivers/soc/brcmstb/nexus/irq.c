@@ -117,7 +117,12 @@ static int brcmstb_resolve_l2_irq(struct device_node *np, brcmstb_l2_irq irq)
 	return ret;
 }
 
-static const char *nexus_irq0_node_names[] = { "nexus-irq0", "nexus-irq0_aon" };
+static const char *nexus_irq0_node_names[] = { "nexus-irq0", "nexus-irq0_aon",
+					       "nexus-upg_main_irq",
+					       "nexus-upg_main_aon_irq",
+					       "nexus-upg_bsc_irq",
+					       "nexus-upg_bsc_aon_irq",
+					       "nexus-upg_spi_aon_irq" };
 
 int brcmstb_get_l2_irq_id(brcmstb_l2_irq irq)
 {

@@ -13,7 +13,7 @@
 void __iomem *__pci_ioport_map(struct pci_dev *dev,
 			       unsigned long port, unsigned int nr)
 {
-	struct pci_controller *ctrl = dev->bus->sysdata;
+	struct pci_controller *ctrl = sysdata_to_hose(dev->bus->sysdata);
 	unsigned long base = ctrl->io_map_base;
 
 	/* This will eventually become a BUG_ON but for now be gentle */

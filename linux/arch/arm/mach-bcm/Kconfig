@@ -148,6 +148,7 @@ config ARCH_BRCMSTB
 	select ARCH_WANT_OPTIONAL_GPIOLIB
 	select SOC_BRCMSTB
 	select BRCMSTB
+	select PCI_DOMAINS if PCI
 	help
 	  Say Y if you intend to run the kernel on a Broadcom ARM-based STB
 	  chipset.
@@ -159,31 +160,23 @@ endif
 
 choice
 	prompt "Chipset selection"
-	depends on BRCMSTB
+	depends on ARCH_BRCMSTB
 	help
 	  Select the Broadcom STB chipset you are building for.
 
 config BCM3390A0
 	bool "3390 Ax"
-	select BRCM_HAS_NAND_MAJOR_7
-	select BRCM_HAS_NAND_MINOR_1
 	select BRCM_HAS_BSPI_V4
-	select BRCM_HAS_MOCA_20_GEN23
 	select BRCM_MSPI_64B_WORDS
 
 config BCM3390B0
 	bool "3390 Bx"
-	select BRCM_HAS_NAND_MAJOR_7
-	select BRCM_HAS_NAND_MINOR_1
 	select BRCM_HAS_BSPI_V4
-	select BRCM_HAS_MOCA_20_GEN23
 	select BRCM_MSPI_64B_WORDS
 
 config BCM7250B0
 	bool "7250 Bx"
 	select BCM7250
-	select BRCM_HAS_NAND_MAJOR_7
-	select BRCM_HAS_NAND_MINOR_1
 	select BRCM_HAS_BSPI_V4
 	select BRCM_MSPI_64B_WORDS
 	select BRCMSTB_XPT_HASH if PM
@@ -191,129 +184,48 @@ config BCM7250B0
 config BCM7364A0
 	bool "7364 Ax"
 	select BCM7364
-	select BRCM_GENET_V4
-	select BRCM_HAS_NAND_MAJOR_7
-	select BRCM_HAS_NAND_MINOR_1
 	select BRCM_HAS_BSPI_V4
-	select BRCM_HAS_MOCA_20_GEN23
 	select BRCM_MSPI_64B_WORDS
 	select BRCMSTB_XPT_HASH if PM
 
 config BCM7366C0
 	bool "7366 Cx"
 	select BCM7366
-	select BRCM_GENET_V4
-	select BRCM_HAS_NAND_MAJOR_7
-	select BRCM_HAS_NAND_MINOR_1
 	select BRCM_HAS_BSPI_V4
-	select BRCM_HAS_MOCA_20_GEN23
 	select BRCM_MSPI_64B_WORDS
 	select BRCMSTB_XPT_HASH if PM
 
 config BCM74371A0
 	bool "74371 Ax"
 	select BCM74371
-	select BRCM_GENET_V4
-	select BRCM_HAS_NAND_MAJOR_7
-	select BRCM_HAS_NAND_MINOR_0
 	select BRCM_HAS_BSPI_V4
-	select BRCM_HAS_MOCA_20_GEN23
 	select BRCM_MSPI_64B_WORDS
 
 config BCM7439B0
 	bool "7439 Bx"
 	select BCM7439
-	select BRCM_GENET_V4
-	select BRCM_HAS_NAND_MAJOR_7
-	select BRCM_HAS_NAND_MINOR_1
 	select BRCM_HAS_BSPI_V4
-	select BRCM_HAS_MOCA_20_GEN23
 	select BRCM_MSPI_64B_WORDS
 	select BRCMSTB_XPT_HASH if PM
 
 config BCM7445D0
 	bool "7445 Dx"
 	select BCM7445
-	select BRCM_GENET_V4
-	select BRCM_HAS_MOCA_20_GEN23
 	select BRCM_HAS_BSPI_V4
 	select BRCM_MSPI_64B_WORDS
 	select BRCMSTB_XPT_HASH if PM
 
+config BCM7271A0
+	bool "7271 Ax"
+	select BCM7271
+	select BRCM_HAS_BSPI_V4
+	select BCM7120_L2_IRQ
+
 endchoice
-
-config SPI_BRCMSTB
-	tristate "Broadcom HIF SPI controller support"
-	default y
-	depends on BRCMSTB
-	help
-	  Say Y to enable support for SPI (serial) flash devices.
-
-config BCMGENET
-	tristate "Broadcom STB 10/100/1000 MAC/PHY support"
-	depends on ETHERNET && BRCMSTB && (BRCM_GENET_V3 || BRCM_GENET_V4)
-	default y
-	select CRC32
-	select MII
-	select PHYLIB
-	select FIXED_PHY
-	select BCM7XXX_PHY
-	select BCM531XX_PHY
-	help
-	  Say Y to support the internal 10/100/1000 GENET MAC/PHY on
-	  Broadcom set-top chips.  This driver also supports the datapath
-	  for the onchip MoCA transceiver.
-
-	  If your chipset supports power management, disabling this driver
-	  will keep the device permanently powered down.
-
-config BRCM_MOCA
-	tristate "Broadcom MoCA character driver"
-	depends on BRCMSTB && (BRCM_HAS_GENET || BRCM_HAS_MOCA_20_GEN21 || \
-		BRCM_HAS_MOCA_20_GEN22 || BRCM_HAS_MOCA_20_GEN23) && !BRCM_IKOS
-	default y
-	help
-	  Say Y to build the MoCA control path driver.  This is a simple
-	  character driver that allows the MoCA daemon (mocad) to
-	  initialize and configure the MoCA interface.
-
-	  If your chipset supports power management, disabling this driver
-	  will keep the device permanently powered down.
-
-config BRCM_USB
-	tristate "Broadcom STB USB support"
-	depends on BRCMSTB && USB
-	select BRCM_USB_OHCI if USB_OHCI_HCD
-	select BRCM_USB_EHCI if USB_EHCI_HCD
-	select BRCM_USB_XHCI if USB_XHCI_HCD
-	select BRCM_USB_PHY if USB_OHCI_HCD || USB_EHCI_HCD || USB_XHCI_HCD
-	select GENERIC_PHY if BRCM_USB_PHY
-	default y
-	help
-	  Say Y to enable the drivers for the onchip USB controllers.
-
-	  If your chipset supports power management, disabling this driver
-	  will keep the device permanently powered down.
-
-config BRCM_SDIO
-	tristate "Broadcom SDHCI (SDIO) support"
-	depends on BRCMSTB && MMC_SDHCI
-	default y
-	select MMC_SDHCI_IO_ACCESSORS
-	help
-	  Say Y to enable the driver for the onchip SDIO controller.
-
-	  If you do not plan on using this device, disabling CONFIG_MMC
-	  will save about 75KB.
-
-	  If unsure, say Y.
 
 #####################################################################
 # Hidden options
 #####################################################################
-
-config BRCMSTB
-	bool
 
 config BCM7250
 	bool
@@ -331,72 +243,6 @@ config BCM7439
 	bool
 
 config BCM7445
-	bool
-
-config BRCM_GENET_V3
-	bool
-
-config BRCM_GENET_V4
-	bool
-
-config BRCM_GENET_VERSION
-	int
-	default 3 if BRCM_GENET_V3
-	default 4 if BRCM_GENET_V4
-
-# MoCA controller
-config BRCM_HAS_MOCA
-	bool
-
-# Original MoCA 1.1 (gen1 firmware)
-config BRCM_HAS_MOCA_11
-	bool
-	select BRCM_HAS_MOCA
-
-# Cost-reduced MoCA 1.1 with limited TX RAM (gen1 firmware)
-config BRCM_HAS_MOCA_11_LITE
-	bool
-	select BRCM_HAS_MOCA
-
-# MoCA 1.1 with selected 2.0 features (gen2 firmware)
-config BRCM_HAS_MOCA_11_PLUS
-	bool
-	select BRCM_HAS_MOCA
-
-# MoCA 2.0 (gen3 firmware for 1.1, gen2x firmware for 2.0)
-config BRCM_HAS_MOCA_20_GEN21
-	bool
-	select BRCM_HAS_MOCA
-
-config BRCM_HAS_MOCA_20_GEN22
-	bool
-	select BRCM_HAS_MOCA
-
-config BRCM_HAS_MOCA_20_GEN23
-	bool
-	select BRCM_HAS_MOCA
-
-config BRCM_MOCA_VERS
-	hex
-	default 0x1100 if BRCM_HAS_MOCA_11
-	default 0x1101 if BRCM_HAS_MOCA_11_LITE
-	default 0x1102 if BRCM_HAS_MOCA_11_PLUS
-	default 0x2001 if BRCM_HAS_MOCA_20_GEN21
-	default 0x2002 if BRCM_HAS_MOCA_20_GEN22
-	default 0x2003 if BRCM_HAS_MOCA_20_GEN23
-
-# select for MoCA on GENET_0
-config BRCM_MOCA_ON_GENET_0
-	bool
-	select BRCM_HAS_GENET_0
-
-# select for MoCA on GENET_1
-config BRCM_MOCA_ON_GENET_1
-	bool
-	select BRCM_HAS_GENET_1
-
-# MoCA is MidRF (default is HighRF)
-config BRCM_HAS_MOCA_MIDRF
 	bool
 
 config BRCM_HAS_BSPI_V4
@@ -417,14 +263,3 @@ config BRCM_MSPI_LEGACY
 config BRCM_MSPI_64B_WORDS
 	bool
 
-config BRCM_USB_OHCI
-       tristate
-
-config BRCM_USB_EHCI
-       tristate
-
-config BRCM_USB_XHCI
-       tristate
-
-config BRCM_USB_PHY
-       tristate

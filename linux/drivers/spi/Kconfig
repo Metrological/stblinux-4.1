@@ -638,6 +638,13 @@ config SPI_DW_MMIO
 	tristate "Memory-mapped io interface driver for DW SPI core"
 	depends on SPI_DESIGNWARE
 
+config SPI_BRCMSTB
+	tristate "Broadcom HIF SPI controller support"
+	depends on ARM && ARCH_BRCMSTB
+	default ARCH_BRCMSTB
+	help
+	  Say Y to enable support for SPI (serial) flash devices.
+
 #
 # There are lots of SPI device types, with sensors and memory
 # being probably the most widely used ones.

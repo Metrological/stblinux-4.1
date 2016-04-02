@@ -54,6 +54,33 @@
 		};
 	};
 
+	pcie: pcie@10410000 {
+		reg = <0x10410000 0xc024>;
+		interrupts = <0x27>, <0x27>;
+		interrupt-names = "pcie", "msi";
+		interrupt-parent = <&periph_intc>;
+		compatible = "brcm,bcm7435-pcie", "brcm,pci-plat-dev";
+		#address-cells = <3>;
+		#size-cells = <2>;
+		tot-num-pcie = <1>;
+		brcm,ssc;
+		#interrupt-cells = <1>;
+		/* 4x128mb windows */
+		ranges = <0x2000000 0x0 0xd0000000 0xd0000000 0 0x08000000>,
+			 <0x2000000 0x0 0xd8000000 0xd8000000 0 0x08000000>,
+			 <0x2000000 0x0 0xe0000000 0xe0000000 0 0x08000000>,
+			 <0x2000000 0x0 0xe8000000 0xe8000000 0 0x08000000>;
+		interrupt-map-mask = <0 0 0 7>;
+		interrupt-map = <0 0 0 1
+			&periph_intc 35 3 0
+			0 0 2 &periph_intc
+			36 3 0 0
+			0 3 &periph_intc 37
+			3 0 0 0
+			4 &periph_intc 38 3>;
+		status = "disabled";
+	};
+
 	rdb {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -82,6 +109,27 @@
 			interrupts = <52>;
 		};
 
+		hif_intr2_intc: interrupt-controller@41b000 {
+			#interrupt-cells = <1>;
+			compatible = "brcm,l2-intc";
+			interrupt-parent = <&periph_intc>;
+			reg = <0x41b000 0x30>;
+			interrupt-controller;
+			interrupts = <0x18>;
+			interrupt-names = "hif";
+		};
+
+		aon_pm_l2_intc: interrupt-controller@408440 {
+			#interrupt-cells = <1>;
+			compatible = "brcm,l2-intc";
+			interrupt-parent = <&periph_intc>;
+			reg = <0x408440 0x30>;
+			interrupt-controller;
+			interrupts = <0x36>;
+			interrupt-names = "sys_pm";
+			brcm,irq-can-wake;
+		};
+
 		gisb-arb@400000 {
 			compatible = "brcm,bcm7435-gisb-arb";
 			reg = <0x400000 0xdc>;
@@ -98,18 +146,51 @@
 						     "scpu";
 		};
 
-		upg_irq0_intc: upg_irq0_intc@406780 {
-			compatible = "brcm,bcm7120-l2-intc";
-			reg = <0x406780 0x8>;
-
-			brcm,int-map-mask = <0x44>;
-			brcm,int-fwd-mask = <0x70000>;
-
-			interrupt-controller;
+		upg_irq0_intc: interrupt-controller@406780 {
 			#interrupt-cells = <1>;
-
+			compatible = "brcm,bcm7120-l2-intc";
 			interrupt-parent = <&periph_intc>;
-			interrupts = <60>;
+			reg = <0x406780 0x8>;
+			interrupt-controller;
+			interrupts = <0x3c>,
+				<0x3a>;
+			interrupt-names = "upg_main",
+				"upg_bsc";
+			brcm,int-map-mask = <0x25c>,
+				<0x7000000>;
+			brcm,int-fwd-mask = <0x70000>;
+		};
+
+		irq0_aon_intc: interrupt-controller@409480 {
+			#interrupt-cells = <1>;
+			compatible = "brcm,bcm7120-l2-intc";
+			interrupt-parent = <&periph_intc>;
+			reg = <0x409480 0x8>;
+			interrupt-controller;
+			interrupts = <0x3d>,
+				<0x3b>,
+				<0x40>;
+			interrupt-names = "upg_main_aon",
+				"upg_bsc_aon",
+				"upg_spi";
+			brcm,int-map-mask = <0x1e3>,
+				<0x18000000>,
+				<0x100000>;
+			brcm,int-fwd-mask = <0x0>;
+			brcm,irq-can-wake;
+		};
+
+		nand: nand@41c800 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "brcm,brcmnand-v6.2",
+				"brcm,brcmnand";
+			reg-names = "nand";
+			status = "disabled";
+			reg = <0x41c800 0x600>;
+			interrupts = <0x18>;
+			interrupt-parent = <&hif_intr2_intc>;
+			interrupt-names = "nand_ctlrdy";
 		};
 
 		sun_top_ctrl: syscon@404000 {
@@ -160,6 +241,28 @@
 				};
 			};
 		};
+
+		enet1: ethernet@ba0000 {
+			phy-mode = "moca";
+			fixed-link = <1 1 1000 0 0>;
+			mac-address = [ 00 10 18 36 23 1b ];
+			compatible = "brcm,genet-v3";
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			reg = <0xba0000 0x11c88>;
+			interrupts = <19>, <20>;
+			interrupt-parent = <&periph_intc>;
+			status = "disabled";
+
+			mdio@e14 {
+				compatible = "brcm,genet-mdio-v3";
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				reg = <0xe14 0x8>;
+
+			};
+		};
+
 
 		ehci0: usb@480300 {
 			compatible = "brcm,bcm7435-ehci", "generic-ehci";
@@ -237,6 +340,39 @@
 			status = "disabled";
 		};
 
+		upg_gio: gpio@406700 {
+			#gpio-cells = <2>;
+			#interrupt-cells = <2>;
+			compatible = "brcm,bcm7435-gpio",
+				"brcm,brcmstb-gpio";
+			gpio-controller;
+			interrupt-controller;
+			reg = <0x406700 0x80>;
+			interrupts = <0x6>;
+			interrupt-parent = <&upg_irq0_intc>;
+			interrupt-names = "upg_gio";
+			brcm,gpio-bank-widths = <32 32 32 21>;
+		};
+
+		upg_gio_aon: gpio@4094c0 {
+			#gpio-cells = <2>;
+			#interrupt-cells = <2>;
+			compatible = "brcm,bcm7435-gpio",
+				"brcm,brcmstb-gpio";
+			gpio-controller;
+			interrupt-controller;
+			reg = <0x4094c0 0x40>;
+			interrupts = <0x6>;
+			interrupt-parent = <&irq0_aon_intc>;
+			interrupts-extended = <&irq0_aon_intc 0x6>,
+				<&aon_pm_l2_intc 0x5>;
+			interrupt-names = "upg_gio_aon",
+				"upg_gio_aon_wakeup";
+			wakeup-source;
+			brcm,gpio-bank-widths = <18 4>;
+		};
+
+
 		sata: sata@181000 {
 			compatible = "brcm,bcm7425-ahci", "brcm,sata3-ahci";
 			reg-names = "ahci", "top-ctrl";
@@ -275,6 +411,22 @@
 				reg = <1>;
 				#phy-cells = <0>;
 			};
+		};
+
+		moca: bmoca@e00000 {
+			chip-id = <0x743500b0>;
+			mac-address = [ 00 00 00 00 00 00 ];
+			enet-id = <&enet1>;
+			rf-band = "highrf";
+			compatible = "brcm,bmoca-instance";
+			hw-rev = <0x2002>;
+			reg = <0xe00000 0x1ffd94>;
+			interrupts = <32>;
+			interrupt-parent = <&periph_intc>;
+			interrupt-names = "moca";
+			i2c-base = <0x10406200>;
+			i2c-addr = <0x70>;
+			status = "disabled";
 		};
 	};
 };

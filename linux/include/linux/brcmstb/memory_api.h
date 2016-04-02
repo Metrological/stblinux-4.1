@@ -71,7 +71,7 @@ void *brcmstb_memory_kva_map_phys(phys_addr_t phys, size_t size, bool cached);
 int brcmstb_memory_kva_unmap(const void *kva);
 
 /* Below functions are for calling during initialization and may need stubs */
-
+void __init brcmstb_memory_init(void);
 int __init brcmstb_memory_get_default_reserve(int bank_nr,
 		phys_addr_t *pstart, phys_addr_t *psize);
 

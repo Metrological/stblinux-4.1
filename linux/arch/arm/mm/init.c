@@ -36,6 +36,10 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 
+#ifdef CONFIG_BRCMSTB_MEMORY_API
+#include <linux/brcmstb/memory_api.h>
+#endif
+
 #include "mm.h"
 
 #ifdef CONFIG_CPU_CP15_MMU
@@ -264,23 +268,14 @@ void __init arm_memblock_init(const struct machine_desc *mdesc)
 
 	arm_mm_memblock_reserve();
 
-#ifdef CONFIG_BRCMSTB
-	/*
-	 * Moved before platform reserve so that we can find all the
-	 * non-cma, non-bmem reserved areas without implementing interval
-	 * subtraction
-	 */
-	early_init_fdt_scan_reserved_mem();
-
-	/* reserve any platform specific memblock areas */
-	if (mdesc->reserve)
-		mdesc->reserve();
-#else
 	/* reserve any platform specific memblock areas */
 	if (mdesc->reserve)
 		mdesc->reserve();
 
 	early_init_fdt_scan_reserved_mem();
+
+#ifdef CONFIG_BRCMSTB_MEMORY_API
+	brcmstb_memory_init();
 #endif
 
 	/* reserve memory for DMA contiguous allocations */

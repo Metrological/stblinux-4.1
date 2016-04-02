@@ -64,6 +64,11 @@ ARCH		= $(shell cat .arch)
 
 VERSION		:= $(shell bin/linuxver.sh $(LINUXDIR))
 DOTVERSION	:= $(patsubst 26%,2.6.%,$(patsubst 3%,3.%,$(patsubst 4%,4.%,$(VERSION))))
+ifeq ($(ARCH),arm64)
+LINUX_IMAGE:=Image
+else
+LINUX_IMAGE:=zImage
+endif
 
 REL_TFTPHOST	:= stb-irva-01
 REL_TFTPDIR	:= $(TFTPBOOT)/$(VERSION)
@@ -128,9 +133,14 @@ initrd_kernel: .target chkpath rootfs
 		gzip -9 < $(LINUXDIR)/vmlinux > \
 			images/vmlinuz-initrd-$(PLAT) || exit 1; \
 	else \
-		$(MAKE) -C $(LINUXDIR) SUBDIRS= ARCH=arm zImage || exit 1; \
-		cp -f $(LINUXDIR)/arch/arm/boot/zImage \
-			images/vmlinuz-initrd-$(PLAT) || exit 1; \
+		$(MAKE) -C $(LINUXDIR) SUBDIRS= ARCH="$(ARCH)" $(LINUX_IMAGE) || exit 1; \
+		if [ "$(ARCH)" = "arm64" ]; then \
+			gzip -9 < $(LINUXDIR)/arch/$(ARCH)/boot/$(LINUX_IMAGE) > \
+				images/vmlinuz-initrd-$(PLAT) || exit 1; \
+		else \
+			cp -f $(LINUXDIR)/arch/$(ARCH)/boot/$(LINUX_IMAGE) \
+				images/vmlinuz-initrd-$(PLAT) || exit 1; \
+		fi \
 	fi
 
 .PHONY: kernel
@@ -142,9 +152,14 @@ kernel: .target chkpath
 		gzip -9 < $(LINUXDIR)/vmlinux > \
 			images/vmlinuz-$(PLAT) || exit 1; \
 	else \
-		$(MAKE) -C $(LINUXDIR) SUBDIRS= ARCH=arm zImage || exit 1; \
-		cp -f $(LINUXDIR)/arch/arm/boot/zImage \
-			images/vmlinuz-$(PLAT) || exit 1; \
+		$(MAKE) -C $(LINUXDIR) SUBDIRS= ARCH="$(ARCH)" $(LINUX_IMAGE) || exit 1; \
+		if [ "$(ARCH)" = "arm64" ]; then \
+			gzip -9 < $(LINUXDIR)/arch/$(ARCH)/boot/$(LINUX_IMAGE) > \
+				images/vmlinuz-$(PLAT) || exit 1; \
+		else \
+			cp -f $(LINUXDIR)/arch/$(ARCH)/boot/$(LINUX_IMAGE) \
+				images/vmlinuz-$(PLAT) || exit 1; \
+		fi \
 	fi
 
 .PHONY: kernel_sign

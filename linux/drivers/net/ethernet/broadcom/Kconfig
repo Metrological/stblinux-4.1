@@ -65,6 +65,7 @@ config BCMGENET
 	select MII
 	select PHYLIB
 	select FIXED_PHY
+	select BCM531XX_PHY
 	select BCM7XXX_PHY
 	help
 	  This driver supports the built-in Ethernet MACs found in the

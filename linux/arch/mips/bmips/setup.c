@@ -18,7 +18,6 @@
 #include <linux/of_fdt.h>
 #include <linux/of_platform.h>
 #include <linux/smp.h>
-#include <linux/libfdt.h>
 #include <asm/addrspace.h>
 #include <asm/bmips.h>
 #include <asm/bootinfo.h>
@@ -28,22 +27,13 @@
 #include <asm/smp-ops.h>
 #include <asm/time.h>
 #include <asm/traps.h>
-#include <asm/fw/cfe/cfe_api.h>
-#include <asm/fw/cfe/cfe_error.h>
 
 #define RELO_NORMAL_VEC		BIT(18)
 
 #define REG_BCM6328_OTP		((void __iomem *)CKSEG1ADDR(0x1000062c))
 #define BCM6328_TP1_DISABLED	BIT(9)
 
-/* define default holes, there is no BMIPS_MAP2_SZ because that
- * map takes everything else that was not taken by MAP[01]
- */
-#define BMIPS_MAP0_OFF 0x00000000
-#define BMIPS_MAP0_SZ  0x10000000
-#define BMIPS_MAP1_OFF 0x20000000
-#define BMIPS_MAP1_SZ  0x30000000
-#define BMIPS_MAP2_OFF 0x90000000
+extern void transfer_cfe_to_dt(void *dtb);
 
 static const unsigned long kbase = VMLINUX_LOAD_ADDRESS & 0xfff00000;
 
@@ -112,16 +102,34 @@ static void bcm6368_quirks(void)
 	bcm63xx_fixup_cpu1();
 }
 
+static void bmips5000_pref30_quirk(void)
+{
+	__asm__ __volatile__(
+	"	li	$8, 0x5a455048\n"
+	"	.word	0x4088b00f\n"	/* mtc0 $8, $22, 15 */
+	"	nop; nop; nop\n"
+	"	.word	0x4008b008\n"	/* mfc0 $8, $22, 8 */
+	/* disable "pref 30" on buggy CPUs */
+	"	lui	$9, 0x0800\n"
+	"	or	$8, $9\n"
+	"	.word	0x4088b008\n"	/* mtc0 $8, $22, 8 */
+	: : : "$8", "$9");
+}
+
 static const struct bmips_quirk bmips_quirk_list[] = {
 	{ "brcm,bcm3384-viper",		&bcm3384_viper_quirks		},
 	{ "brcm,bcm33843-viper",	&bcm3384_viper_quirks		},
 	{ "brcm,bcm6328",		&bcm6328_quirks			},
 	{ "brcm,bcm6368",		&bcm6368_quirks			},
+	{ "brcm,bcm7344",		&bmips5000_pref30_quirk		},
+	{ "brcm,bcm7346",		&bmips5000_pref30_quirk		},
+	{ "brcm,bcm7425",		&bmips5000_pref30_quirk		},
 	{ },
 };
 
 void __init prom_init(void)
 {
+	bmips_cpu_setup();
 	register_bmips_smp_ops();
 }
 
@@ -149,197 +157,6 @@ void __init plat_time_init(void)
 	mips_hpt_frequency = freq;
 }
 
-void __init transfer_mem_cfe_to_dt(void *dtb)
-{
-	int mem, len, i, rc;
-	uint dram_sz = 0, tmp, base, size;
-	uint new_map[3][2] = {{0,},};
-	const ulong *map;
-
-	if (cfe_getenv("DRAM0_SIZE", arcs_cmdline, COMMAND_LINE_SIZE) == CFE_OK) {
-		if (kstrtouint(arcs_cmdline, 10, &tmp)) {
-			printk(KERN_INFO "can't extract DRAM0_SIZE\n");
-		} else {
-			dram_sz = tmp*(1024*1024);
-		}
-	}
-	if (cfe_getenv("DRAM1_SIZE", arcs_cmdline, COMMAND_LINE_SIZE) == CFE_OK) {
-		if (kstrtouint(arcs_cmdline, 10, &tmp)) {
-			printk(KERN_INFO "can't extract DRAM1_SIZE\n");
-		} else {
-			dram_sz += tmp*(1024*1024);
-		}
-	}
-	if (!dram_sz) {
-		printk(KERN_INFO "cfe dram size is 0\n");
-		goto bail_mem_cfe_to_dt;
-	}
-
-	mem = fdt_path_offset(dtb, "/memory");
-	if (mem < 0) {
-		printk(KERN_INFO "could not find /memory value\n");
-		goto bail_mem_cfe_to_dt;
-	}
-
-	map = (const ulong*)fdt_getprop(dtb, mem, "reg", &len);
-	if (!map) {
-		printk(KERN_INFO "could not find /memory reg\n");
-		goto bail_mem_cfe_to_dt;
-	}
-	if (len != sizeof(new_map)) {
-		printk(KERN_INFO "Not compatible with dt /memory/reg@ type, skipping re-map...\n");
-		goto bail_mem_cfe_to_dt;
-	}
-	pr_debug("dt map:\n");
-	for (i = 0 ; i < len/sizeof(base); i += 2) {
-		base = fdt32_to_cpu(map[i]);
-		size = fdt32_to_cpu(map[i+1]);
-		pr_debug("  reg %08x @ %08x\n", size, base);
-	}
-	pr_debug("cfe total memory: 0x%x\n", dram_sz);
-
-	for (i = 0; dram_sz; i++) {
-		switch (i) {
-		case 0:
-			/* setup first map hole */
-			size = (dram_sz < BMIPS_MAP0_SZ)?dram_sz:BMIPS_MAP0_SZ;
-			new_map[i][0] = cpu_to_fdt32(BMIPS_MAP0_OFF);
-			new_map[i][1] = cpu_to_fdt32(size);
-			dram_sz -= size;
-		break;
-		case 1:
-			/* setup second map hole */
-			size = (dram_sz < BMIPS_MAP1_SZ)?dram_sz:BMIPS_MAP1_SZ;
-			new_map[i][0] = cpu_to_fdt32(BMIPS_MAP1_OFF);
-			new_map[i][1] = cpu_to_fdt32(size);
-			dram_sz -= size;
-		break;
-		case 2:
-			/* setup third map hole; everything else */
-			new_map[i][0] = cpu_to_fdt32(BMIPS_MAP2_OFF);
-			new_map[i][1] = cpu_to_fdt32(dram_sz);
-			dram_sz = 0;
-		break;
-		default:
-			printk(KERN_INFO "dt unexpected case\n");
-			goto bail_mem_cfe_to_dt;
-		}
-	}
-
-	rc = fdt_setprop_inplace(dtb, mem, "reg", &new_map, sizeof(new_map));
-	if (rc != 0) {
-		printk(KERN_INFO "set prop failed[%d]\n", rc);
-		goto bail_mem_cfe_to_dt;
-	}
-
-	pr_debug("cfe re-map:\n");
-	for (i = 0 ; i < len/sizeof(base); i += 2) {
-		base = fdt32_to_cpu(map[i]);
-		size = fdt32_to_cpu(map[i+1]);
-		if (size)
-			pr_debug("  reg %08x @ %08x\n", size, base);
-	}
-	return;
-bail_mem_cfe_to_dt:
-	printk(KERN_INFO "bailing cfe mem to dt re-map\n");
-}
-
-void __init transfer_net_cfe_to_dt(void *dtb)
-{
-	int eth, rc, len;
-	u8 base_addr[6];
-	const u8 *mac;
-
-	if (cfe_getenv("ETH0_HWADDR", arcs_cmdline, COMMAND_LINE_SIZE) != CFE_OK) {
-		printk(KERN_INFO "can't get cfe base mac address\n");
-		goto bail_net_cfe_to_dt;
-	}
-	mac_pton(arcs_cmdline, base_addr);
-
-	eth = fdt_path_offset(dtb, "/rdb");
-	if (eth < 0) {
-		printk(KERN_INFO "could not find /rdb value\n");
-		goto bail_net_cfe_to_dt;
-	}
-	eth = fdt_subnode_offset(dtb, eth, "ethernet");
-	if (eth < 0) {
-		printk(KERN_INFO "could not find ethernet value\n");
-		goto bail_net_cfe_to_dt;
-	}
-
-	mac = (const u8*)fdt_getprop(dtb, eth, "mac-address", &len);
-	if (!mac) {
-		printk(KERN_INFO "could not find mac-address property\n");
-		goto bail_net_cfe_to_dt;
-	}
-	pr_debug("dt map:\n");
-	pr_debug("  mac %pM\n", mac);
-
-	rc = fdt_setprop_inplace(dtb, eth, "mac-address", base_addr, sizeof(base_addr));
-	if (rc != 0) {
-		printk(KERN_INFO "set mac prop failed[%d]\n", rc);
-		goto bail_net_cfe_to_dt;
-	}
-
-	pr_debug("cfe re-map:\n");
-	pr_debug("  mac %pM\n", base_addr);
-	return;
-bail_net_cfe_to_dt:
-	printk(KERN_INFO "bailing cfe net to dt re-map\n");
-}
-
-#ifdef CONFIG_DT_BCM974XX
-extern const char __dtb_bcm97425svmb_begin;
-extern const char __dtb_bcm97429svmb_begin;
-extern const char __dtb_bcm97435svmb_begin;
-
-void __init pick_board_dt(void *orig_dtb)
-{
-	const void *dtb;
-
-	if (cfe_getenv("CFE_BOARDNAME", arcs_cmdline, COMMAND_LINE_SIZE) != CFE_OK) {
-		printk(KERN_INFO "can't get cfe board name\n");
-		goto bail_pick_board_dt;
-	}
-	if (!strcmp(arcs_cmdline, "BCM97425SVMB")) {
-		dtb = &__dtb_bcm97425svmb_begin;
-	} else if (!strcmp(arcs_cmdline, "BCM97429SV")) {
-		dtb = &__dtb_bcm97429svmb_begin;
-	} else if (!strcmp(arcs_cmdline, "BCM97435SVMB")) {
-		dtb = &__dtb_bcm97435svmb_begin;
-	} else {
-		printk(KERN_INFO "unkown board [%s]\n", arcs_cmdline);
-		goto bail_pick_board_dt;
-	}
-	printk(KERN_INFO "cfe re-map:\n");
-	printk(KERN_INFO "  board %s\n", arcs_cmdline);
-	initial_boot_params = (void *)dtb;
-	return;
-bail_pick_board_dt:
-	printk(KERN_INFO "bailing dt board selection\n");
-	initial_boot_params = (void *)orig_dtb;
-}
-#else
-static inline void pick_board_dt(void *orig_dtb)
-{
-	initial_boot_params = (void *)orig_dtb;
-}
-#endif /* CONFIG_DT_BCM974XX */
-
-void __init transfer_cfe_to_dt(void *dtb)
-{
-	u64 h = (u64)(long)fw_arg0;
-	u64 env =  (long)(void*)fw_arg2;
-
-	if (fw_arg3 == CFE_EPTSEAL) {
-		cfe_init(h, env);
-		pick_board_dt(dtb);
-		transfer_mem_cfe_to_dt(initial_boot_params);
-		transfer_net_cfe_to_dt(initial_boot_params);
-	}
-
-}
-
 void __init plat_mem_setup(void)
 {
 	void *dtb;
@@ -359,7 +176,6 @@ void __init plat_mem_setup(void)
 
 	transfer_cfe_to_dt(dtb);
 	__dt_setup_arch(initial_boot_params);
-	strlcpy(arcs_cmdline, boot_command_line, COMMAND_LINE_SIZE);
 
 	for (q = bmips_quirk_list; q->quirk_fn; q++) {
 		if (of_flat_dt_is_compatible(of_get_flat_dt_root(),

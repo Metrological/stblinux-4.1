@@ -778,7 +778,7 @@ config MMC_TOSHIBA_PCI
 
 config MMC_SDHCI_BRCMSTB
 	tristate "Broadcom SDIO/SD/MMC support"
-	depends on BRCMSTB || BMIPS_GENERIC
+	depends on ARCH_BRCMSTB || BMIPS_GENERIC
 	depends on MMC_SDHCI_PLTFM
 	default y
 	select MMC_SDHCI_IO_ACCESSORS

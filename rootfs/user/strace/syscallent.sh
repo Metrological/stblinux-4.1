@@ -23,8 +23,6 @@
 # THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-#	$Id$
 
 cat ${1+"$@"} |
 	sed -n 's/^#[ 	]*define[ 	][ 	]*SYS_\([^ 	]*\)[ 	]*[^0-9]*\([0-9]*\).*$/\1 \2/p
@@ -40,7 +38,7 @@ s/^#[ ]*define[ ][ ]*__NR_\([^ ]*\)[ ]*[^0-9()]*(__NR_Linux + \([0-9]*\))$/\1 \2
 		while (++call < $2) {
 			f = "printargs"
 			n = "SYS_" call
-			s = "\t{ -1,\t0,\t"
+			s = "\t{ MA,\t0,\t"
 			s = s f ","
 			s = s substr(tabs, 1, 24/8 - int((length(f) + 1)/8))
 			s = s "\"" n "\""
@@ -50,7 +48,7 @@ s/^#[ ]*define[ ][ ]*__NR_\([^ ]*\)[ ]*[^0-9()]*(__NR_Linux + \([0-9]*\))$/\1 \2
 		}
 		f = "sys_" $1
 		n = $1
-		s = "\t{ -1,\t0,\t"
+		s = "\t{ MA,\t0,\t"
 		s = s f ","
 		s = s substr(tabs, 1, 24/8 - int((length(f) + 1)/8))
 		s = s "\"" n "\""
@@ -63,7 +61,7 @@ s/^#[ ]*define[ ][ ]*__NR_\([^ ]*\)[ ]*[^0-9()]*(__NR_Linux + \([0-9]*\))$/\1 \2
 		while (++call < limit) {
 			f = "printargs"
 			n = "SYS_" call
-			s = "\t{ -1,\t0,\t"
+			s = "\t{ MA,\t0,\t"
 			s = s f ","
 			s = s substr(tabs, 1, 24/8 - int((length(f) + 1)/8))
 			s = s "\"" n "\""

@@ -40,7 +40,6 @@
 #include <linux/brcmstb/reg_api.h>
 
 #if defined(CONFIG_MIPS)
-#include <linux/brcmstb/brcmapi.h>
 #include <asm/addrspace.h>
 #include <asm/mipsregs.h>
 #include <asm/setup.h>
@@ -235,6 +234,19 @@
 #include <linux/brcmstb/7445d0/bchp_xpt_security_ns.h>
 #include <linux/brcmstb/7445d0/bchp_xpt_security_ns_intr2_0.h>
 
+#elif defined(CONFIG_BCM7271A0)
+#include <linux/brcmstb/7271a0/bchp_bspi.h>
+#include <linux/brcmstb/7271a0/bchp_bspi_raf.h>
+#include <linux/brcmstb/7271a0/bchp_common.h>
+#include <linux/brcmstb/7271a0/bchp_ebi.h>
+#include <linux/brcmstb/7271a0/bchp_hif_mspi.h>
+#include <linux/brcmstb/7271a0/bchp_hif_spi_intr2.h>
+#include <linux/brcmstb/7271a0/bchp_usb_ctrl.h>
+#include <linux/brcmstb/7271a0/bchp_sdio_0_cfg.h>
+
+#elif defined(CONFIG_ARM64)
+#define BCHP_PHYSICAL_OFFSET                               0xd0000000
+
 #endif
 
 /***********************************************************************
@@ -348,6 +360,7 @@
 
 #endif
 
+#if defined(CONFIG_BRCMSTB_PM)
 /*
  * Exclude a given memory range from the MAC authentication process during S3
  * suspend/resume. Ranges are reset after each MAC (i.e., after each S3
@@ -356,6 +369,7 @@
 int brcmstb_pm_mem_exclude(phys_addr_t addr, size_t len);
 /* So users can determine whether the kernel provides this API */
 #define BRCMSTB_HAS_PM_MEM_EXCLUDE
+#endif
 
 #endif /* !defined(__ASSEMBLY__) */
 

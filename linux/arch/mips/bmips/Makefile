@@ -1,3 +1,3 @@
-obj-y		+= setup.o irq.o dma.o
+obj-y		+= setup.o irq.o dma.o dt.o
 
-CFLAGS_setup.o	+= -I$(src)/../../../scripts/dtc/libfdt
+CFLAGS_dt.o	+= -I$(src)/../../../scripts/dtc/libfdt

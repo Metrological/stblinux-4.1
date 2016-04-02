@@ -30,8 +30,6 @@
 #include <asm/mach-types.h>
 #include <asm/smp_plat.h>
 
-#include "headsmp-brcmstb.h"
-
 enum {
 	ZONE_MAN_CLKEN_MASK		= BIT(0),
 	ZONE_MAN_RESET_CNTL_MASK	= BIT(1),
@@ -157,7 +155,7 @@ static void brcmstb_cpu_boot(u32 cpu)
 	 * Set the reset vector to point to the secondary_startup
 	 * routine
 	 */
-	cpu_set_boot_addr(cpu, virt_to_phys(brcmstb_secondary_startup));
+	cpu_set_boot_addr(cpu, virt_to_phys(secondary_startup));
 
 	/* Unhalt the cpu */
 	cpu_rst_cfg_set(cpu, 0);
@@ -381,3 +379,4 @@ static struct smp_operations brcmstb_smp_ops __initdata = {
 };
 
 CPU_METHOD_OF_DECLARE(brcmstb_smp, "brcm,brahma-b15", &brcmstb_smp_ops);
+CPU_METHOD_OF_DECLARE(brcmstb_smp53, "brcm,brahma-b53", &brcmstb_smp_ops);

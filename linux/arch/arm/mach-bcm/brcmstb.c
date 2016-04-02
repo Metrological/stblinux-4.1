@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2014 Broadcom Corporation
+ * Copyright (C) 2013-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -19,7 +19,6 @@
 
 #if defined(CONFIG_BRCMSTB)
 #include <linux/brcmstb/brcmstb.h>
-#include <linux/brcmstb/bmem.h>
 #include <linux/brcmstb/cma_driver.h>
 #include <linux/clk/clk-brcmstb.h>
 #include <linux/clocksource.h>
@@ -69,13 +68,6 @@ static void __init brcmstb_map_io(void)
 	iotable_init(brcmstb_io_map, ARRAY_SIZE(brcmstb_io_map));
 }
 
-static void __init brcmstb_reserve(void)
-{
-	brcmstb_memory_reserve();
-	cma_reserve();
-	bmem_reserve();
-}
-
 static void __init brcmstb_init_machine(void)
 {
 	struct platform_device_info devinfo = { .name = "cpufreq-dt", };
@@ -103,7 +95,6 @@ DT_MACHINE_START(BRCMSTB, "Broadcom STB (Flattened Device Tree)")
 	.init_irq	= brcmstb_init_irq,
 #if defined(CONFIG_BRCMSTB)
 	.map_io		= brcmstb_map_io,
-	.reserve	= brcmstb_reserve,
 	.init_machine	= brcmstb_init_machine,
 	.init_early	= brcmstb_init_early,
 	.init_time	= brcmstb_init_time,

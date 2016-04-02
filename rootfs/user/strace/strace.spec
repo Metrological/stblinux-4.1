@@ -1,14 +1,13 @@
 Summary: Tracks and displays system calls associated with a running process
 Name: strace
-Version: 4.5.20
+Version: 4.9
 Release: 1%{?dist}
 License: BSD
 Group: Development/Debuggers
 URL: http://sourceforge.net/projects/strace/
-Source0: http://dl.sourceforge.net/strace/%{name}-%{version}.tar.bz2
-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+Source: http://downloads.sourceforge.net/strace/%{name}-%{version}.tar.xz
 
-BuildRequires: libaio-devel, libacl-devel
+BuildRequires: libacl-devel, libaio-devel, time
 
 %define strace64_arches ppc64 sparc64
 
@@ -49,7 +48,6 @@ The `strace' program in the `strace' package is for 32-bit processes.
 make %{?_smp_mflags}
 
 %install
-rm -rf %{buildroot}
 make DESTDIR=%{buildroot} install
 
 # remove unpackaged files from the buildroot
@@ -66,22 +64,67 @@ rm -f %{buildroot}%{_bindir}/strace-graph
 %{copy64} %{buildroot}%{_bindir}/strace %{buildroot}%{_bindir}/strace64
 %endif
 
-%clean
-rm -rf %{buildroot}
+%check
+make -k check VERBOSE=1
 
 %files
-%defattr(-,root,root)
-%doc CREDITS ChangeLog ChangeLog-CVS COPYRIGHT NEWS PORTING README
+%doc CREDITS ChangeLog ChangeLog-CVS COPYING NEWS README
 %{_bindir}/strace
+%{_bindir}/strace-log-merge
 %{_mandir}/man1/*
 
 %ifarch %{strace64_arches}
 %files -n strace64
-%defattr(-,root,root)
 %{_bindir}/strace64
 %endif
 
 %changelog
+* Fri Aug 15 2014 Dmitry V. Levin <ldv@altlinux.org> - 4.9-1
+- New upstream release:
+  + fixed build when <sys/ptrace.h> and <linux/ptrace.h> conflict (#993384);
+  + updated CLOCK_* constants (#1088455);
+  + enabled ppc64le support (#1122323);
+  + fixed attach to a process on ppc64le (#1129569).
+
+* Fri Jul 25 2014 Dan Horák <dan[at]danny.cz> - 4.8-5
+- update for ppc64
+
+* Sun Jun 08 2014 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 4.8-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_21_Mass_Rebuild
+
+* Fri Dec  6 2013 Peter Robinson <pbrobinson@fedoraproject.org> 4.8-3
+- Fix FTBFS
+
+* Sun Aug 04 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 4.8-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_20_Mass_Rebuild
+
+* Mon Jun 03 2013 Dmitry V. Levin <ldv@altlinux.org> - 4.8-1
+- New upstream release:
+  + fixed ERESTARTNOINTR leaking to userspace on ancient kernels (#659382);
+  + fixed decoding of *xattr syscalls (#885233);
+  + fixed handling of files with 64-bit inode numbers by 32-bit strace (#912790);
+  + added aarch64 support (#969858).
+
+* Fri Feb 15 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 4.7-3
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_19_Mass_Rebuild
+
+* Sat Jul 21 2012 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 4.7-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_18_Mass_Rebuild
+
+* Wed May 02 2012 Dmitry V. Levin <ldv@altlinux.org> 4.7-1
+- New upstream release.
+  + implemented proper handling of real SIGTRAPs (#162774).
+
+* Sat Jan 14 2012 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 4.6-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_17_Mass_Rebuild
+
+* Mon Mar 14 2011 Dmitry V. Levin <ldv@altlinux.org> - 4.6-1
+- New upstream release.
+  + fixed a corner case in waitpid handling (#663547).
+
+* Wed Feb 09 2011 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 4.5.20-2
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_15_Mass_Rebuild
+
 * Tue Apr 13 2010 Roland McGrath <roland@redhat.com> - 4.5.20-1
 - New upstream release, work mostly by Andreas Schwab and Dmitry V. Levin.
   + fixed potential stack buffer overflow in select decoder (#556678);
@@ -269,7 +312,7 @@ rm -rf %{buildroot}
 * Thu Jul 17 2003 Roland McGrath <roland@redhat.com> 4.4.99-1
 - new upstream version, groks more new system calls, PF_INET6 sockets
 
-* Mon Jun 10 2003 Roland McGrath <roland@redhat.com> 4.4.98-1
+* Tue Jun 10 2003 Roland McGrath <roland@redhat.com> 4.4.98-1
 - new upstream version, more fixes (#90754, #91085)
 
 * Wed Jun 04 2003 Elliot Lee <sopwith@redhat.com>
@@ -362,7 +405,7 @@ rm -rf %{buildroot}
 * Fri Jan 19 2001 Bill Nottingham <notting@redhat.com>
 - update to CVS, reintegrate ia64 support
 
-* Sat Dec  8 2000 Bernhard Rosenkraenzer <bero@redhat.com>
+* Fri Dec  8 2000 Bernhard Rosenkraenzer <bero@redhat.com>
 - Get S/390 support into the normal package
 
 * Sat Nov 18 2000 Florian La Roche <Florian.LaRoche@redhat.de>

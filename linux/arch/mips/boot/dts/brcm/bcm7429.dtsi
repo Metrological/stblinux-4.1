@@ -69,6 +69,17 @@
 			interrupts = <38>;
 		};
 
+		aon_pm_l2_intc: interrupt-controller@408440 {
+			#interrupt-cells = <1>;
+			compatible = "brcm,l2-intc";
+			interrupt-parent = <&periph_intc>;
+			reg = <0x408440 0x30>;
+			interrupt-controller;
+			interrupts = <0x28>;
+			interrupt-names = "sys_pm";
+			brcm,irq-can-wake;
+		};
+
 		gisb-arb@400000 {
 			compatible = "brcm,bcm7400-gisb-arb";
 			reg = <0x400000 0xdc>;
@@ -82,18 +93,61 @@
 						     "svd_0";
 		};
 
-		upg_irq0_intc: upg_irq0_intc@406680 {
-			compatible = "brcm,bcm7120-l2-intc";
-			reg = <0x406680 0x8>;
-
-			brcm,int-map-mask = <0x44>;
-			brcm,int-fwd-mask = <0x70000>;
-
-			interrupt-controller;
+		upg_irq0_intc: interrupt-controller@406680 {
 			#interrupt-cells = <1>;
-
+			compatible = "brcm,bcm7120-l2-intc";
 			interrupt-parent = <&periph_intc>;
-			interrupts = <45>;
+			reg = <0x406680 0x8>;
+			interrupt-controller;
+			interrupts = <0x2d>,
+				<0x2b>;
+			interrupt-names = "upg_main",
+				"upg_bsc";
+			brcm,int-map-mask = <0x25c>,
+				<0x18000000>;
+			brcm,int-fwd-mask = <0x70000>;
+		};
+
+		irq0_aon_intc: interrupt-controller@409600 {
+			#interrupt-cells = <1>;
+			compatible = "brcm,bcm7120-l2-intc";
+			interrupt-parent = <&periph_intc>;
+			reg = <0x409600 0x8>;
+			interrupt-controller;
+			interrupts = <0x2e>,
+				<0x2c>,
+				<0x31>;
+			interrupt-names = "upg_main_aon",
+				"upg_bsc_aon",
+				"upg_spi";
+			brcm,int-map-mask = <0x1e3>,
+				<0x7000000>,
+				<0x100000>;
+			brcm,int-fwd-mask = <0x0>;
+			brcm,irq-can-wake;
+		};
+
+		hif_intr2_intc: interrupt-controller@411000 {
+			#interrupt-cells = <1>;
+			compatible = "brcm,l2-intc";
+			interrupt-parent = <&periph_intc>;
+			reg = <0x411000 0x30>;
+			interrupt-controller;
+			interrupts = <0x16>;
+			interrupt-names = "hif";
+		};
+
+		nand: nand@412800 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "brcm,brcmnand-v6.0",
+				"brcm,brcmnand";
+			reg-names = "nand";
+			status = "disabled";
+			reg = <0x412800 0x600>;
+			interrupts = <0x18>;
+			interrupt-parent = <&hif_intr2_intc>;
+			interrupt-names = "nand_ctlrdy";
 		};
 
 		sun_top_ctrl: syscon@404000 {
@@ -144,6 +198,28 @@
 				};
 			};
 		};
+
+		enet1: ethernet@720000 {
+			phy-mode = "moca";
+			fixed-link = <1 1 1000 0 0>;
+			mac-address = [ 00 10 18 36 23 1b ];
+			compatible = "brcm,genet-v3";
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			reg = <0x720000 0x11c88>;
+			interrupts = <17>, <18>;
+			interrupt-parent = <&periph_intc>;
+			status = "disabled";
+
+			mdio@e14 {
+				compatible = "brcm,genet-mdio-v3";
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				reg = <0xe14 0x8>;
+
+			};
+		};
+
 
 		ehci0: usb@480300 {
 			compatible = "brcm,bcm7429-ehci", "generic-ehci";
@@ -221,6 +297,39 @@
 			status = "disabled";
 		};
 
+		upg_gio: gpio@406500 {
+			#gpio-cells = <2>;
+			#interrupt-cells = <2>;
+			compatible = "brcm,bcm7429-gpio",
+				"brcm,brcmstb-gpio";
+			gpio-controller;
+			interrupt-controller;
+			reg = <0x406500 0xa0>;
+			interrupts = <0x6>;
+			interrupt-parent = <&upg_irq0_intc>;
+			interrupt-names = "upg_gio";
+			brcm,gpio-bank-widths = <32 32 32 32
+				26>;
+		};
+
+		upg_gio_aon: gpio@409800 {
+			#gpio-cells = <2>;
+			#interrupt-cells = <2>;
+			compatible = "brcm,bcm7429-gpio",
+				"brcm,brcmstb-gpio";
+			gpio-controller;
+			interrupt-controller;
+			reg = <0x409800 0x60>;
+			interrupts = <0x6>;
+			interrupt-parent = <&irq0_aon_intc>;
+			interrupts-extended = <&irq0_aon_intc 0x6>,
+				<&aon_pm_l2_intc 0x5>;
+			interrupt-names = "upg_gio_aon",
+				"upg_gio_aon_wakeup";
+			wakeup-source;
+			brcm,gpio-bank-widths = <21 6>;
+		};
+
 		sata: sata@181000 {
 			compatible = "brcm,bcm7425-ahci", "brcm,sata3-ahci";
 			reg-names = "ahci", "top-ctrl";
@@ -259,6 +368,22 @@
 				reg = <1>;
 				#phy-cells = <0>;
 			};
+		};
+
+		moca: bmoca@a00000 {
+			chip-id = <0x742900b0>;
+			mac-address = [ 00 00 00 00 00 00 ];
+			enet-id = <&enet1>;
+			rf-band = "highrf";
+			compatible = "brcm,bmoca-instance";
+			hw-rev = <0x2002>;
+			reg = <0xa00000 0x1ffd94>;
+			interrupts = <27>;
+			interrupt-parent = <&periph_intc>;
+			interrupt-names = "moca";
+			i2c-base = <0x10406200>;
+			i2c-addr = <0x70>;
+			status = "disabled";
 		};
 	};
 };

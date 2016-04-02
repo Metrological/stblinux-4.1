@@ -240,12 +240,7 @@ function handle_opt_2()
 {
 	check_root mtd ubi
 	mtd=/dev/mtd${rootfs_part}
-	if [ "$rootfs_mtd_name" = "rootfs" ]; then
-		# old style
-		cmdline=ubiroot
-	else
-		cmdline="ubi.mtd=${rootfs_mtd_name} rootfstype=ubifs root=ubi0:rootfs rw"
-	fi
+	cmdline="ubi.mtd=${rootfs_mtd_name} rootfstype=ubifs root=ubi0:rootfs rw"
 
 	rem_img=ubifs-$(($flash_erasesize / 1024))k-$(($flash_writesize))-${plat}.img
 

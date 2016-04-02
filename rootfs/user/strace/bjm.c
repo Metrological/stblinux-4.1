@@ -26,22 +26,15 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- *	$Id$
  */
+
 #include "defs.h"
-
-#if defined(LINUX)
-
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <sys/utsname.h>
 #include <sys/user.h>
-#include <sys/syscall.h>
-#include <signal.h>
 
 /* Bits of module.flags.  */
 
@@ -49,7 +42,7 @@
 #define MOD_RUNNING		1
 #define MOD_DELETED		2
 #define MOD_AUTOCLEAN		4
-#define MOD_VISITED  		8
+#define MOD_VISITED		8
 #define MOD_USED_ONCE		16
 #define MOD_JUST_FREED		32
 #define MOD_INITIALIZING	64
@@ -76,35 +69,18 @@ struct module_info
 	long usecount;
 };
 
-static const struct xlat which[] = {
-	{ 0,		"0"		},
-	{ QM_MODULES,	"QM_MODULES"	},
-	{ QM_DEPS,	"QM_DEPS"	},
-	{ QM_REFS,	"QM_REFS"	},
-	{ QM_SYMBOLS,	"QM_SYMBOLS"	},
-	{ QM_INFO,	"QM_INFO"	},
-	{ 0,		NULL		},
-};
-
-static const struct xlat modflags[] = {
-	{ MOD_UNINITIALIZED,	"MOD_UNINITIALIZED"	},
-	{ MOD_RUNNING,		"MOD_RUNNING"		},
-	{ MOD_DELETED,		"MOD_DELETED"		},
-	{ MOD_AUTOCLEAN,	"MOD_AUTOCLEAN"		},
-	{ MOD_VISITED,		"MOD_VISITED"		},
-	{ MOD_USED_ONCE,	"MOD_USED_ONCE"		},
-	{ MOD_JUST_FREED,	"MOD_JUST_FREED"	},
-	{ 0,			NULL			},
-};
+#include "xlat/qm_which.h"
+#include "xlat/modflags.h"
+#include "xlat/delete_module_flags.h"
 
 int
 sys_query_module(struct tcb *tcp)
 {
 	if (entering(tcp)) {
 		printstr(tcp, tcp->u_arg[0], -1);
-		tprintf(", ");
-		printxval(which, tcp->u_arg[1], "QM_???");
-		tprintf(", ");
+		tprints(", ");
+		printxval(qm_which, tcp->u_arg[1], "QM_???");
+		tprints(", ");
 	} else {
 		size_t ret;
 
@@ -122,11 +98,11 @@ sys_query_module(struct tcb *tcp)
 				printflags(modflags, mi.flags, "MOD_???");
 				tprintf(", usecount=%lu}, ", mi.usecount);
 			}
-			tprintf("%Zu", ret);
+			tprintf("%lu", (unsigned long)ret);
 		} else if ((tcp->u_arg[1]==QM_MODULES) ||
 			   (tcp->u_arg[1]==QM_DEPS) ||
 			   (tcp->u_arg[1]==QM_REFS)) {
-			tprintf("{");
+			tprints("{");
 			if (!abbrev(tcp)) {
 				char*	data	= malloc(tcp->u_arg[3]);
 				char*	mod	= data;
@@ -134,13 +110,13 @@ sys_query_module(struct tcb *tcp)
 
 				if (!data) {
 					fprintf(stderr, "out of memory\n");
-					tprintf(" /* %Zu entries */ ", ret);
+					tprintf(" /* %lu entries */ ", (unsigned long)ret);
 				} else {
 					if (umoven(tcp, tcp->u_arg[2],
 						tcp->u_arg[3], data) < 0) {
-						tprintf(" /* %Zu entries */ ", ret);
+						tprintf(" /* %lu entries */ ", (unsigned long)ret);
 					} else {
-						for (idx=0; idx<ret; idx++) {
+						for (idx = 0; idx < ret; idx++) {
 							tprintf("%s%s",
 								(idx ? ", " : ""),
 								mod);
@@ -150,10 +126,10 @@ sys_query_module(struct tcb *tcp)
 					free(data);
 				}
 			} else
-				tprintf(" /* %Zu entries */ ", ret);
-			tprintf("}, %Zu", ret);
+				tprintf(" /* %lu entries */ ", (unsigned long)ret);
+			tprintf("}, %lu", (unsigned long)ret);
 		} else if (tcp->u_arg[1]==QM_SYMBOLS) {
-			tprintf("{");
+			tprints("{");
 			if (!abbrev(tcp)) {
 				char*			data	= malloc(tcp->u_arg[3]);
 				struct module_symbol*	sym	= (struct module_symbol*)data;
@@ -161,13 +137,13 @@ sys_query_module(struct tcb *tcp)
 
 				if (!data) {
 					fprintf(stderr, "out of memory\n");
-					tprintf(" /* %Zu entries */ ", ret);
+					tprintf(" /* %lu entries */ ", (unsigned long)ret);
 				} else {
 					if (umoven(tcp, tcp->u_arg[2],
 						tcp->u_arg[3], data) < 0) {
-						tprintf(" /* %Zu entries */ ", ret);
+						tprintf(" /* %lu entries */ ", (unsigned long)ret);
 					} else {
-						for (idx=0; idx<ret; idx++) {
+						for (idx = 0; idx < ret; idx++) {
 							tprintf("%s{name=%s, value=%lu}",
 								(idx ? " " : ""),
 								data+(long)sym->name,
@@ -178,8 +154,8 @@ sys_query_module(struct tcb *tcp)
 					free(data);
 				}
 			} else
-				tprintf(" /* %Zu entries */ ", ret);
-			tprintf("}, %Zd", ret);
+				tprintf(" /* %lu entries */ ", (unsigned long)ret);
+			tprintf("}, %ld", (unsigned long)ret);
 		} else {
 			printstr(tcp, tcp->u_arg[2], tcp->u_arg[3]);
 			tprintf(", %#lx", tcp->u_arg[4]);
@@ -189,8 +165,7 @@ sys_query_module(struct tcb *tcp)
 }
 
 int
-sys_create_module(tcp)
-struct tcb *tcp;
+sys_create_module(struct tcb *tcp)
 {
 	if (entering(tcp)) {
 		printpath(tcp, tcp->u_arg[0]);
@@ -200,14 +175,45 @@ struct tcb *tcp;
 }
 
 int
-sys_init_module(tcp)
-struct tcb *tcp;
+sys_delete_module(struct tcb *tcp)
 {
 	if (entering(tcp)) {
-		tprintf("%#lx, ", tcp->u_arg[0]);
-		tprintf("%lu, ", tcp->u_arg[1]);
+		printstr(tcp, tcp->u_arg[0], -1);
+		tprints(", ");
+		printflags(delete_module_flags, tcp->u_arg[1], "O_???");
+	}
+	return 0;
+}
+
+int
+sys_init_module(struct tcb *tcp)
+{
+	if (entering(tcp)) {
+		tprintf("%#lx, %lu, ", tcp->u_arg[0], tcp->u_arg[1]);
 		printstr(tcp, tcp->u_arg[2], -1);
 	}
 	return 0;
 }
-#endif /* LINUX */
+
+#define MODULE_INIT_IGNORE_MODVERSIONS  1
+#define MODULE_INIT_IGNORE_VERMAGIC     2
+
+#include "xlat/module_init_flags.h"
+
+int
+sys_finit_module(struct tcb *tcp)
+{
+	if (exiting(tcp))
+		return 0;
+
+	/* file descriptor */
+	printfd(tcp, tcp->u_arg[0]);
+	tprints(", ");
+	/* param_values */
+	printstr(tcp, tcp->u_arg[1], -1);
+	tprints(", ");
+	/* flags */
+	printflags(module_init_flags, tcp->u_arg[2], "MODULE_INIT_???");
+
+	return 0;
+}

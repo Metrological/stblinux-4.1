@@ -8,9 +8,12 @@ LDFLAGS += -L$(ROOTDIR)/lib/gettext/intl/.libs -lintl
 EXTRA_CFLAGS  += -I$(ROOTDIR)/lib/gettext/intl
 endif
 
-OPTION_MAKEARGS = NO_DWARF=1 WERROR=0 NO_LIBPYTHON=1 NO_LIBUNWIND=1 \
+OPTION_MAKEARGS = WERROR=0 NO_LIBPYTHON=1 \
 		  NO_GTK2=1 NO_LIBAUDIT=1 NO_NEWT=1 NO_LIBPERL=1 \
 		  NO_LIBPYTHON=1 NO_DEMANGLE=1
+
+LIBDW_DIR = $(ROOTDIR)/lib/elfutils/install-tmp
+LIBUNWIND_DIR = $(ROOTDIR)/lib/libunwind/install-tmp
 
 all :
 	$(MAKE) -f Makefile prefix=$(ROOTDIR)/romfs $(OPTION_MAKEARGS)

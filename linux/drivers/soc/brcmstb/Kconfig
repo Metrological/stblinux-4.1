@@ -1,6 +1,6 @@
 menuconfig SOC_BRCMSTB
 	bool "Broadcom STB SoC drivers"
-	depends on ARM || BMIPS_GENERIC
+	depends on ARM || ARM64 || BMIPS_GENERIC 
 	help
 	  Enables drivers for the Broadcom Set-Top Box (STB) series of chips.
 	  This option alone enables only some support code, while the drivers
@@ -30,7 +30,7 @@ config BRCMSTB_BMEM
 
 config BRCMSTB_CMA
 	bool "Broadcom STB CMA"
-	depends on ARCH_BRCMSTB && ARM && CMA && BRCMSTB_MEMORY_API
+	depends on ARCH_BRCMSTB && (ARM || ARM64) && CMA && BRCMSTB_MEMORY_API
 	help
 	  This driver provides the ioctls for manipulating with the reserved
 	  areas used by Broadcom middleware, as well as the functions for the
@@ -76,3 +76,10 @@ config BRCMSTB_NEXUS_API
 	   sharing of resources: IRQs, GPIOs, Pinmuxing etc.
 
 endif # SOC_BRCMSTB
+
+#####################################################################
+# Hidden options
+#####################################################################
+
+config BRCMSTB
+	bool

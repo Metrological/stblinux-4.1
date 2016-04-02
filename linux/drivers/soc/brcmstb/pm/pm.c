@@ -54,8 +54,6 @@
 #include "aon_defs.h"
 #include "xpt_dma.h"
 
-#define BRCMSTB_DDR_PHY_PLL_STATUS	0x04
-
 #define SHIMPHY_DDR_PAD_CNTRL		0x8c
 #define SHIMPHY_PAD_PLL_SEQUENCE	BIT(8)
 #define SHIMPHY_PAD_GATE_PLL_S3		BIT(9)
@@ -81,6 +79,7 @@ struct brcmstb_pm_control {
 	size_t boot_sram_len;
 
 	bool support_warm_boot;
+	size_t pll_status_offset;
 	int num_memc;
 
 	struct brcmstb_s3_params *s3_params;
@@ -267,7 +266,7 @@ static int brcmstb_pm_s2(void)
 
 	return brcmstb_pm_do_s2_sram(ctrl.aon_ctrl_base,
 			ctrl.memcs[0].ddr_phy_base +
-			BRCMSTB_DDR_PHY_PLL_STATUS);
+			ctrl.pll_status_offset);
 }
 
 static int brcmstb_pm_s3_control_hash(struct brcmstb_s3_params *params,
@@ -740,12 +739,29 @@ static const struct of_device_id aon_ctrl_dt_ids[] = {
 
 struct ddr_phy_ofdata {
 	bool supports_warm_boot;
+	size_t pll_status_offset;
 };
 
-static struct ddr_phy_ofdata ddr_phy_225_1 = { .supports_warm_boot = false, };
-static struct ddr_phy_ofdata ddr_phy_240_1 = { .supports_warm_boot = true, };
+static struct ddr_phy_ofdata ddr_phy_72_0 = {
+	.supports_warm_boot = false,
+	.pll_status_offset = 0x10
+};
+
+static struct ddr_phy_ofdata ddr_phy_225_1 = {
+	.supports_warm_boot = false,
+	.pll_status_offset = 0x4
+};
+
+static struct ddr_phy_ofdata ddr_phy_240_1 = {
+	.supports_warm_boot = true,
+	.pll_status_offset = 0x4
+};
 
 static const struct of_device_id ddr_phy_dt_ids[] = {
+	{
+		.compatible = "brcm,brcmstb-ddr-phy-v72.0",
+		.data = &ddr_phy_72_0,
+	},
 	{
 		.compatible = "brcm,brcmstb-ddr-phy-v225.1",
 		.data = &ddr_phy_225_1,
@@ -840,6 +856,7 @@ static int brcmstb_pm_init(void)
 		return PTR_ERR(base);
 	}
 	ctrl.support_warm_boot = ddr_phy_data->supports_warm_boot;
+	ctrl.pll_status_offset = ddr_phy_data->pll_status_offset;
 	/* Only need DDR PHY 0 for now? */
 	ctrl.memcs[0].ddr_phy_base = base;
 

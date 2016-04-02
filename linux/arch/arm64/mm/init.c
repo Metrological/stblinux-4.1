@@ -43,6 +43,10 @@
 #include <asm/tlb.h>
 #include <asm/alternative.h>
 
+#ifdef CONFIG_BRCMSTB_MEMORY_API
+#include <linux/brcmstb/memory_api.h>
+#endif
+
 #include "mm.h"
 
 phys_addr_t memstart_addr __read_mostly = 0;
@@ -171,6 +175,10 @@ void __init arm64_memblock_init(void)
 #endif
 
 	early_init_fdt_scan_reserved_mem();
+
+#ifdef CONFIG_BRCMSTB_MEMORY_API
+	brcmstb_memory_init();
+#endif
 
 	/* 4GB maximum for 32-bit only capable devices */
 	if (IS_ENABLED(CONFIG_ZONE_DMA))

@@ -1404,7 +1404,7 @@ void __iwl_mvm_mac_stop(struct iwl_mvm *mvm)
 	 * The work item could be running or queued if the
 	 * ROC time event stops just as we get here.
 	 */
-	cancel_work_sync(&mvm->roc_done_wk);
+	flush_work(&mvm->roc_done_wk);
 
 	iwl_trans_stop_device(mvm->trans);
 
@@ -2277,6 +2277,7 @@ static void iwl_mvm_stop_ap_ibss(struct ieee80211_hw *hw,
 		iwl_mvm_remove_time_event(mvm, mvmvif,
 					  &mvmvif->time_event_data);
 		RCU_INIT_POINTER(mvm->csa_vif, NULL);
+		mvmvif->csa_countdown = false;
 	}
 
 	if (rcu_access_pointer(mvm->csa_tx_blocked_vif) == vif) {
@@ -2795,6 +2796,10 @@ static int iwl_mvm_mac_sched_scan_start(struct ieee80211_hw *hw,
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
 	int ret;
+
+	/* we don't support "match all" in the firmware */
+	if (!req->n_match_sets)
+		return -EOPNOTSUPP;
 
 	if (!(mvm->fw->ucode_capa.capa[0] & IWL_UCODE_TLV_CAPA_UMAC_SCAN)) {
 		ret = iwl_mvm_cancel_scan_wait_notif(mvm, IWL_MVM_SCAN_OS);

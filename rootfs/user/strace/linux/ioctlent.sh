@@ -1,5 +1,4 @@
 #! /bin/sh
-#
 # Copyright (c) 2001 Wichert Akkerman <wichert@cistron.nl>
 # All rights reserved.
 #
@@ -24,9 +23,6 @@
 # THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 # THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-#	$Id$
-#
 
 # Validate arg count.
 case $# in
@@ -51,18 +47,19 @@ lookup_ioctls()
 
 	# Build the list of all ioctls
 	regexp='^[[:space:]]*#[[:space:]]*define[[:space:]]\+[A-Z][A-Z0-9_]*[[:space:]]\+0x'"$type"'..\>'
-	(cd "$dir" && grep "$regexp" "$@" /dev/null 2>/dev/null) |
+	(cd "$dir" && for f; do grep "$regexp" "$f" "uapi/$f" 2>/dev/null; done) |
 		sed -ne "s,$asm/,asm/,g"'
 s/^\(.*\):[[:space:]]*#[[:space:]]*define[[:space:]]*\([A-Z0-9_]*\)[[:space:]]*\(0x'"$type"'..\).*/	{ "\1",	"\2",	\3	},/p' \
 		>> ioctls.h
 }
 
-
 > ioctls.h
 
+lookup_ioctls 03 linux/hdreg.h
 lookup_ioctls 22 scsi/sg.h
 lookup_ioctls 46 linux/fb.h
 lookup_ioctls 4B linux/kd.h
+lookup_ioctls 4C linux/loop.h
 lookup_ioctls 53 linux/cdrom.h scsi/scsi.h scsi/scsi_ioctl.h
 lookup_ioctls 54 $asm/ioctls.h asm-generic/ioctls.h
 lookup_ioctls 56 linux/vt.h
@@ -79,6 +76,8 @@ if [ -e $dir/Kbuild ]; then
 			grep -v '^asm-'
 		echo "$asm/* asm-generic/*"
 	)
+	# special case: some headers aren't exported directly
+	files="${files} media/* net/bluetooth/* pcmcia/*"
 else
 	# older kernel so just assume some headers
 	files="linux/* $asm/* asm-generic/* scsi/* sound/*"
@@ -95,9 +94,11 @@ regexp='^[[:space:]]*#[[:space:]]*define[[:space:]]\+[A-Z][A-Z0-9_]*[[:space:]]\
 	-e 's/^\(.*\):[[:space:]]*#[[:space:]]*define[[:space:]]*\([A-Z0-9_]*\)[[:space:]]*_S\?I.*(\([^[,]*\)[[:space:]]*,[[:space:]]*\([^,)]*\).*/	{ "\1",	"\2",	_IOC(_IOC_NONE,\3,\4,0)	},/p' \
 	>> ioctls.h
 
-# Sort and drop dups?
-# sort -u <ioctls.h >ioctls1.h && mv ioctls1.h ioctls.h
+# Strip uapi/ prefix
+sed -i 's|"uapi/|"|' ioctls.h
 
+# Sort and drop dups
+sort -u -o ioctls.h ioctls.h
 
 > ioctldefs.h
 

@@ -33,7 +33,7 @@ STRIPTOOL = $(CROSS_COMPILE)strip
 STRIP     = $(STRIPTOOL)
 
 GCCTOOL_DIR_PREFIX = $(shell dirname $(shell which $(CC)))/..
-GCCLIB             = $(GCCTOOL_DIR_PREFIX)/$(shell $(CC) -dumpmachine)/lib
+GCCLIB             = $(GCCTOOL_DIR_PREFIX)/$(shell $(CC) -dumpmachine)/lib@CONFIG_PL_LIB_SUFFIX@
 GCCSYSROOT         = $(GCCTOOL_DIR_PREFIX)/$(shell $(CC) -dumpmachine)/sys-root
 
 LIBCDIR = @CONFIG_PL_LIBCDIR@

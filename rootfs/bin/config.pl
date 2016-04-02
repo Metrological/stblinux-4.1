@@ -63,6 +63,7 @@ my %arch_config_options = (
 	"MACHINE"         => "",
 	"ARCH"            => "",
 	"CROSS_COMPILE"   => "",
+	"LIB_SUFFIX"	  => "",
 );
 
 my @patchlist = ("lttng", "newubi");
@@ -225,9 +226,10 @@ sub get_tgt($)
 		die "no target specified";
 	}
 
-	unless($tgt =~ m/^([0-9]+[a-z][0-9])(_be)?(-\S+)?$/) {
+	unless($tgt =~ m/^(bmips|[0-9]+[a-z][0-9])(_be)?(-\S+)?$/) {
 		die "invalid target format: $tgt";
 	}
+
 	($chip, $be, $suffix) = ($1, defined($2) ? 1 : 0,
 		defined($3) ? $3 : "");
 
@@ -250,13 +252,23 @@ sub populate_linux_defaults($$)
 	# does, we can assume that anything that has an entry under
 	# include/linux/brcmstb is ARM.
 	if(-d "$LINUXDIR/include/linux/brcmstb/${chip}") {
-		$linux_defaults = "$LINUXDIR/arch/arm/configs/brcmstb_defconfig";
 		if (grep(/^hardened$/, @mods)) {
 			$linux_defaults =~ s/defconfig$/hardened_defconfig/;
 		}
-		$arch_config_options{"ARCH"} = "arm";
-	} elsif(-e "$LINUXDIR/arch/mips/configs/bcm${chip}_defconfig") {
-		$linux_defaults = "$LINUXDIR/arch/mips/configs/bcm${chip}_defconfig";
+		if ($chip eq "7271a0") {
+			if (grep(/^32$/, @mods)) {
+				$arch_config_options{"ARCH"} = "arm";
+			} else {
+				$arch_config_options{"ARCH"} = "arm64";
+				$arch_config_options{"LIB_SUFFIX"} = "64";
+			}
+		} else {
+			$arch_config_options{"ARCH"} = "arm";
+		}
+		$linux_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_defconfig";
+		$linux_new_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_new_defconfig";
+	} elsif(-e "$LINUXDIR/arch/mips/configs/".$chip."_stb_defconfig") {
+		$linux_defaults = "$LINUXDIR/arch/mips/configs/bmips_stb_defconfig";
 		$arch_config_options{"ARCH"} = "mips";
 	} else {
 		print "\n";
@@ -546,7 +558,7 @@ sub cmd_defaults($)
 		override_cfg(\%uclibc, \%uclibc_o);
 	} else {
 		# The kernel CMA components are currently arm-only.
-		$vendor{"CONFIG_USER_CMATEST"} = "n";
+		$vendor{"CONFIG_USER_CMATOOL"} = "n";
 	}
 
 	# basic hardware support
@@ -810,6 +822,8 @@ sub cmd_defaults($)
 			$arch_config_options{"LIBCDIR"} = "uClibc";
 		} elsif($mod eq "hardened") {
 			# this is just a defconfig select for now; do nothing.
+		} elsif($mod eq "32") {
+			# this is just an ARCH modifier for now; do nothing.
 		} else {
 			print "\n";
 			print "ERROR: Unrecognized suffix '$mod' in '$tgt'\n";
@@ -828,7 +842,13 @@ sub cmd_defaults($)
 		$uclibc{"ARCH_WANTS_LITTLE_ENDIAN"} = "y";
 		$uclibc{"ARCH_BIG_ENDIAN"} = "n";
 		$uclibc{"ARCH_WANTS_BIG_ENDIAN"} = "n";
-		$arch_config_options{"MACHINE"} = $arch_config_options{"ARCH"} eq "arm" ? "arm" : "mipsel";
+		if ($arch_config_options{"ARCH"} eq "arm64") {
+			$arch_config_options{"MACHINE"} = "aarch64";
+		} elsif ($arch_config_options{"ARCH"} eq "arm") {
+			$arch_config_options{"MACHINE"} = "arm";
+		} else {
+			$arch_config_options{"MACHINE"} = "mipsel";
+		}
 	} else {
 		$linux{"CONFIG_CPU_LITTLE_ENDIAN"} = "n";
 		$linux{"CONFIG_CPU_BIG_ENDIAN"} = "y";
@@ -837,7 +857,13 @@ sub cmd_defaults($)
 		$uclibc{"ARCH_WANTS_LITTLE_ENDIAN"} = "n";
 		$uclibc{"ARCH_BIG_ENDIAN"} = "y";
 		$uclibc{"ARCH_WANTS_BIG_ENDIAN"} = "y";
-		$arch_config_options{"MACHINE"} = $arch_config_options{"ARCH"} eq "arm" ? "armeb" : "mips";
+		if ($arch_config_options{"ARCH"} eq "arm64") {
+			$arch_config_options{"MACHINE"} = "aarch64_be";
+		} elsif ($arch_config_options{"ARCH"} eq "armeb") {
+			$arch_config_options{"MACHINE"} = "arm";
+		} else {
+			$arch_config_options{"MACHINE"} = "mips";
+		}
 	}
 
 	$arch_config_options{"CROSS_COMPILE"} = qq($arch_config_options{"MACHINE"}-linux-);
@@ -944,7 +970,7 @@ sub cmd_save_defaults()
 	read_cfg($vendor_config, \%vendor);
 
 	write_cfg($linux_config, $linux_config, \%linux);
-	system("make -C $LINUXDIR savedefconfig");
+	system(qq(make -C $LINUXDIR savedefconfig ARCH=$arch_config_options{"ARCH"}));
 	copy("$LINUXDIR/defconfig", $linux_defaults);
 
 	write_cfg_n($eglibc_config, $eglibc_defaults, \%eglibc);
@@ -976,6 +1002,7 @@ sub cmd_initramfs()
 	$linux{"CONFIG_INITRAMFS_COMPRESSION_BZIP2"} = "n";
 	$linux{"CONFIG_INITRAMFS_COMPRESSION_LZMA"} = "n";
 	$linux{"CONFIG_INITRAMFS_COMPRESSION_LZO"} = "n";
+	$linux{"CONFIG_INITRAMFS_COMPRESSION_XZ"} = "n";
 
 	write_cfg($linux_config, $linux_config, \%linux);
 }

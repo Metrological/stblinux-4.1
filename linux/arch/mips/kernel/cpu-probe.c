@@ -17,6 +17,7 @@
 #include <linux/smp.h>
 #include <linux/stddef.h>
 #include <linux/export.h>
+#include <linux/debugfs.h>
 
 #include <asm/bugs.h>
 #include <asm/cpu.h>
@@ -635,15 +636,6 @@ static void decode_configs(struct cpuinfo_mips *c)
 
 	mips_probe_watch_registers(c);
 
-	if (cpu_has_rixi) {
-		/* Enable the RIXI exceptions */
-		set_c0_pagegrain(PG_IEC);
-		back_to_back_c0_hazard();
-		/* Verify the IEC bit is set */
-		if (read_c0_pagegrain() & PG_IEC)
-			c->options |= MIPS_CPU_RIXIEX;
-	}
-
 #ifndef CONFIG_MIPS_CPS
 	if (cpu_has_mips_r2_r6) {
 		c->core = get_ebase_cpunum();
@@ -1238,6 +1230,7 @@ static inline void cpu_probe_broadcom(struct cpuinfo_mips *c, unsigned int cpu)
 			c->cputype = CPU_BMIPS4380;
 			__cpu_name[cpu] = "Broadcom BMIPS4380";
 			set_elf_platform(cpu, "bmips4380");
+			c->options |= MIPS_CPU_RIXI;
 		} else {
 			c->cputype = CPU_BMIPS4350;
 			__cpu_name[cpu] = "Broadcom BMIPS4350";
@@ -1253,7 +1246,7 @@ static inline void cpu_probe_broadcom(struct cpuinfo_mips *c, unsigned int cpu)
 		else
 			__cpu_name[cpu] = "Broadcom BMIPS5000";
 		set_elf_platform(cpu, "bmips5000");
-		c->options |= MIPS_CPU_ULRI;
+		c->options |= MIPS_CPU_ULRI | MIPS_CPU_RIXI;
 		break;
 	}
 }
@@ -1464,6 +1457,15 @@ void cpu_probe(void)
 	 */
 	BUG_ON(current_cpu_type() != c->cputype);
 
+	if (cpu_has_rixi) {
+		/* Enable the RIXI exceptions */
+		set_c0_pagegrain(PG_IEC);
+		back_to_back_c0_hazard();
+		/* Verify the IEC bit is set */
+		if (read_c0_pagegrain() & PG_IEC)
+			c->options |= MIPS_CPU_RIXIEX;
+	}
+
 	if (mips_fpu_disabled)
 		c->options &= ~MIPS_CPU_FPU;
 
@@ -1514,3 +1516,22 @@ void cpu_report(void)
 	if (cpu_has_msa)
 		pr_info("MSA revision is: %08x\n", c->msa_id);
 }
+
+#ifdef CONFIG_DEBUG_FS
+extern struct dentry *mips_debugfs_dir;
+static int __init debugfs_cpu_options(void)
+{
+	struct dentry *d;
+
+	if (!mips_debugfs_dir)
+		return -ENODEV;
+
+	d = debugfs_create_x64("cpu_options", S_IRUGO,
+			       mips_debugfs_dir, &current_cpu_data.options);
+	if (!d)
+		return -ENOMEM;
+
+	return 0;
+}
+__initcall(debugfs_cpu_options);
+#endif

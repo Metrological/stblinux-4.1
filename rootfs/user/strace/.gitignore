@@ -5,3 +5,7 @@ config.log
 config.status
 stamp-h1
 strace
+confdefs.h
+conftest.c
+conftest.err
+linux/ioctlent.h

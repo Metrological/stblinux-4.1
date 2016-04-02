@@ -147,6 +147,7 @@ config BMIPS_GENERIC
 	select BCM7038_L1_IRQ
 	select BCM7120_L2_IRQ
 	select BRCMSTB_L2_IRQ
+	select BRCMSTB
 	select IRQ_CPU
 	select RAW_IRQ_ACCESSORS
 	select DMA_NONCOHERENT
@@ -163,6 +164,9 @@ config BMIPS_GENERIC
 	select USB_EHCI_BIG_ENDIAN_MMIO if CPU_BIG_ENDIAN
 	select USB_OHCI_BIG_ENDIAN_DESC if CPU_BIG_ENDIAN
 	select USB_OHCI_BIG_ENDIAN_MMIO if CPU_BIG_ENDIAN
+	select ARCH_WANT_OPTIONAL_GPIOLIB
+	select HW_HAS_PCI
+	select MIPS_GENERIC_PCI
 	help
 	  Build a generic DT-based kernel image that boots on select
 	  BCM33xx cable modem chips, BCM63xx DSL chips, and BCM7xxx set-top
@@ -1418,6 +1422,7 @@ config CPU_MIPS64_R6
 	select CPU_SUPPORTS_HIGHMEM
 	select CPU_SUPPORTS_MSA
 	select GENERIC_CSUM
+	select MIPS_O32_FP64_SUPPORT if MIPS32_O32
 	help
 	  Choose this option to build a kernel for release 6 or later of the
 	  MIPS64 architecture.  New MIPS processors, starting with the Warrior
@@ -1739,6 +1744,7 @@ config CPU_BMIPS4380
 	select MIPS_L1_CACHE_SHIFT_6
 	select SYS_SUPPORTS_SMP
 	select SYS_SUPPORTS_HOTPLUG_CPU
+	select CPU_HAS_RIXI
 
 config CPU_BMIPS5000
 	bool
@@ -1746,6 +1752,7 @@ config CPU_BMIPS5000
 	select MIPS_L1_CACHE_SHIFT_7
 	select SYS_SUPPORTS_SMP
 	select SYS_SUPPORTS_HOTPLUG_CPU
+	select CPU_HAS_RIXI
 
 config SYS_HAS_CPU_LOONGSON3
 	bool
@@ -1903,11 +1910,13 @@ config CPU_MIPSR2
 	bool
 	default y if CPU_MIPS32_R2 || CPU_MIPS64_R2 || CPU_CAVIUM_OCTEON
 	select MIPS_SPRAM
+	select CPU_HAS_RIXI
 
 config CPU_MIPSR6
 	bool
 	default y if CPU_MIPS32_R6 || CPU_MIPS64_R6
 	select MIPS_SPRAM
+	select CPU_HAS_RIXI
 
 config EVA
 	bool
@@ -2321,6 +2330,9 @@ config CPU_HAS_WB
 config XKS01
 	bool
 
+config CPU_HAS_RIXI
+	bool
+
 #
 # Vectored interrupt mode is an R2 feature
 #
@@ -2672,6 +2684,25 @@ config USE_OF
 config BUILTIN_DTB
 	bool
 
+choice
+	prompt "Kernel command line type" if !CMDLINE_OVERRIDE
+	default MIPS_CMDLINE_FROM_DTB if USE_OF && !ATH79 && !MACH_INGENIC && \
+					 !MIPS_MALTA && !MIPS_SEAD3 && \
+					 !CAVIUM_OCTEON_SOC
+	default MIPS_CMDLINE_FROM_BOOTLOADER
+
+	config MIPS_CMDLINE_FROM_DTB
+		depends on USE_OF
+		bool "Dtb kernel arguments if available"
+
+	config MIPS_CMDLINE_DTB_EXTEND
+		depends on USE_OF
+		bool "Extend dtb kernel arguments with bootloader arguments"
+
+	config MIPS_CMDLINE_FROM_BOOTLOADER
+		bool "Bootloader kernel arguments if available"
+endchoice
+
 endmenu
 
 config LOCKDEP_SUPPORT
@@ -2697,11 +2728,14 @@ config HW_HAS_EISA
 	bool
 config HW_HAS_PCI
 	bool
+config MIPS_GENERIC_PCI
+	bool
 
 config PCI
 	bool "Support for PCI controller"
 	depends on HW_HAS_PCI
 	select PCI_DOMAINS
+	select PCI_DOMAINS_GENERIC if MIPS_GENERIC_PCI
 	select NO_GENERIC_PCI_IOPORT_MAP
 	help
 	  Find out whether you have a PCI motherboard. PCI is the name of a
@@ -2721,6 +2755,9 @@ config HT_PCI
 	  linked at HT. Choose Y for Loongson-3 based machines.
 
 config PCI_DOMAINS
+	bool
+
+config PCI_DOMAINS_GENERIC
 	bool
 
 source "drivers/pci/Kconfig"

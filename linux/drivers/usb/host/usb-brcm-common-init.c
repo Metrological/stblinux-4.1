@@ -143,6 +143,62 @@ static void usb3_pll_fix(uintptr_t ctrl_base)
 }
 
 
+static void usb3_enable_pipe_reset(uintptr_t ctrl_base)
+{
+	uint32_t val;
+
+	/* Re-enable USB 3.0 pipe reset */
+	usb_mdio_write(ctrl_base, 0x1f, 0x8000, MDIO_USB3);
+	val = usb_mdio_read(ctrl_base, 0x0f, MDIO_USB3) | 0x200;
+	usb_mdio_write(ctrl_base, 0x0f, val, MDIO_USB3);
+}
+
+
+static void usb3_pll_54Mhz(uintptr_t ctrl_base)
+{
+#if defined(CONFIG_BCM7271A0)
+	/*
+	 * On the 7271a0 and 7268a0, the reference clock for the
+	 * 3.0 PLL has been changed from 50MHz to 54MHz so the
+	 * PLL needs to be reprogramed. Later chips will have
+	 * the PLL programmed correctly on power-up.
+	 * See SWLINUX-4006.
+	 */
+	uint32_t ofs;
+	int ii;
+
+	/* set USB 3.0 PLL to accept 54Mhz reference clock */
+	USB_CTRL_UNSET(ctrl_base, USB30_CTL1, phy3_pll_seq_start);
+
+	usb_mdio_write(ctrl_base, 0x1f, 0x8000, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x10, 0x5784, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x11, 0x01d0, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x12, 0x1DE8, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x13, 0xAA80, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x14, 0x8826, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x15, 0x0044, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x16, 0x8000, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x17, 0x0851, MDIO_USB3);
+	usb_mdio_write(ctrl_base, 0x18, 0x0000, MDIO_USB3);
+
+	/* both ports */
+	ofs = 0;
+	for (ii = 0; ii < 2; ++ii) {
+		usb_mdio_write(ctrl_base, 0x1f, (0x8040 + ofs), MDIO_USB3);
+		usb_mdio_write(ctrl_base, 0x03, 0x0090, MDIO_USB3);
+		usb_mdio_write(ctrl_base, 0x04, 0x0134, MDIO_USB3);
+		usb_mdio_write(ctrl_base, 0x1f, (0x8020 + ofs), MDIO_USB3);
+		usb_mdio_write(ctrl_base, 0x01, 0x00e2, MDIO_USB3);
+		ofs = 0x1000;
+	}
+
+	/* restart  PLL sequence */
+	USB_CTRL_SET(ctrl_base, USB30_CTL1, phy3_pll_seq_start);
+	msleep(1);
+#endif
+}
+
+
 static void usb3_ssc_enable(uintptr_t ctrl_base)
 {
 	uint32_t val;
@@ -159,6 +215,15 @@ static void usb3_ssc_enable(uintptr_t ctrl_base)
 	usb_mdio_write(ctrl_base, 0x1f, 0x9040, MDIO_USB3);
 	val = usb_mdio_read(ctrl_base, 0x01, MDIO_USB3) | 0xf;
 	usb_mdio_write(ctrl_base, 0x01, val, MDIO_USB3);
+}
+
+
+static void usb3_phy_workarounds(uintptr_t ctrl_base)
+{
+	usb3_pll_fix(ctrl_base);
+	usb3_pll_54Mhz(ctrl_base);
+	usb3_ssc_enable(ctrl_base);
+	usb3_enable_pipe_reset(ctrl_base);
 }
 
 
@@ -243,6 +308,7 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 {
 	uint32_t reg;
 	uintptr_t ctrl = params->ctrl_regs;
+	int change_ipp = 0;
 
 	xhci_soft_reset(ctrl, 1);
 #if defined(CONFIG_BCM7366)
@@ -305,10 +371,8 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 
 	usb2_eye_fix(ctrl);
 	usb_phy_ldo_fix(ctrl);
-	if (params->has_xhci) {
-		usb3_pll_fix(ctrl);
-		usb3_ssc_enable(ctrl);
-	}
+	if (params->has_xhci)
+		usb3_phy_workarounds(ctrl);
 
 	/* Setup the endian bits */
 	reg = DEV_RD(USB_CTRL_REG(ctrl, SETUP));
@@ -325,20 +389,31 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 	/* override ipp strap pin (if it exits) */
 	reg &= ~(USB_CTRL_MASK(SETUP, strap_ipp_sel));
 #endif
+
+#if defined(BCHP_USB_CTRL_SETUP_scb1_en_MASK)
 	/*
 	 * Make sure the the second and third memory controller
 	 * interfaces are enabled.
 	 */
 	reg |= (USB_CTRL_MASK(SETUP, scb1_en) |
 		USB_CTRL_MASK(SETUP, scb2_en));
+#endif
 
 	/* Override the default OC and PP polarity */
 	if (params->ioc)
 		reg |= USB_CTRL_MASK(SETUP, IOC);
-	if (params->ipp)
+	if (params->ipp && ((reg & USB_CTRL_MASK(SETUP, IPP)) == 0)) {
+		change_ipp = 1;
 		reg |= USB_CTRL_MASK(SETUP, IPP);
+	}
 	DEV_WR(USB_CTRL_REG(ctrl, SETUP), reg);
 
+	/*
+	 * If we're changing IPP, make sure power is off long enough
+	 * to turn off any connected devices.
+	 */
+	if (change_ipp)
+		msleep(50);
 	memc_fix(ctrl);
 	if (params->has_xhci) {
 		xhci_soft_reset(ctrl, 0);

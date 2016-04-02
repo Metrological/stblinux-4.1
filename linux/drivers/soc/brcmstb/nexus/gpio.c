@@ -50,7 +50,7 @@ static int brcmstb_gpio_chip_find(struct gpio_chip *chip, void *data)
  * We do want multiple consecutive calls to brcmstb_gpio_irq() not to fail
  * because the first one claimed ownernship already.
  */
-static DECLARE_BITMAP(brcmstb_gpio_requested, CONFIG_ARCH_NR_GPIO);
+static DECLARE_BITMAP(brcmstb_gpio_requested, ARCH_NR_GPIOS);
 
 static int brcmstb_gpio_request(unsigned int gpio)
 {
@@ -258,7 +258,7 @@ void brcmstb_gpio_remove(void)
 {
     unsigned i;
 
-    for (i = 0; i < CONFIG_ARCH_NR_GPIO; i++)
+    for (i = 0; i < ARCH_NR_GPIOS; i++)
     {
         brcmstb_gpio_free(i);
     }

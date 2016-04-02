@@ -2,6 +2,7 @@ gdbreplay
 gdbserver
 libinproctrace.so
 
+aarch64.c
 amd64-avx-linux.c
 amd64-linux.c
 arm-with-iwmmxt.c

@@ -186,6 +186,17 @@ void __init bmem_reserve(void)
 			pr_info("Reserved %lu MiB at %pa\n",
 				(unsigned long) bmem_regions[i].size / SZ_1M,
 				&bmem_regions[i].addr);
+
+			/*
+			 * Reserve the PAGE_SIZE memory preceeding each
+			 * BMEM region so it's unusable by the kernel.
+			 * This is to workaround a bug in the USB hardware
+			 * that may pre-fetch beyond the end of a DMA buffer
+			 * and read into BMEM and cause MRC errors.
+			 * See: SWLINUX-3996.
+			 */
+			memblock_reserve(bmem_regions[i].addr - PAGE_SIZE,
+					PAGE_SIZE);
 		}
 	}
 }

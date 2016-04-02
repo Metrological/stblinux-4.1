@@ -186,6 +186,9 @@ config ARCH_HAS_ILOG2_U64
 config ARCH_HAS_BANDGAP
 	bool
 
+config FIX_EARLYCON_MEM
+	def_bool y if MMU
+
 config GENERIC_HWEIGHT
 	bool
 	default y
@@ -540,6 +543,7 @@ config ARCH_ORION5X
 	select MVEBU_MBUS
 	select PCI
 	select PLAT_ORION_LEGACY
+	select MULTI_IRQ_HANDLER
 	help
 	  Support for the following Marvell Orion 5x series SoCs:
 	  Orion-1 (5181), Orion-VoIP (5181L), Orion-NAS (5182),

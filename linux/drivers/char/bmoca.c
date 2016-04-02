@@ -65,7 +65,7 @@
 #include <linux/bmoca.h>
 #endif
 
-#if defined(CONFIG_BRCMSTB)
+#if defined(CONFIG_BRCMSTB) || defined(CONFIG_BMIPS_GENERIC)
 #include <linux/brcmstb/brcmstb.h>
 #endif
 
@@ -797,7 +797,7 @@ static void moca_read_mem(struct moca_priv_data *priv,
 	}
 
 	for (i = 0; i < len; i += 4)
-		DEV_WR(dst + i, cpu_to_be32(
+		MOCA_WR(dst + i, cpu_to_be32(
 			MOCA_RD(priv->base + src_offset +
 				priv->regs->data_mem_offset + i)));
 }
@@ -1608,6 +1608,55 @@ static u32 moca_3450_read_i2c(struct moca_priv_data *priv, u8 addr)
 #define BCM3450_PACNTL		0x18
 #define BCM3450_MISC		0x1c
 
+static int moca_3450_get_reg(struct moca_priv_data *priv, void __user *arg)
+{
+	struct moca_xfer x;
+	u32 *dst;
+	u32 val;
+
+	if (!priv->i2c_base)
+		return -ENODEV;
+
+	if (copy_from_user(&x, arg, sizeof(x)))
+		return -EFAULT;
+
+	dst = (u32 *)(uintptr_t)x.buf;
+
+	mutex_lock(&priv->moca_i2c_mutex);
+	val = moca_3450_read(priv, x.moca_addr);
+	mutex_unlock(&priv->moca_i2c_mutex);
+
+	if (put_user(val, dst))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int moca_3450_set_reg(struct moca_priv_data *priv, void __user *arg)
+{
+	struct moca_xfer x;
+	u32 val, ret = 0;
+
+	if (!priv->i2c_base)
+		return -ENODEV;
+
+	if (copy_from_user(&x, arg, sizeof(x)))
+		return -EFAULT;
+
+	mutex_lock(&priv->moca_i2c_mutex);
+	if (get_user(val, (u32 *)(uintptr_t)x.buf)) {
+		ret = -EFAULT;
+		goto err_out;
+	}
+	moca_3450_write(priv, x.moca_addr, val);
+
+err_out:
+	mutex_unlock(&priv->moca_i2c_mutex);
+
+	return ret;
+}
+
+
 static void moca_3450_init(struct moca_priv_data *priv, int action)
 {
 	u32 data;
@@ -1986,6 +2035,12 @@ static long moca_file_ioctl(struct file *file, unsigned int cmd,
 			ret = clk_set_rate(priv->phy_clk,
 						     (unsigned int)arg);
 		break;
+	case MOCA_IOCTL_GET_3450_REG:
+		ret = moca_3450_get_reg(priv, (void __user *)arg);
+		break;
+	case MOCA_IOCTL_SET_3450_REG:
+		ret = moca_3450_set_reg(priv, (void __user *)arg);
+		break;
 	}
 	mutex_unlock(&priv->dev_mutex);
 
@@ -2323,16 +2378,7 @@ static int moca_parse_dt_node(struct moca_priv_data *priv)
 	/* Try to read the chip-id property.  If not present, fall back to
 	 * reading it from the chip family ID register.
 	 */
-	if (of_property_read_u32(of_node, "chip-id", &pd.chip_id)) {
-		val = BDEV_RD(BCHP_SUN_TOP_CTRL_CHIP_FAMILY_ID);
-		if (val >> 28)
-			/* 4-digit chip ID */
-			pd.chip_id = (val >> 16) << 16;
-		else
-			/* 5-digit chip ID */
-			pd.chip_id = (val >> 8) << 8;
-		pd.chip_id |= (BRCM_CHIP_REV() + 0xa0);
-	}
+	of_property_read_u32(of_node, "chip-id", &pd.chip_id);
 
 	status = platform_device_add_data(pdev, &pd, sizeof(pd));
 

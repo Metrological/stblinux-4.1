@@ -611,5 +611,18 @@ config TILE_SROM
 
 source "drivers/char/xillybus/Kconfig"
 
+config BRCM_MOCA
+	tristate "Broadcom MoCA character driver"
+	depends on ARCH_BRCMSTB || BMIPS_GENERIC
+	default y
+	help
+	  Say Y to build the MoCA control path driver.  This is a simple
+	  character driver that allows the MoCA daemon (mocad) to
+	  initialize and configure the MoCA interface.
+
+	  If your chipset supports power management, disabling this driver
+	  will keep the device permanently powered down.
+
+
 endmenu
 

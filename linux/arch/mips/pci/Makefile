@@ -4,6 +4,12 @@
 
 obj-y				+= pci.o
 
+ifeq ($(CONFIG_MIPS_GENERIC_PCI),y)
+obj-y				+= pci-generic.o
+else
+obj-y				+= pci-legacy.o
+endif
+
 #
 # PCI bus host bridge specific code
 #

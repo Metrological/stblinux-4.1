@@ -1,7 +1,7 @@
 /*
  * Broadcom BCM7xxx internal transceivers support.
  *
- * Copyright (C) 2014, Broadcom Corporation
+ * Copyright (C) 2014-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,7 +20,7 @@
 /* Broadcom BCM7xxx internal PHY registers */
 #define MII_BCM7XXX_CHANNEL_WIDTH	0x2000
 
-/* 40nm only register definitions */
+/* EPHY only register definitions */
 #define MII_BCM7XXX_100TX_AUX_CTL	0x10
 #define MII_BCM7XXX_100TX_FALSE_CAR	0x13
 #define MII_BCM7XXX_100TX_DISC		0x14
@@ -29,6 +29,16 @@
 #define MII_BCM7XXX_CORE_BASE1E		0x1e
 #define MII_BCM7XXX_TEST		0x1f
 #define  MII_BCM7XXX_SHD_MODE_2		BIT(2)
+#define MII_BCM7XXX_SHD_2_ADDR_CTRL	0xe
+#define MII_BCM7XXX_SHD_2_CTRL_STAT	0xf
+#define MII_BCM7XXX_SHD_3_AN_EEE_ADV	0x3
+#define MII_BCM7XXX_SHD_3_PCS_CTRL_2	0x6
+#define  MII_BCM7XXX_PCS_CTRL_2_DEF	0x4400
+#define MII_BCM7XXX_SHD_3_AN_STAT	0xb
+#define  MII_BCM7XXX_AN_NULL_MSG_EN	BIT(0)
+#define  MII_BCM7XXX_AN_EEE_EN		BIT(1)
+#define MII_BCM7XXX_SHD_3_EEE_THRESH	0xe
+#define  MII_BCM7XXX_EEE_THRESH_DEF	0x50
 
 /* 28nm only register definitions */
 #define MISC_ADDR(base, channel)	base, channel
@@ -235,7 +245,7 @@ static int bcm7xxx_eee_enable(struct phy_device *phydev)
 	val = phy_read_mmd_indirect(phydev, MDIO_AN_EEE_ADV,
 				    MDIO_MMD_AN, phydev->addr);
 
-	val |= (MDIO_AN_EEE_ADV_100TX | MDIO_AN_EEE_ADV_1000T);
+	val |= (MDIO_EEE_100TX | MDIO_EEE_1000T);
 	phy_write_mmd_indirect(phydev, MDIO_AN_EEE_ADV,
 			       MDIO_MMD_AN, phydev->addr, val);
 
@@ -382,6 +392,128 @@ static int bcm7xxx_suspend(struct phy_device *phydev)
 	return 0;
 }
 
+static int bcm7xxx_28nm_ephy_apd_enable(struct phy_device *phydev)
+{
+	int ret;
+
+	/* set shadow mode 1 */
+	ret = phy_set_clr_bits(phydev, MII_BRCM_FET_BRCMTEST,
+			MII_BRCM_FET_BT_SRE, 0);
+	if (ret < 0)
+		return ret;
+
+	/* Enable auto-power down */
+	ret = phy_set_clr_bits(phydev, MII_BRCM_FET_SHDW_AUXSTAT2,
+			MII_BRCM_FET_SHDW_AS2_APDE, 0);
+	if (ret < 0)
+		return ret;
+
+	/* reset shadow mode 1 */
+	ret = phy_set_clr_bits(phydev, MII_BRCM_FET_BRCMTEST, 0,
+			MII_BRCM_FET_BT_SRE);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int bcm7xxx_28nm_ephy_eee_enable(struct phy_device *phydev)
+{
+	int ret;
+
+	/* set shadow mode 2 */
+	ret = phy_set_clr_bits(phydev, MII_BCM7XXX_TEST,
+			MII_BCM7XXX_SHD_MODE_2, 0);
+	if (ret < 0)
+		return ret;
+
+	/* Advertise supported modes */
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_ADDR_CTRL,
+			MII_BCM7XXX_SHD_3_AN_EEE_ADV);
+	if (ret < 0)
+		goto reset_shadow_mode;
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_CTRL_STAT,
+			MDIO_EEE_100TX);
+	if (ret < 0)
+		goto reset_shadow_mode;
+
+	/* Restore Defaults */
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_ADDR_CTRL,
+			MII_BCM7XXX_SHD_3_PCS_CTRL_2);
+	if (ret < 0)
+		goto reset_shadow_mode;
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_CTRL_STAT,
+			MII_BCM7XXX_PCS_CTRL_2_DEF);
+	if (ret < 0)
+		goto reset_shadow_mode;
+
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_ADDR_CTRL,
+			MII_BCM7XXX_SHD_3_EEE_THRESH);
+	if (ret < 0)
+		goto reset_shadow_mode;
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_CTRL_STAT,
+			MII_BCM7XXX_EEE_THRESH_DEF);
+	if (ret < 0)
+		goto reset_shadow_mode;
+
+	/* Enable EEE autonegotiation */
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_ADDR_CTRL,
+			MII_BCM7XXX_SHD_3_AN_STAT);
+	if (ret < 0)
+		goto reset_shadow_mode;
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_CTRL_STAT,
+			(MII_BCM7XXX_AN_NULL_MSG_EN | MII_BCM7XXX_AN_EEE_EN));
+	if (ret < 0)
+		goto reset_shadow_mode;
+
+reset_shadow_mode:
+	/* reset shadow mode 2 */
+	ret = phy_set_clr_bits(phydev, MII_BCM7XXX_TEST, 0,
+			MII_BCM7XXX_SHD_MODE_2);
+	if (ret < 0)
+		return ret;
+
+	/* Restart autoneg */
+	phy_write(phydev, MII_BMCR,
+		  (BMCR_SPEED100 | BMCR_ANENABLE | BMCR_ANRESTART));
+
+	return 0;
+}
+
+static int bcm7xxx_28nm_ephy_config_init(struct phy_device *phydev)
+{
+	u8 rev = phydev->phy_id & ~phydev->drv->phy_id_mask;
+	int ret = 0;
+
+	pr_info_once("%s: %s PHY revision: 0x%02x\n",
+		     dev_name(&phydev->dev), phydev->drv->name, rev);
+
+	/* Dummy read to a register to workaround a possible issue upon reset
+	 * where the internal inverter may not allow the first MDIO transaction
+	 * to pass the MDIO management controller and make us return 0xffff for
+	 * such reads.
+	 */
+	phy_read(phydev, MII_BMSR);
+
+	ret = bcm7xxx_28nm_ephy_eee_enable(phydev);
+	if (ret)
+		return ret;
+
+	return bcm7xxx_28nm_ephy_apd_enable(phydev);
+}
+
+static int bcm7xxx_28nm_ephy_resume(struct phy_device *phydev)
+{
+	int ret;
+
+	/* Re-apply workarounds coming out suspend/resume */
+	ret = bcm7xxx_28nm_ephy_config_init(phydev);
+	if (ret)
+		return ret;
+
+	return genphy_config_aneg(phydev);
+}
+
 static int bcm7xxx_28nm_probe(struct phy_device *phydev)
 {
 	struct bcm7xxx_phy_priv *priv;
@@ -430,6 +562,23 @@ static void bcm7xxx_28nm_remove(struct phy_device *phydev)
 	.driver		= { .owner = THIS_MODULE },			\
 }
 
+#define BCM7XXX_28NM_EPHY(_oui, _name)					\
+{									\
+	.phy_id		= (_oui),					\
+	.phy_id_mask	= 0xfffffff0,					\
+	.name		= _name,					\
+	.features	= PHY_BASIC_FEATURES |				\
+			  SUPPORTED_Pause | SUPPORTED_Asym_Pause,	\
+	.flags		= PHY_IS_INTERNAL,				\
+	.probe		= bcm7xxx_28nm_probe,				\
+	.remove		= bcm7xxx_28nm_remove,				\
+	.config_init	= bcm7xxx_28nm_ephy_config_init,		\
+	.config_aneg	= genphy_config_aneg,				\
+	.read_status	= genphy_read_status,				\
+	.resume		= bcm7xxx_28nm_ephy_resume,			\
+	.driver		= { .owner = THIS_MODULE },			\
+}
+
 #define BCM7XXX_40NM_EPHY(_oui, _name)					\
 {									\
 	.phy_id         = (_oui),					\
@@ -448,6 +597,8 @@ static void bcm7xxx_28nm_remove(struct phy_device *phydev)
 
 static struct phy_driver bcm7xxx_driver[] = {
 	BCM7XXX_28NM_GPHY(PHY_ID_BCM7250, "Broadcom BCM7250"),
+	BCM7XXX_28NM_EPHY(PHY_ID_BCM7268, "Broadcom BCM7268"),
+	BCM7XXX_28NM_EPHY(PHY_ID_BCM7271, "Broadcom BCM7271"),
 	BCM7XXX_28NM_GPHY(PHY_ID_BCM7364, "Broadcom BCM7364"),
 	BCM7XXX_28NM_GPHY(PHY_ID_BCM7366, "Broadcom BCM7366"),
 	BCM7XXX_28NM_GPHY(PHY_ID_BCM74371, "Broadcom BCM74371"),
@@ -462,6 +613,8 @@ static struct phy_driver bcm7xxx_driver[] = {
 
 static struct mdio_device_id __maybe_unused bcm7xxx_tbl[] = {
 	{ PHY_ID_BCM7250, 0xfffffff0, },
+	{ PHY_ID_BCM7268, 0xfffffff0, },
+	{ PHY_ID_BCM7271, 0xfffffff0, },
 	{ PHY_ID_BCM7364, 0xfffffff0, },
 	{ PHY_ID_BCM7366, 0xfffffff0, },
 	{ PHY_ID_BCM7425, 0xfffffff0, },

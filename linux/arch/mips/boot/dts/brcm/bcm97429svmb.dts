@@ -26,6 +26,14 @@
 	status = "okay";
 };
 
+&enet1 {
+	status = "okay";
+};
+
+&moca {
+	status = "okay";
+};
+
 &ehci0 {
 	status = "okay";
 };
@@ -64,4 +72,31 @@
 
 &sata_phy {
 	status = "okay";
+};
+
+&nand {
+	status = "okay";
+
+	nandcs@1 {
+		#size-cells = <0x2>;
+		#address-cells = <0x2>;
+		compatible = "brcm,nandcs";
+		reg = <0x1>;
+		nand-on-flash-bbt;
+
+		nand-ecc-strength = <4>;
+		nand-ecc-step-size = <512>;
+
+		rootfs@0 {
+			reg = <0x0 0x0 0x0 0x0>;
+		};
+
+		kernel@1 {
+		        reg = <0x0 0x0 0x0 0x0>;
+		};
+
+		flash@0 {
+			reg = <0x0 0x0 0x1 0x0>;
+		};
+	};
 };

@@ -26,6 +26,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/vme.h>
+#include <linux/sched.h>
 #include <linux/brcmstb/bmem.h>
 #include <linux/brcmstb/cma_driver.h>
 #include <linux/brcmstb/memory_api.h>
@@ -48,6 +49,17 @@
 #define BUS_RANGE_ULIMIT_SHIFT 4
 #define BUS_RANGE_LLIMIT_SHIFT 4
 #define BUS_RANGE_PA_SHIFT 12
+
+/* platform dependant memory flags */
+#if defined(CONFIG_BMIPS_GENERIC)
+#define BCM_MEM_MASK (_PAGE_VALID)
+#elif defined(CONFIG_ARM64)
+#define BCM_MEM_MASK (PTE_ATTRINDX_MASK | PTE_TYPE_MASK)
+#elif defined(CONFIG_ARM)
+#define BCM_MEM_MASK (L_PTE_MT_MASK | L_PTE_VALID)
+#else
+#error "Platform not supported by bmem"
+#endif
 
 enum {
 	BUSNUM_MCP0 = 0x4,
@@ -183,7 +195,7 @@ static int populate_memc(struct brcmstb_memory *mem, int addr_cells,
 
 static int populate_lowmem(struct brcmstb_memory *mem)
 {
-#ifdef CONFIG_ARM
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 	mem->lowmem.range[0].addr = __pa(PAGE_OFFSET);
 	mem->lowmem.range[0].size = (unsigned long)high_memory - PAGE_OFFSET;
 	++mem->lowmem.count;
@@ -483,6 +495,24 @@ void __init brcmstb_memory_reserve(void)
 }
 
 /*
+ * brcmstb_memory_init() - Initialize Broadcom proprietary memory extensions
+ *
+ * This function is a hook from the architecture specific mm initialization
+ * that allows the memory extensions used by Broadcom Set-Top-Box middleware
+ * to be initialized.
+ */
+void __init brcmstb_memory_init(void)
+{
+	brcmstb_memory_reserve();
+#ifdef CONFIG_BRCMSTB_CMA
+	cma_reserve();
+#endif
+#ifdef CONFIG_BRCMSTB_BMEM
+	bmem_reserve();
+#endif
+}
+
+/*
  * brcmstb_memory_get() - fill in brcmstb_memory structure
  * @mem: pointer to allocated struct brcmstb_memory to fill
  *
@@ -547,10 +577,10 @@ EXPORT_SYMBOL(brcmstb_memory_get);
 static int pte_callback(pte_t *pte, unsigned long x, unsigned long y,
 			struct mm_walk *walk)
 {
-	const pgprot_t pte_prot = __pgprot(*pte);
+	const pgprot_t pte_prot = __pgprot(pte_val(*pte));
 	const pgprot_t req_prot = *((pgprot_t *)walk->private);
-	const pgprot_t prot_msk = L_PTE_MT_MASK | L_PTE_VALID;
-	return (((pte_prot ^ req_prot) & prot_msk) == 0) ? 0 : -1;
+	const pgprot_t prot_msk = __pgprot(BCM_MEM_MASK);
+	return (((pgprot_val(pte_prot) ^ pgprot_val(req_prot)) & pgprot_val(prot_msk)) == 0) ? 0 : -1;
 }
 
 static void *page_to_virt_contig(const struct page *page, unsigned int pg_cnt,
@@ -618,7 +648,7 @@ static struct page **get_pages(struct page *page, int num_pages)
 		return NULL;
 	}
 
-	pages = kmalloc(sizeof(struct page *) * num_pages, GFP_KERNEL);
+	pages = vmalloc(sizeof(struct page *) * num_pages);
 	if (pages == NULL)
 		return NULL;
 
@@ -688,7 +718,7 @@ void *brcmstb_memory_kva_map(struct page *page, int num_pages, pgprot_t pgprot)
 
 		va = brcmstb_memory_vmap(pages, num_pages, 0, pgprot);
 
-		kfree(pages);
+		vfree(pages);
 
 		if (va == NULL) {
 			pr_err("vmap failed (num_pgs=%d)\n", num_pages);

@@ -1,16 +1,39 @@
+/*
+ * Copyright (c) 2007 Vladimir Nadvornik <nadvornik@suse.cz>
+ * Copyright (c) 2007 Dmitry V. Levin <ldv@altlinux.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. The name of the author may not be used to endorse or promote products
+ *    derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include "defs.h"
 
-#ifdef LINUX
-#include <sys/ioctl.h>
-#include <scsi/sg.h>
+#ifdef HAVE_SCSI_SG_H
 
-static const struct xlat sg_io_dxfer_direction[] = {
-	{SG_DXFER_NONE,        "SG_DXFER_NONE"},
-	{SG_DXFER_TO_DEV,      "SG_DXFER_TO_DEV"},
-	{SG_DXFER_FROM_DEV,    "SG_DXFER_FROM_DEV"},
-	{SG_DXFER_TO_FROM_DEV, "SG_DXFER_TO_FROM_DEV"},
-	{0, NULL}
-};
+# include <sys/ioctl.h>
+# include <scsi/sg.h>
+
+#include "xlat/sg_io_dxfer_direction.h"
 
 static void
 print_sg_io_buffer(struct tcb *tcp, unsigned char *addr, int len)
@@ -33,7 +56,7 @@ print_sg_io_buffer(struct tcb *tcp, unsigned char *addr, int len)
 		tprintf(", %02x", buf[i]);
 	free(buf);
 	if (allocated != len)
-		tprintf(", ...");
+		tprints(", ...");
 }
 
 static void
@@ -55,7 +78,7 @@ print_sg_io_req(struct tcb *tcp, struct sg_io_hdr *sg_io)
 		tprintf(", data[%u]=[", sg_io->dxfer_len);
 		printstr(tcp, (unsigned long) sg_io->dxferp,
 			 sg_io->dxfer_len);
-		tprintf("]");
+		tprints("]");
 	}
 }
 
@@ -67,7 +90,7 @@ print_sg_io_res(struct tcb *tcp, struct sg_io_hdr *sg_io)
 		tprintf(", data[%u]=[", sg_io->dxfer_len);
 		printstr(tcp, (unsigned long) sg_io->dxferp,
 			 sg_io->dxfer_len);
-		tprintf("]");
+		tprints("]");
 	}
 	tprintf(", status=%02x, ", sg_io->status);
 	tprintf("masked_status=%02x, ", sg_io->masked_status);
@@ -91,7 +114,7 @@ scsi_ioctl(struct tcb *tcp, long code, long arg)
 			if (umove(tcp, arg, &sg_io) < 0)
 				tprintf(", %#lx", arg);
 			else {
-				tprintf(", ");
+				tprints(", ");
 				print_sg_io_req(tcp, &sg_io);
 			}
 		}
@@ -101,7 +124,7 @@ scsi_ioctl(struct tcb *tcp, long code, long arg)
 			if (!syserror(tcp) && umove(tcp, arg, &sg_io) >= 0)
 				print_sg_io_res(tcp, &sg_io);
 			else
-				tprintf("}");
+				tprints("}");
 		}
 		break;
 	default:
@@ -111,4 +134,5 @@ scsi_ioctl(struct tcb *tcp, long code, long arg)
 	}
 	return 1;
 }
-#endif /* LINUX */
+
+#endif /* HAVE_SCSI_SG_H */
