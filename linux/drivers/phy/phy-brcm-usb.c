@@ -24,6 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
 #include "../drivers/usb/host/usb-brcm-common-init.h"
+#include <linux/soc/brcmstb/brcmstb.h>
 
 
 enum brcm_usb_phy_id {
@@ -33,6 +34,7 @@ enum brcm_usb_phy_id {
 };
 
 struct brcm_usb_phy_data {
+	struct  brcm_usb_common_init_params ini;
 	void __iomem		*ctrl_regs;
 	void __iomem		*xhci_ec_regs;
 	int			ioc;
@@ -76,7 +78,6 @@ static int brcm_usb_phy_probe(struct platform_device *pdev)
 	const u32 *prop;
 	int i;
 	int err;
-	struct brcm_usb_common_init_params params;
 	const char *device_mode;
 	char err_msg_ioremap[] = "can't map register space\n";
 
@@ -85,13 +86,15 @@ static int brcm_usb_phy_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, priv);
 
+	priv->ini.family_id = brcmstb_get_family_id();
+	priv->ini.product_id = brcmstb_get_product_id();
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
 		dev_err(&pdev->dev, "can't get USB_CTRL base address\n");
 		return -EINVAL;
 	}
-	priv->ctrl_regs = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(priv->ctrl_regs)) {
+	priv->ini.ctrl_regs = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(priv->ini.ctrl_regs)) {
 		dev_err(dev, err_msg_ioremap);
 		return -EINVAL;
 	}
@@ -99,29 +102,29 @@ static int brcm_usb_phy_probe(struct platform_device *pdev)
 	/* The XHCI EC registers are optional */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (res != NULL) {
-		priv->xhci_ec_regs =
+		priv->ini.xhci_ec_regs =
 			devm_ioremap_resource(&pdev->dev, res);
-		if (IS_ERR(priv->xhci_ec_regs)) {
+		if (IS_ERR(priv->ini.xhci_ec_regs)) {
 			dev_err(&pdev->dev, err_msg_ioremap);
 			return -EINVAL;
 		}
 	}
 
-	of_property_read_u32(dn, "ipp", &priv->ipp);
-	of_property_read_u32(dn, "ioc", &priv->ioc);
+	of_property_read_u32(dn, "ipp", &priv->ini.ipp);
+	of_property_read_u32(dn, "ioc", &priv->ini.ioc);
 
-	priv->device_mode = USB_CTLR_DEVICE_OFF;
+	priv->ini.device_mode = USB_CTLR_DEVICE_OFF;
 	err = of_property_read_string(dn, "device", &device_mode);
 	if (err == 0) {
 		if (strcmp(device_mode, "on") == 0)
-			priv->device_mode = USB_CTLR_DEVICE_ON;
+			priv->ini.device_mode = USB_CTLR_DEVICE_ON;
 		if (strcmp(device_mode, "dual") == 0)
-			priv->device_mode = USB_CTLR_DEVICE_DUAL;
+			priv->ini.device_mode = USB_CTLR_DEVICE_DUAL;
 	}
 
 	prop = of_get_property(dn, "has_xhci", NULL);
 	if (prop) {
-		priv->has_xhci = 1;
+		priv->ini.has_xhci = 1;
 		priv->num_phys = 2;
 	} else {
 		priv->num_phys = 1;
@@ -151,13 +154,7 @@ static int brcm_usb_phy_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
-	params.ctrl_regs = (uintptr_t)priv->ctrl_regs;
-	params.ioc = priv->ioc;
-	params.ipp = priv->ipp;
-	params.has_xhci = priv->has_xhci;
-	params.xhci_ec_regs = (uintptr_t)priv->xhci_ec_regs;
-	params.device_mode = priv->device_mode;
-	brcm_usb_common_init(&params);
+	brcm_usb_common_init(&priv->ini);
 
 	return 0;
 }
@@ -173,17 +170,10 @@ static int brcm_usb_phy_suspend(struct device *dev)
 
 static int brcm_usb_phy_resume(struct device *dev)
 {
-	struct brcm_usb_common_init_params params;
 	struct brcm_usb_phy_data *priv = dev_get_drvdata(dev);
 
 	clk_enable(priv->usb_clk);
-	params.ctrl_regs = (uintptr_t)priv->ctrl_regs;
-	params.ioc = priv->ioc;
-	params.ipp = priv->ipp;
-	params.has_xhci = priv->has_xhci;
-	params.xhci_ec_regs = (uintptr_t)priv->xhci_ec_regs;
-	params.device_mode = priv->device_mode;
-	brcm_usb_common_init(&params);
+	brcm_usb_common_init(&priv->ini);
 	return 0;
 }
 #endif /* CONFIG_PM_SLEEP */

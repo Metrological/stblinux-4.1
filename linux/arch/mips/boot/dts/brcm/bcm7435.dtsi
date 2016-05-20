@@ -36,6 +36,9 @@
 
 	aliases {
 		uart0 = &uart0;
+		sdhci0 = &sdhci0;
+		sdhci1 = &sdhci1;
+		brcm_pmx_core = &brcm_pmx_core;
 	};
 
 	cpu_intc: cpu_intc {
@@ -55,7 +58,7 @@
 	};
 
 	pcie: pcie@10410000 {
-		reg = <0x10410000 0xc024>;
+		reg = <0x10410000 0x930c>;
 		interrupts = <0x27>, <0x27>;
 		interrupt-names = "pcie", "msi";
 		interrupt-parent = <&periph_intc>;
@@ -426,6 +429,71 @@
 			interrupt-names = "moca";
 			i2c-base = <0x10406200>;
 			i2c-addr = <0x70>;
+			status = "disabled";
+		};
+		sdhci0: sdhci@41a000 {
+			compatible = "brcm,sdhci-brcmstb";
+			reg = <0x41a000 0x100 0x41a100 0x100>;
+			reg-names = "host", "cfg";
+			interrupt-parent = <&periph_intc>;
+			interrupts = <47>;
+			broken-64-bit-dma;
+			sdhci,auto-cmd12;
+			no-1-8-v;
+			status = "disabled";
+		};
+		sdhci1: sdhci@41a200 {
+			compatible = "brcm,sdhci-brcmstb";
+			reg = <0x41a200 0x100 0x41a300 0x100>;
+			reg-names = "host", "cfg";
+			interrupt-parent = <&periph_intc>;
+			interrupts = <48>;
+			non-removable;
+			bus-width = <0x8>;
+			broken-64-bit-dma;
+			broken-timeout-value;
+			sdhci,auto-cmd12;
+			no-1-8-v;
+			status = "disabled";
+		};
+		brcm_pmx_core: pinmux@404100 {
+			compatible = "brcm,7435-padconf", "pinctrl-single";
+			reg = <0x404100 0x00000084>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-single,bit-per-mux;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0x3>;
+			status = "disabled";
+		};
+		brcm_pmx_aon_core: pinmux@408500 {
+			compatible = "brcm,7435-padconf", "pinctrl-single";
+			reg = <0x408500 0x0000001c>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-single,bit-per-mux;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0x3>;
+			status = "disabled";
+		};
+		brcm_pmx_sdio0: pinmux@41a100 {
+			compatible = "brcm,7435-padconf", "pinctrl-single";
+			reg = <0x41a100 0x00000100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-single,bit-per-mux;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0xffffffff>;
+			status = "disabled";
+		};
+		brcm_pmx_sdio1: pinmux@41a300 {
+			compatible = "brcm,7435-padconf", "pinctrl-single";
+			reg = <0x41a300 0x00000100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-single,bit-per-mux;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0xffffffff>;
 			status = "disabled";
 		};
 	};

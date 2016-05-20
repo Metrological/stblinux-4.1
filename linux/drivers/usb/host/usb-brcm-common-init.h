@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Broadcom Corporation
+ * Copyright (C) 2014-2016 Broadcom
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,12 +34,14 @@
 #define USB_CTLR_DEVICE_DUAL 2
 
 struct  brcm_usb_common_init_params {
-	uintptr_t ctrl_regs;
+	void __iomem *ctrl_regs;
+	void __iomem *xhci_ec_regs;
 	int ioc;
 	int ipp;
 	int has_xhci;
 	int device_mode;
-	uintptr_t xhci_ec_regs;
+	uint32_t family_id;
+	uint32_t product_id;
 };
 
 void brcm_usb_common_init(struct  brcm_usb_common_init_params *params);

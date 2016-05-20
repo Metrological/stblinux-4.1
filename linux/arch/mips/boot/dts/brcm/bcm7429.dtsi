@@ -24,6 +24,9 @@
 
 	aliases {
 		uart0 = &uart0;
+		sdhci0 = &sdhci0;
+		sdhci1 = &sdhci1;
+		brcm_pmx_core = &brcm_pmx_core;
 	};
 
 	cpu_intc: cpu_intc {
@@ -383,6 +386,51 @@
 			interrupt-names = "moca";
 			i2c-base = <0x10406200>;
 			i2c-addr = <0x70>;
+			status = "disabled";
+		};
+		sdhci0: sdhci@413500 {
+			compatible = "brcm,sdhci-brcmstb";
+			reg = <0x413500 0x100 0x413600 0x100>;
+			reg-names = "host", "cfg";
+			interrupt-parent = <&periph_intc>;
+			interrupts = <34>;
+			broken-64-bit-dma;
+			sdhci,auto-cmd12;
+			no-1-8-v;
+			status = "disabled";
+		};
+		sdhci1: sdhci@413700 {
+			compatible = "brcm,sdhci-brcmstb";
+			reg = <0x413700 0x100 0x413800 0x100>;
+			reg-names = "host", "cfg";
+			interrupt-parent = <&periph_intc>;
+			interrupts = <35>;
+			non-removable;
+			bus-width = <0x8>;
+			broken-64-bit-dma;
+			broken-timeout-value;
+			sdhci,auto-cmd12;
+			no-1-8-v;
+			status = "disabled";
+		};
+		brcm_pmx_core: pinmux@404100 {
+			compatible = "brcm,7429-padconf", "pinctrl-single";
+			reg = <0x404100 0x00000074>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-single,bit-per-mux;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0x3>;
+			status = "disabled";
+		};
+		brcm_pmx_hif_emmc_pinctrl: pinmux@412428 {
+			compatible = "brcm,7429-padconf", "pinctrl-single";
+			reg = <0x412428 0x00000100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-single,bit-per-mux;
+			pinctrl-single,register-width = <32>;
+			pinctrl-single,function-mask = <0xffffffff>;
 			status = "disabled";
 		};
 	};

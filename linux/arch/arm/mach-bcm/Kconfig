@@ -149,6 +149,7 @@ config ARCH_BRCMSTB
 	select SOC_BRCMSTB
 	select BRCMSTB
 	select PCI_DOMAINS if PCI
+	select BCM7120_L2_IRQ
 	help
 	  Say Y if you intend to run the kernel on a Broadcom ARM-based STB
 	  chipset.
@@ -219,7 +220,6 @@ config BCM7271A0
 	bool "7271 Ax"
 	select BCM7271
 	select BRCM_HAS_BSPI_V4
-	select BCM7120_L2_IRQ
 
 endchoice
 

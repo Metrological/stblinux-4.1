@@ -44,7 +44,6 @@
 #include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/clk-provider.h>
-#include <linux/clk/clk-brcmstb.h>
 #include <linux/netdevice.h>
 #include <linux/suspend.h>
 

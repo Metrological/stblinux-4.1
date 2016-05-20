@@ -225,7 +225,13 @@ release:
 	export LINK=`readlink $(LINUXDIR)`; \
 		export STBLINUX=`basename $$LINK`; \
 		tar -C .. -jcf ../stblinux-$(DOTVERSION).tar.bz2 $$STBLINUX
-	tar -C .. -jcf ../rootfs-$(DOTVERSION).tar.bz2 rootfs
+	tar -C .. -c -f ../rootfs-$(DOTVERSION).tar \
+		--exclude=rootfs/misc/release_builds rootfs
+	# Take care of special files
+	tar -C .. -r -f ../rootfs-$(DOTVERSION).tar -h \
+		rootfs/misc/release_builds
+	-rm -f ../rootfs-$(DOTVERSION).tar.bz2
+	bzip2 ../rootfs-$(DOTVERSION).tar
 	# build all platforms
 	for x in $(shell cat misc/release_builds); do \
 		$(MAKE) $(RELOPTS) images-$$x || exit 1; \

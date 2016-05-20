@@ -954,6 +954,7 @@ static struct platform_driver cma_driver = {
 
 static int __init cma_drvr_init(void)
 {
+	cma_register();
 	return platform_driver_probe(&cma_driver, cma_drvr_probe);
 }
 module_init(cma_drvr_init);

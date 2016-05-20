@@ -33,6 +33,9 @@
 
 &moca {
 	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&moca_bsc_m2_pins>;
 };
 
 &ehci0 {
@@ -105,4 +108,90 @@
 
 &pcie {
 	status = "okay";
+};
+
+&sdhci0 {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_core_pins>;
+};
+
+&sdhci1 {
+	status = "okay";
+};
+
+&brcm_pmx_core {
+	status = "okay";
+
+	sdio0_core_pins: pinmux_sdio0_pins {
+		pinctrl-single,bits = <
+			0x38 0x00020000 0x000f0000 /* gpio_072 <- SDIO0_CMD */
+			0x38 0x00200000 0x00f00000 /* gpio_073 <- SDIO0_WPROT */
+			0x38 0x02000000 0x0f000000 /* gpio_074 <- SDIO0_PWR0 */
+			0x38 0x20000000 0xf0000000 /* gpio_075 <- SDIO0_CLK */
+			0x3c 0x00000002 0x0000000f /* gpio_076 <- SDIO0_DAT0 */
+			0x3c 0x00000020 0x000000f0 /* gpio_077 <- SDIO0_DAT1 */
+			0x3c 0x00000200 0x00000f00 /* gpio_078 <- SDIO0_DAT2 */
+			0x3c 0x00002000 0x0000f000 /* gpio_079 <- SDIO0_DAT3 */
+			0x3c 0x00020000 0x000f0000 /* gpio_080 <- SDIO0_PRES */
+			0x3c 0x00200000 0x00f00000 /* gpio_081 <- SDIO0_LED */
+
+			0x74 0x20000000 0x30000000 /* gpio_072 <- PULLUP */
+			0x78 0x00000002 0x00000003 /* gpio_073 <- PULLUP */
+			0x78 0x00000008 0x0000000c /* gpio_074 <- PULLUP */
+			0x78 0x00000020 0x00000030 /* gpio_075 <- PULLUP */
+			0x78 0x00000080 0x000000c0 /* gpio_076 <- PULLUP */
+			0x78 0x00000200 0x00000300 /* gpio_077 <- PULLUP */
+			0x78 0x00000800 0x00000c00 /* gpio_078 <- PULLUP */
+			0x78 0x00002000 0x00003000 /* gpio_079 <- PULLUP */
+			0x78 0x00008000 0x0000c000 /* gpio_080 <- PULLUP */
+			0x78 0x00020000 0x00030000 /* gpio_081 <- PULLUP */
+		>;
+	};
+
+	moca_bsc_m2_pins: pinmux_moca_bsc_m2_pins {
+		pinctrl-single,bits = <
+			0x48 0x10000000 0xf0000000 /* sgpio_00 <- BSC_M2_SCL */
+			0x4c 0x00000001 0x0000000f /* sgpio_01 <- BSC_M2_SDA */
+		>;
+	};
+};
+
+&brcm_pmx_aon_core {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&all_aon_pins>;
+	all_aon_pins: pinmux_all_pins {
+		pinctrl-single,bits = <
+			0x8 0x00005000 0x0000f000 /* gpio_100 <- SDIO0_VOLT */
+		>;
+	};
+};
+
+&brcm_pmx_sdio0 {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_pins>;
+	sdio0_pins: pinmux_all_pins {
+		pinctrl-single,bits = <
+			0x1c 0x80000008 0xffffffff
+			0x30 0x80010008 0xffffffff
+		>;
+	};
+};
+
+&brcm_pmx_sdio1 {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio1_pins>;
+	sdio1_pins: pinmux_all_pins {
+		pinctrl-single,bits = <
+			0x1c 0x80000008 0xffffffff
+			0x30 0x80010008 0xffffffff
+		>;
+	};
 };

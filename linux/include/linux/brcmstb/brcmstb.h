@@ -1,5 +1,5 @@
 /*
- * Copyright © 2009-2016 Broadcom Corporation
+ * Copyright © 2009-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -27,7 +27,7 @@
 #ifndef _ASM_BRCMSTB_BRCMSTB_H
 #define _ASM_BRCMSTB_BRCMSTB_H
 
-#define BRCMSTB_H_VERSION  6
+#define BRCMSTB_H_VERSION  7
 
 #if !defined(__ASSEMBLY__)
 

@@ -7,15 +7,13 @@ Required properties:
 
 Optional properties:
 
-- clocks: the clock running the watchdog
-- clock-names: name of the clock running the watchdog
-- clock-frequency: the rate of the clock
+- clocks: The clock running the watchdog. If no clock is found the
+	  driver will default to 27000000 Hz.
 
 Example:
 
-watchdog {
+watchdog@f040a7e8 {
 	compatible = "brcm,bcm7038-wdt";
-	clocks = <0x70>;
-	clock-names = "upg_fixed";
+	clocks = <&upg_fixed>;
 	reg = <0xf040a7e8 0x16>;
 };

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Broadcom Corporation
+ * Copyright (C) 2009-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -30,7 +30,6 @@
 #include <linux/clk-provider.h>
 #include <linux/syscore_ops.h>
 #include <linux/brcmstb/brcmstb.h>
-#include <linux/clk/clk-brcmstb.h>
 
 static bool shut_off_unused_clks = true;
 static int bcm_full_clk = 2;
@@ -58,6 +57,28 @@ static DEFINE_SPINLOCK(lock);
 
 static int cpu_clk_div_pos __initdata;
 static int cpu_clk_div_width __initdata;
+
+#ifdef CONFIG_PM_SLEEP
+static u32 cpu_clk_div_reg_dump;
+
+static int brcmstb_clk_suspend(void)
+{
+	if (cpu_clk_div_reg)
+		cpu_clk_div_reg_dump = __raw_readl(cpu_clk_div_reg);
+	return 0;
+}
+
+static void brcmstb_clk_resume(void)
+{
+	if (cpu_clk_div_reg)
+		__raw_writel(cpu_clk_div_reg_dump, cpu_clk_div_reg);
+}
+
+static struct syscore_ops brcmstb_clk_syscore_ops = {
+	.suspend = brcmstb_clk_suspend,
+	.resume = brcmstb_clk_resume,
+};
+#endif /* CONFIG_PM_SLEEP */
 
 static int __init parse_cpu_clk_div_dimensions(struct device_node *np)
 {
@@ -139,7 +160,7 @@ static int __init parse_cpu_clk_div_table(struct device_node *np)
 	return 0;
 }
 
-static void __init cpu_clk_div_setup(struct device_node *np)
+static void __init of_brcmstb_cpu_clk_div_setup(struct device_node *np)
 {
 	struct clk *clk;
 	int rc;
@@ -172,15 +193,22 @@ static void __init cpu_clk_div_setup(struct device_node *np)
 		goto err;
 	}
 
+#ifdef CONFIG_PM_SLEEP
+	register_syscore_ops(&brcmstb_clk_syscore_ops);
+#endif
 	return;
 
 err:
 	kfree(cpu_clk_div_table);
 	cpu_clk_div_table = NULL;
 
-	if (cpu_clk_div_reg)
+	if (cpu_clk_div_reg) {
 		iounmap(cpu_clk_div_reg);
+		cpu_clk_div_reg = NULL;
+	}
 }
+CLK_OF_DECLARE(brcmstb_cpu_clk_div, "brcm,brcmstb-cpu-clk-div",
+		of_brcmstb_cpu_clk_div_setup);
 
 /*
  * It works on following logic:
@@ -413,6 +441,8 @@ static void __init of_brcmstb_clk_gate_setup(struct device_node *node)
 			       __func__, clk_name);
 	}
 }
+CLK_OF_DECLARE(brcmstb_clk_gate, "brcm,brcmstb-gate-clk",
+		of_brcmstb_clk_gate_setup);
 
 static void __init of_brcmstb_clk_sw_setup(struct device_node *node)
 {
@@ -451,7 +481,8 @@ static void __init of_brcmstb_clk_sw_setup(struct device_node *node)
 			       __func__, clk_name);
 	}
 }
-
+CLK_OF_DECLARE(brcmstb_clk_sw, "brcm,brcmstb-sw-clk",
+		of_brcmstb_clk_sw_setup);
 
 static int __init _bcm_full_clk(char *str)
 {
@@ -461,60 +492,3 @@ static int __init _bcm_full_clk(char *str)
 }
 
 early_param("bcm_full_clk", _bcm_full_clk);
-
-static const struct of_device_id brcmstb_clk_match[] __initconst = {
-	{ .compatible = "fixed-clock",
-	  .data = of_fixed_clk_setup, },
-	{ .compatible = "brcm,brcmstb-cpu-clk-div",
-	  .data = cpu_clk_div_setup, },
-	{}
-};
-
-static const struct of_device_id brcmstb_clk_match_full[] __initconst = {
-	{ .compatible = "brcm,brcmstb-gate-clk",
-	  .data = of_brcmstb_clk_gate_setup, },
-	{ .compatible = "brcm,brcmstb-sw-clk",
-	  .data = of_brcmstb_clk_sw_setup, },
-	{ .compatible = "brcm,brcmstb-cpu-clk-div",
-	  .data = cpu_clk_div_setup, },
-	{ .compatible = "fixed-clock",
-	  .data = of_fixed_clk_setup, },
-	{ .compatible = "fixed-factor-clock",
-	  .data = of_fixed_factor_clk_setup, },
-	{ .compatible = "divider-clock",
-	  .data = of_divider_clk_setup, },
-	{ .compatible = "multiplier-clock",
-	  .data = of_multiplier_clk_setup, },
-	{}
-};
-
-#ifdef CONFIG_PM_SLEEP
-static u32 cpu_clk_div_reg_dump;
-
-static int brcmstb_clk_suspend(void)
-{
-	if (cpu_clk_div_reg)
-		cpu_clk_div_reg_dump = __raw_readl(cpu_clk_div_reg);
-	return 0;
-}
-
-static void brcmstb_clk_resume(void)
-{
-	if (cpu_clk_div_reg)
-		__raw_writel(cpu_clk_div_reg_dump, cpu_clk_div_reg);
-}
-
-static struct syscore_ops brcmstb_clk_syscore_ops = {
-	.suspend = brcmstb_clk_suspend,
-	.resume = brcmstb_clk_resume,
-};
-#endif /* CONFIG_PM_SLEEP */
-
-void __init brcmstb_clocks_init(void)
-{
-#ifdef CONFIG_PM_SLEEP
-	register_syscore_ops(&brcmstb_clk_syscore_ops);
-#endif
-	/* DT-based clock config */
-	of_clk_init(bcm_full_clk ? brcmstb_clk_match_full : brcmstb_clk_match);
-}

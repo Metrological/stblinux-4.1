@@ -261,7 +261,6 @@ config ARCH_ZYNQMP
 
 config ARCH_BRCMSTB
 	bool "Broadcom Set-Top-Box SoCs"
-	select BCM7120_L2_IRQ
 	select BRCMSTB_L2_IRQ
 	select GENERIC_IRQ_CHIP
 	select BRCMSTB
@@ -588,6 +587,14 @@ config ARCH_HAS_CACHE_LINE_SIZE
 	def_bool y
 
 source "mm/Kconfig"
+
+config CACHE_B53_RAC
+	bool "Enable the Broadcom Brahma-B53 read-ahead cache controller"
+	depends on ARCH_BRCMSTB
+	default ARCH_BRCMSTB
+	help
+	  This option enables the Broadcom Brahma-B53 read-ahead cache
+	  controller. If disabled, the read-ahead cache remains off.
 
 config SECCOMP
 	bool "Enable seccomp to safely compute untrusted bytecode"

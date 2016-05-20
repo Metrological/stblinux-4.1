@@ -31,6 +31,7 @@
 #define GIO_MASK(bank)          (((bank) * GIO_BANK_SIZE) + 0x14)
 #define GIO_LEVEL(bank)         (((bank) * GIO_BANK_SIZE) + 0x18)
 #define GIO_STAT(bank)          (((bank) * GIO_BANK_SIZE) + 0x1c)
+#define GIO_BANK_OFF(bank, off)	(((bank) * GIO_BANK_SIZE) + (off * sizeof(u32)))
 
 struct brcmstb_gpio_bank {
 	struct list_head node;
@@ -38,7 +39,9 @@ struct brcmstb_gpio_bank {
 	struct bgpio_chip bgc;
 	struct brcmstb_gpio_priv *parent_priv;
 	u32 width;
+	u32 wake_active;
 	struct irq_chip irq_chip;
+	u32 regs[GIO_BANK_SIZE / sizeof(u32)];
 };
 
 struct brcmstb_gpio_priv {
@@ -48,6 +51,7 @@ struct brcmstb_gpio_priv {
 	int parent_irq;
 	int gpio_base;
 	bool can_wake;
+	bool always_on;
 	int parent_wake_irq;
 	struct notifier_block reboot_notifier;
 };
@@ -193,6 +197,16 @@ static int brcmstb_gpio_irq_set_wake(struct irq_data *d, unsigned int enable)
 {
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
 	struct brcmstb_gpio_priv *priv = brcmstb_gpio_gc_to_priv(gc);
+	struct brcmstb_gpio_bank *bank = brcmstb_gpio_gc_to_bank(gc);
+	u32 mask = BIT(d->hwirq);
+
+	/* Do not do anything specific for now, suspend/resume callbacks will
+	 * configure the interrupt mask appropriately
+	 */
+	if (enable)
+		bank->wake_active |= mask;
+	else
+		bank->wake_active &= ~mask;
 
 	return brcmstb_gpio_priv_set_wake(priv, enable);
 }
@@ -308,7 +322,7 @@ static int brcmstb_gpio_remove(struct platform_device *pdev)
 		bank = list_entry(pos, struct brcmstb_gpio_bank, node);
 		ret = bgpio_remove(&bank->bgc);
 		if (ret)
-			dev_err(&pdev->dev, "gpiochip_remove fail in cleanup\n");
+			dev_err(&pdev->dev, "bgpio_remove fail in cleanup\n");
 	}
 	if (priv->reboot_notifier.notifier_call) {
 		ret = unregister_reboot_notifier(&priv->reboot_notifier);
@@ -364,9 +378,8 @@ static int brcmstb_gpio_irq_setup(struct platform_device *pdev,
 	bank->irq_chip.irq_unmask = brcmstb_gpio_irq_unmask;
 	bank->irq_chip.irq_set_type = brcmstb_gpio_irq_set_type;
 
-	/* Ensures that all non-wakeup IRQs are disabled at suspend */
-	/* and that interrupts are masked when changing their type  */
-	bank->irq_chip.flags = IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_SET_TYPE_MASKED;
+	/* Ensures that interrupts are masked when changing their type  */
+	bank->irq_chip.flags = IRQCHIP_SET_TYPE_MASKED;
 
 	if (IS_ENABLED(CONFIG_PM_SLEEP) && !priv->can_wake &&
 			of_property_read_bool(np, "wakeup-source")) {
@@ -385,7 +398,7 @@ static int brcmstb_gpio_irq_setup(struct platform_device *pdev,
 			device_set_wakeup_capable(dev, true);
 			device_wakeup_enable(dev);
 			err = devm_request_irq(dev, priv->parent_wake_irq,
-					brcmstb_gpio_wake_irq_handler, 0,
+					brcmstb_gpio_wake_irq_handler, IRQF_SHARED,
 					"brcmstb-gpio-wake", priv);
 
 			if (err < 0) {
@@ -402,6 +415,9 @@ static int brcmstb_gpio_irq_setup(struct platform_device *pdev,
 
 	if (priv->can_wake)
 		bank->irq_chip.irq_set_wake = brcmstb_gpio_irq_set_wake;
+	else
+		/* Ensures that all non-wakeup IRQs are disabled at suspend */
+		bank->irq_chip.flags |= IRQCHIP_MASK_ON_SUSPEND;
 
 	gpiochip_irqchip_add(&bank->bgc.gc, &bank->irq_chip, 0,
 			handle_simple_irq, IRQ_TYPE_NONE);
@@ -410,6 +426,95 @@ static int brcmstb_gpio_irq_setup(struct platform_device *pdev,
 
 	return 0;
 }
+
+#ifdef CONFIG_PM_SLEEP
+static void brcmstb_gpio_bank_save(struct brcmstb_gpio_priv *priv,
+				   struct brcmstb_gpio_bank *bank)
+{
+	struct bgpio_chip *bgc = &bank->bgc;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(bank->regs); i++)
+		bank->regs[i] = bgc->read_reg(priv->reg_base +
+					      GIO_BANK_OFF(bank->id, i));
+}
+
+static void brcmstb_gpio_bank_restore(struct brcmstb_gpio_priv *priv,
+				      struct brcmstb_gpio_bank *bank)
+{
+	struct bgpio_chip *bgc = &bank->bgc;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(bank->regs); i++)
+		bgc->write_reg(priv->reg_base + GIO_BANK_OFF(bank->id, i),
+				bank->regs[i]);
+}
+
+static int brcmstb_gpio_suspend(struct device *dev)
+{
+	struct brcmstb_gpio_priv *priv = dev_get_drvdata(dev);
+	struct brcmstb_gpio_bank *bank;
+	struct bgpio_chip *bgc;
+	struct list_head *pos;
+	u32 imask;
+
+	list_for_each(pos, &priv->bank_list) {
+		bank = list_entry(pos, struct brcmstb_gpio_bank, node);
+		bgc = &bank->bgc;
+
+		if (!priv->always_on)
+			brcmstb_gpio_bank_save(priv, bank);
+
+		/* Unmask GPIOs which have been flagged as wake-up sources */
+		if (priv->can_wake) {
+			imask = bgc->read_reg(priv->reg_base +
+					      GIO_MASK(bank->id));
+			imask |= bank->wake_active;
+			bgc->write_reg(priv->reg_base + GIO_MASK(bank->id),
+				       imask);
+		}
+	}
+
+	return 0;
+}
+
+static int brcmstb_gpio_resume(struct device *dev)
+{
+	struct brcmstb_gpio_priv *priv = dev_get_drvdata(dev);
+	struct brcmstb_gpio_bank *bank;
+	struct list_head *pos;
+	struct bgpio_chip *bgc;
+	u32 imask;
+
+	list_for_each(pos, &priv->bank_list) {
+		bank = list_entry(pos, struct brcmstb_gpio_bank, node);
+		bgc = &bank->bgc;
+
+		if (!priv->always_on)
+			brcmstb_gpio_bank_restore(priv, bank);
+
+		/* Mask GPIOs which have been flagged as wake-up sources */
+		if (priv->can_wake) {
+			imask = bgc->read_reg(priv->reg_base +
+					      GIO_MASK(bank->id));
+			imask &= ~bank->wake_active;
+			bgc->write_reg(priv->reg_base + GIO_MASK(bank->id),
+				       imask);
+		}
+	}
+
+	return 0;
+}
+
+#else
+#define brcmstb_gpio_suspend	NULL
+#define brcmstb_gpio_resume	NULL
+#endif /* CONFIG_PM_SLEEP */
+
+static const struct dev_pm_ops brcmstb_gpio_pm_ops = {
+	.suspend_noirq	= brcmstb_gpio_suspend,
+	.resume_noirq = brcmstb_gpio_resume,
+};
 
 static int brcmstb_gpio_probe(struct platform_device *pdev)
 {
@@ -425,6 +530,7 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 	int err;
 	static int gpio_base;
 	unsigned long flags = 0;
+	struct bgpio_chip *bgc;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -444,13 +550,8 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 	if (of_property_read_bool(np, "interrupt-controller")) {
 		priv->parent_irq = platform_get_irq(pdev, 0);
 		if (priv->parent_irq <= 0) {
-#ifdef CONFIG_BCM7120_L2_IRQ
 			dev_err(dev, "Couldn't get IRQ");
 			return -ENOENT;
-#else
-			/* TODO: change back when BCM7120_L2_IRQ is default */
-			dev_warn(dev, "Couldn't get IRQ. Enable CONFIG_BCM7120_L2_IRQ if you want GPIO interrupt support\n");
-#endif
 		}
 	} else {
 		priv->parent_irq = -ENOENT;
@@ -474,7 +575,6 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 	of_property_for_each_u32(np, "brcm,gpio-bank-widths", prop, p,
 			bank_width) {
 		struct brcmstb_gpio_bank *bank;
-		struct bgpio_chip *bgc;
 		struct gpio_chip *gc;
 
 		bank = devm_kzalloc(dev, sizeof(*bank), GFP_KERNEL);
@@ -487,6 +587,7 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		bank->id = num_banks;
 		if (bank_width <= 0 || bank_width > MAX_GPIO_PER_BANK) {
 			dev_err(dev, "Invalid bank width %d\n", bank_width);
+			err = -EINVAL;
 			goto fail;
 		} else {
 			bank->width = bank_width;
@@ -526,6 +627,11 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		if (err) {
 			dev_err(dev, "Could not add gpiochip for bank %d\n",
 					bank->id);
+			/*
+			 * In premise, should go to post_gpio_init_fail but
+			 * since that calls bgpio_remove() which just calls
+			 * gpiochip_remove() it would crash.
+			 */
 			goto fail;
 		}
 		gpio_base += gc->ngpio;
@@ -533,7 +639,7 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		if (priv->parent_irq > 0) {
 			err = brcmstb_gpio_irq_setup(pdev, bank);
 			if (err)
-				goto fail;
+				goto post_bgpio_init_fail;
 		}
 
 		dev_dbg(dev, "bank=%d, base=%d, ngpio=%d, width=%d\n", bank->id,
@@ -545,11 +651,17 @@ static int brcmstb_gpio_probe(struct platform_device *pdev)
 		num_banks++;
 	}
 
+	if (of_property_read_bool(np, "always-on"))
+		priv->always_on = true;
+
 	dev_info(dev, "Registered %d banks (GPIO(s): %d-%d)\n",
 			num_banks, priv->gpio_base, gpio_base - 1);
 
 	return 0;
 
+post_bgpio_init_fail:
+	if (bgpio_remove(bgc))
+		dev_err(dev, "bgpio_remove fail in cleanup\n");
 fail:
 	(void) brcmstb_gpio_remove(pdev);
 	return err;
@@ -566,6 +678,7 @@ static struct platform_driver brcmstb_gpio_driver = {
 	.driver = {
 		.name = "brcmstb-gpio",
 		.of_match_table = brcmstb_gpio_of_match,
+		.pm = &brcmstb_gpio_pm_ops,
 	},
 	.probe = brcmstb_gpio_probe,
 	.remove = brcmstb_gpio_remove,

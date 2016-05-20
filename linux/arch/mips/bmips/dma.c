@@ -222,7 +222,8 @@ static int __init bmips_init_pci_ranges(void)
 	rev = c->processor_id & PRID_REV_MASK;
 
 	/* Early BMIPS5000, only supports up to 1GB on MEMC0 */
-	if (rev <= 0x2) {
+	if (rev <= 0x2 &&
+	   (c->processor_id & PRID_IMP_MASK) == PRID_IMP_BMIPS5000) {
 		memc1_start = _AC(0x60000000, UL);
 		memc1_pci_offset = _AC(0x20000000, UL);
 	} else {

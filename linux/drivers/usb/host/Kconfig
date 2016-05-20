@@ -803,7 +803,7 @@ config BRCM_USB_PHY
 
 config BRCM_USB
 	tristate "Broadcom STB USB support"
-	depends on ARM && ARCH_BRCMSTB
+	depends on ARCH_BRCMSTB
 	select BRCM_USB_OHCI if USB_OHCI_HCD
 	select BRCM_USB_EHCI if USB_EHCI_HCD
 	select BRCM_USB_XHCI if USB_XHCI_HCD

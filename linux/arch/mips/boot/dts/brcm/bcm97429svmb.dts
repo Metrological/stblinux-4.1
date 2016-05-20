@@ -32,6 +32,9 @@
 
 &moca {
 	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&moca_bsc_m3_pins>;
 };
 
 &ehci0 {
@@ -98,5 +101,66 @@
 		flash@0 {
 			reg = <0x0 0x0 0x1 0x0>;
 		};
+	};
+};
+
+&sdhci0 {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_core_pins>;
+};
+
+&sdhci1 {
+	status = "okay";
+};
+
+&brcm_pmx_core {
+	status = "okay";
+
+	sdio0_core_pins: pinmux_sdio0_pins {
+		pinctrl-single,bits = <
+			0x2c 0x00050000 0x000f0000 /* gpio_092 <- SDIO0_VCTL */
+			0x38 0x00100000 0x00f00000 /* gpio_122 <- SDIO0_CMD */
+			0x38 0x01000000 0x0f000000 /* gpio_123 <- SDIO0_WPROT */
+			0x38 0x10000000 0xf0000000 /* gpio_124 <- SDIO0_PWR0 */
+			0x3c 0x00000001 0x0000000f /* gpio_125 <- SDIO0_CLK */
+			0x3c 0x00000010 0x000000f0 /* gpio_126 <- SDIO0_DATA0 */
+			0x3c 0x00000100 0x00000f00 /* gpio_127 <- SDIO0_DATA1 */
+			0x3c 0x00001000 0x0000f000 /* gpio_128 <- SDIO0_DATA2 */
+			0x3c 0x00010000 0x000f0000 /* gpio_129 <- SDIO0_DATA3 */
+			0x3c 0x00100000 0x00f00000 /* gpio_130 <- SDIO0_PRES */
+			0x3c 0x01000000 0x0f000000 /* gpio_131 <- SDIO0_LED */
+
+			0x6c 0x00008000 0x0000c000 /* gpio_122 <- SDIO0_CMD */
+			0x6c 0x00020000 0x00030000 /* gpio_123 <- SDIO0_WPROT */
+			0x6c 0x00080000 0x000c0000 /* gpio_124 <- SDIO0_PWR0 */
+			0x6c 0x00200000 0x00300000 /* gpio_125 <- SDIO0_CLK */
+			0x6c 0x00800000 0x00c00000 /* gpio_126 <- SDIO0_DAT0 */
+			0x6c 0x02000000 0x03000000 /* gpio_127 <- SDIO0_DAT1 */
+			0x6c 0x08000000 0x0c000000 /* gpio_128 <- SDIO0_DAT2 */
+			0x6c 0x20000000 0x30000000 /* gpio_129 <- SDIO0_DAT3 */
+			0x70 0x00000002 0x00000003 /* gpio_130 <- SDIO0_PRES */
+			0x70 0x00000008 0x0000000c /* gpio_131 <- SDIO0_LED */
+		>;
+	};
+
+	moca_bsc_m3_pins: pinmux_moca_bsc_m3_pins {
+		pinctrl-single,bits = <
+			0x48 0x00000010 0x000000f0 /* sgpio_00 <- BSC_M3_SCL */
+			0x48 0x00000100 0x00000f00 /* sgpio_01 <- BSC_M3_SDA */
+		>;
+	};
+};
+
+&brcm_pmx_hif_emmc_pinctrl {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&hif_emmc_pins>;
+	hif_emmc_pins: pinmux_all_pins {
+		pinctrl-single,bits = <
+			0x0 0x00000001 0xffffffff /* HIF_TOP_CTRL.EMMC_PIN_SEL*/
+		>;
 	};
 };

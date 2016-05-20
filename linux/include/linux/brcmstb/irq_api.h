@@ -1,5 +1,5 @@
 /*
- * Copyright © 2015 Broadcom Corporation
+ * Copyright © 2015-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License, version 2, as
@@ -23,12 +23,14 @@ typedef enum brcmstb_l2_irq {
 	brcmstb_l2_irq_gio,
 	brcmstb_l2_irq_gio_aon,
 	brcmstb_l2_irq_iica,
-	brcmstb_l2_irq_iicd,
-	brcmstb_l2_irq_iice,
-	brcmstb_l2_irq_irb,
-	brcmstb_l2_irq_icap,
 	brcmstb_l2_irq_iicb,
 	brcmstb_l2_irq_iicc,
+	brcmstb_l2_irq_iicd,
+	brcmstb_l2_irq_iice,
+	brcmstb_l2_irq_iicf,
+	brcmstb_l2_irq_iicg,
+	brcmstb_l2_irq_irb,
+	brcmstb_l2_irq_icap,
 	brcmstb_l2_irq_kbd1,
 	brcmstb_l2_irq_kbd2,
 	brcmstb_l2_irq_kbd3,

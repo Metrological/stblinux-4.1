@@ -20,7 +20,6 @@
 #if defined(CONFIG_BRCMSTB)
 #include <linux/brcmstb/brcmstb.h>
 #include <linux/brcmstb/cma_driver.h>
-#include <linux/clk/clk-brcmstb.h>
 #include <linux/clocksource.h>
 #include <linux/console.h>
 #include <linux/of_address.h>
@@ -74,19 +73,12 @@ static void __init brcmstb_init_machine(void)
 
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	platform_device_register_full(&devinfo);
-	cma_register();
 }
 
 static void __init brcmstb_init_early(void)
 {
 	brcmstb_biuctrl_init();
 	add_preferred_console("ttyS", 0, "115200");
-}
-
-static void __init brcmstb_init_time(void)
-{
-	brcmstb_clocks_init();
-	clocksource_of_init();
 }
 #endif
 
@@ -97,6 +89,5 @@ DT_MACHINE_START(BRCMSTB, "Broadcom STB (Flattened Device Tree)")
 	.map_io		= brcmstb_map_io,
 	.init_machine	= brcmstb_init_machine,
 	.init_early	= brcmstb_init_early,
-	.init_time	= brcmstb_init_time,
 #endif
 MACHINE_END

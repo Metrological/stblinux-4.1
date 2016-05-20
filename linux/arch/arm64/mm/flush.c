@@ -24,8 +24,20 @@
 #include <asm/cacheflush.h>
 #include <asm/cachetype.h>
 #include <asm/tlbflush.h>
+#ifdef CONFIG_CACHE_B53_RAC
+#include <asm/cache-b53-rac.h>
+#endif
 
 #include "mm.h"
+
+void flush_cache_all(void)
+{
+#ifdef CONFIG_CACHE_B53_RAC
+	b53_rac_flush_all();
+#endif
+	v8_flush_cache_all();
+}
+EXPORT_SYMBOL(flush_cache_all);
 
 void flush_cache_range(struct vm_area_struct *vma, unsigned long start,
 		       unsigned long end)
@@ -102,7 +114,6 @@ EXPORT_SYMBOL(flush_dcache_page);
 /*
  * Additional functions defined in assembly.
  */
-EXPORT_SYMBOL(flush_cache_all);
 EXPORT_SYMBOL(flush_icache_range);
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE

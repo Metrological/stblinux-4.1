@@ -83,7 +83,7 @@ finished:
 ENDPROC(__flush_dcache_all)
 
 /*
- *	flush_cache_all()
+ *	v8_flush_cache_all()
  *
  *	Flush the entire cache system.  The data cache flush is now achieved
  *	using atomic clean / invalidates working outwards from L1 cache. This
@@ -91,13 +91,13 @@ ENDPROC(__flush_dcache_all)
  *	instruction cache can still be invalidated back to the point of
  *	unification in a single instruction.
  */
-ENTRY(flush_cache_all)
+ENTRY(v8_flush_cache_all)
 	mov	x12, lr
 	bl	__flush_dcache_all
 	mov	x0, #0
 	ic	ialluis				// I+BTB cache invalidate
 	ret	x12
-ENDPROC(flush_cache_all)
+ENDPROC(v8_flush_cache_all)
 
 /*
  *	flush_icache_range(start,end)

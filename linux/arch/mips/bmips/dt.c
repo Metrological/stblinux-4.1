@@ -9,7 +9,11 @@
 #include <linux/kernel.h>
 #include <linux/of_fdt.h>
 #include <linux/libfdt.h>
+#include <asm/io.h>
 #include <asm/bootinfo.h>
+#include <asm/bug.h>
+#include <asm/cpu.h>
+#include <asm/mipsregs.h>
 #include <asm/fw/cfe/cfe_api.h>
 #include <asm/fw/cfe/cfe_error.h>
 
@@ -21,6 +25,8 @@
 #define BMIPS_MAP1_OFF 0x20000000
 #define BMIPS_MAP1_SZ  0x30000000
 #define BMIPS_MAP2_OFF 0x90000000
+
+#define SDIO_CFG_SCRATCH_OFFSET 0xfc
 
 static void __init transfer_mem_cfe_to_dt(void *dtb)
 {
@@ -313,6 +319,129 @@ static void __init alloc_mtd_partitions(void *dtb)
 	}
 }
 
+static int alias_to_node(void *dtb, const char *alias)
+{
+	const char *node_name;
+	int node;
+
+	node_name = fdt_get_alias(dtb, alias);
+	if (node_name == NULL)
+		return -FDT_ERR_NOTFOUND;
+	node = fdt_path_offset(dtb, node_name);
+	return node;
+}
+
+static int read_sdhci_scratch(void *dtb, char *name, int *node, u32 *val)
+{
+	const ulong *map;
+	const ulong *ranges;
+	int len;
+	uint scratch;
+	int parent;
+	unsigned long offset = 0;
+	const char *pname;
+
+	*node = alias_to_node(dtb, name);
+	if (*node < 0)
+		return 0;
+	map = (const ulong *)fdt_getprop(dtb, *node, "reg", &len);
+	if (!map || (len != (4 * sizeof(*map))))
+		return 0;
+	scratch = fdt32_to_cpu(map[2]);
+
+	parent = fdt_parent_offset(dtb, *node);
+	if (parent < 0)
+		return 0;
+	pname = fdt_get_name(dtb, parent, NULL);
+	if (!pname || strcmp(pname, "rdb"))
+		return 0;
+	ranges = (const ulong *)fdt_getprop(dtb, parent,
+					"ranges", &len);
+	if (ranges && (len == (sizeof(*ranges) * 3)))
+		offset = fdt32_to_cpu(ranges[1]);
+
+	scratch = scratch + offset + SDIO_CFG_SCRATCH_OFFSET;
+	*val = __raw_readl(((void __iomem *)CKSEG1ADDR(scratch)));
+	pr_info("%s %s based on SCRATCH reg setting from CFE\n",
+		name, *val ? "disabled" : "enabled");
+	return 1;
+}
+
+static void __init sdhci_disables(void *dtb)
+{
+	u32 val = 0;
+	int node;
+
+	/*
+	 * If the node exists and the CFG SCRATCH register in non-zero,
+	 * disable the node.
+	 */
+	if (read_sdhci_scratch(dtb, "sdhci0", &node, &val)) {
+
+		/* We also need to disable the pinmux setup for sdhic0 */
+		if (val)
+			fdt_nop_node(dtb, node);
+	}
+	if (read_sdhci_scratch(dtb, "sdhci1", &node, &val))
+		if (val)
+			fdt_nop_node(dtb, node);
+}
+
+static void __init cfe_die(char *fmt, ...)
+{
+	char msg[128];
+	va_list ap;
+	int handle;
+	unsigned int count;
+	unsigned int processor_id;
+	int rev;
+
+	processor_id = read_c0_prid();
+	if ((processor_id & PRID_COMP_MASK) != PRID_COMP_BROADCOM)
+		return;
+
+	rev = processor_id & PRID_REV_MASK;
+
+	va_start(ap, fmt);
+	vsprintf(msg, fmt, ap);
+	strcat(msg, "\r\n");
+
+	/* disable XKS01 so that CFE can access the registers */
+	switch (processor_id & PRID_IMP_MASK) {
+	case PRID_IMP_BMIPS43XX:
+
+		if (rev >= PRID_REV_BMIPS4380_LO &&
+		    rev <= PRID_REV_BMIPS4380_HI)
+			__write_32bit_c0_register($22, 3,
+				__read_32bit_c0_register($22, 3) & ~BIT(12));
+		break;
+	case PRID_IMP_BMIPS5000:
+	case PRID_IMP_BMIPS5200:
+		__write_32bit_c0_register($22, 5,
+			__read_32bit_c0_register($22, 5) & ~BIT(8));
+		break;
+	}
+
+	handle = cfe_getstdhandle(CFE_STDHANDLE_CONSOLE);
+	if (handle < 0)
+		goto no_cfe;
+
+	cfe_write(handle, msg, strlen(msg));
+
+	for (count = 0; count < 0x7fffffff; count++)
+		mb();
+	cfe_exit(0, 1);
+	while (1)
+		;
+
+no_cfe:
+	/* probably won't print anywhere useful */
+	pr_err("%s", msg);
+	BUG();
+
+	va_end(ap);
+}
+
 #ifdef CONFIG_DT_BCM974XX
 extern const char __dtb_bcm97425svmb_begin;
 extern const char __dtb_bcm97429svmb_begin;
@@ -334,7 +463,7 @@ static void __init pick_board_dt(void *orig_dtb)
 	} else if (!strcmp(board_name, "BCM97435SVMB")) {
 		dtb = &__dtb_bcm97435svmb_begin;
 	} else {
-		printk(KERN_INFO "unkown board [%s]\n", board_name);
+		cfe_die("unknown board [%s]\n", board_name);
 		goto bail_pick_board_dt;
 	}
 	printk(KERN_INFO "cfe re-map:\n");
@@ -363,6 +492,7 @@ void __init transfer_cfe_to_dt(void *dtb)
 		transfer_mem_cfe_to_dt(initial_boot_params);
 		transfer_net_cfe_to_dt(initial_boot_params);
 		alloc_mtd_partitions(initial_boot_params);
+		sdhci_disables(initial_boot_params);
 		cfe_getenv("BOOT_FLAGS", arcs_cmdline, COMMAND_LINE_SIZE);
 	}
 
