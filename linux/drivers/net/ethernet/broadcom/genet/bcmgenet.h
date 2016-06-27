@@ -543,6 +543,12 @@ struct bcmgenet_hw_params {
 	u32		flags;
 };
 
+struct bcmgenet_skb_cb {
+	unsigned int bytes_sent;	/* bytes on the wire (no TSB) */
+};
+
+#define GENET_CB(skb)	((struct bcmgenet_skb_cb *)((skb)->cb))
+
 struct bcmgenet_tx_ring {
 	spinlock_t	lock;		/* ring lock */
 	struct napi_struct napi;	/* NAPI per tx queue */
@@ -576,6 +582,11 @@ struct bcmgenet_rx_ring {
 	void (*int_disable)(struct bcmgenet_rx_ring *);
 	struct bcmgenet_priv *priv;
 };
+
+/* context pause flags */
+#define BCM_PAUSE_FLAG_AUTO	(1 << 2)
+#define BCM_PAUSE_FLAG_RX	(1 << 1)
+#define BCM_PAUSE_FLAG_TX	(1 << 0)
 
 /* device context */
 struct bcmgenet_priv {
@@ -638,6 +649,7 @@ struct bcmgenet_priv {
 	bool crc_fwd_en;
 
 	unsigned int dma_rx_chk_bit;
+	unsigned int pause_flags;
 
 	u32 msg_enable;
 
@@ -690,6 +702,9 @@ void bcmgenet_mii_exit(struct net_device *dev);
 void bcmgenet_mii_reset(struct net_device *dev);
 void bcmgenet_phy_power_set(struct net_device *dev, bool enable);
 void bcmgenet_mii_setup(struct net_device *dev);
+
+int bcmgenet_phy_ethtool_set_pauseparam(struct phy_device *phydev,
+				struct ethtool_pauseparam *epause);
 
 /* Wake-on-LAN routines */
 void bcmgenet_get_wol(struct net_device *dev, struct ethtool_wolinfo *wol);

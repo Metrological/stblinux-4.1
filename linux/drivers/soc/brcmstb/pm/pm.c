@@ -21,6 +21,11 @@
 
 #define pr_fmt(fmt) "brcmstb-pm: " fmt
 
+#ifdef CONFIG_BRCMSTB_PM_DEBUG
+#include <linux/debugfs.h>
+#include <linux/uaccess.h>
+#endif
+
 #include <linux/kernel.h>
 #include <linux/printk.h>
 #include <linux/io.h>
@@ -103,8 +108,12 @@ enum bsp_initiate_command {
 static struct brcmstb_pm_control ctrl;
 
 #define MAX_EXCLUDE				16
+#define MAX_REGION				16
+#define MAX_EXTRA				8
 static int num_exclusions;
+static int num_regions;
 static struct dma_region exclusions[MAX_EXCLUDE];
+static struct dma_region regions[MAX_REGION];
 static struct brcmstb_memory bm;
 
 extern const unsigned long brcmstb_pm_do_s2_sz;
@@ -113,6 +122,166 @@ extern asmlinkage int brcmstb_pm_do_s2(void __iomem *aon_ctrl_base,
 
 static int (*brcmstb_pm_do_s2_sram)(void __iomem *aon_ctrl_base,
 		void __iomem *ddr_phy_pll_status);
+
+#ifdef CONFIG_BRCMSTB_PM_DEBUG
+
+#define BRCMSTB_PM_DEBUG_NAME	"brcmstb-pm"
+
+struct sysfs_data {
+	struct dma_region *region;
+	unsigned len;
+};
+
+static int brcm_pm_debug_show(struct seq_file *s, void *data)
+{
+	int i;
+	struct sysfs_data *sysfs_data = s->private;
+
+	if (!sysfs_data) {
+		seq_puts(s, "--- No region pointer ---\n");
+		return 0;
+	}
+	if (sysfs_data->len == 0) {
+		seq_puts(s, "--- Nothing to display ---\n");
+		return 0;
+	}
+	if (!sysfs_data->region) {
+		seq_printf(s, "--- Pointer is NULL, but length is %u ---\n",
+			sysfs_data->len);
+		return 0;
+	}
+
+	for (i = 0; i < sysfs_data->len; i++) {
+		unsigned long addr = sysfs_data->region[i].addr;
+		unsigned long len = sysfs_data->region[i].len;
+		unsigned long end = (addr > 0 || len > 0) ? addr + len - 1 : 0;
+
+		seq_printf(s, "%3d\t0x%08lx\t%12lu\t0x%08lx\n", i, addr, len,
+			end);
+	}
+	return 0;
+}
+
+static ssize_t brcm_pm_seq_write(struct file *file, const char __user *buf,
+	size_t size, loff_t *ppos)
+{
+	unsigned long start_addr, len;
+	int ret;
+	char str[128];
+	char *len_ptr;
+	struct seq_file *s = file->private_data;
+	struct sysfs_data *sysfs_data = s->private;
+	bool is_exclusion;
+
+	if (!sysfs_data)
+		return -ENOMEM;
+
+	if (size >= sizeof(str))
+		return -E2BIG;
+
+	is_exclusion = (sysfs_data->region == exclusions);
+
+	memset(str, 0, sizeof(str));
+	ret = copy_from_user(str, buf, size);
+	if (ret)
+		return ret;
+
+	/* Strip trailing newline */
+	len_ptr = str + strlen(str) - 1;
+	while (*len_ptr == '\r' || *len_ptr == '\n')
+		*len_ptr-- = '\0';
+
+	/* Special command "clear" empties the exclusions or regions list. */
+	if (strcmp(str, "clear") == 0) {
+		int region_len = sysfs_data->len * sizeof(*sysfs_data->region);
+
+		if (is_exclusion)
+			num_exclusions = 0;
+		else
+			num_regions = 0;
+		memset(sysfs_data->region, 0, region_len);
+		return size;
+	}
+
+	/*
+	 * We expect userland input to be in the format
+	 *     <start-address> <length>
+	 * where start-address and length are separated by one or more spaces.
+	 * Both must be valid numbers. We do accept decimal, hexadecimal and
+	 * octal numbers.
+	 */
+	len_ptr = strchr(str, ' ');
+	if (!len_ptr)
+		return -EINVAL;
+	*len_ptr = '\0';
+	do {
+		len_ptr++;
+	} while (*len_ptr == ' ');
+
+	if (kstrtoul(str, 0, &start_addr) != 0)
+		return -EINVAL;
+	if (kstrtoul(len_ptr, 0, &len) != 0)
+		return -EINVAL;
+
+	if (is_exclusion)
+		ret = brcmstb_pm_mem_exclude(start_addr, len);
+	else
+		ret = brcmstb_pm_mem_region(start_addr, len);
+
+	return ret < 0 ? ret : size;
+}
+
+static int brcm_pm_debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, brcm_pm_debug_show, inode->i_private);
+}
+
+static const struct file_operations brcm_pm_debug_ops = {
+	.open		= brcm_pm_debug_open,
+	.read		= seq_read,
+	.write		= brcm_pm_seq_write,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+static int brcm_pm_debug_init(void)
+{
+	struct dentry *dir;
+	struct sysfs_data *exclusion_data, *region_data;
+
+	dir = debugfs_create_dir(BRCMSTB_PM_DEBUG_NAME, NULL);
+	if (IS_ERR_OR_NULL(dir))
+		return IS_ERR(dir) ? PTR_ERR(dir) : -ENOENT;
+
+	/*
+	 * This driver has no "exit" function, so we don't worry about freeing
+	 * these memory areas if setup succeeds.
+	 */
+	exclusion_data = kmalloc(sizeof(*exclusion_data), GFP_KERNEL);
+	if (!exclusion_data)
+		return -ENOMEM;
+	region_data = kmalloc(sizeof(*region_data), GFP_KERNEL);
+	if (!region_data) {
+		kfree(exclusion_data);
+		return -ENOMEM;
+	}
+
+	exclusion_data->region = exclusions;
+	exclusion_data->len = ARRAY_SIZE(exclusions);
+	region_data->region = regions;
+	region_data->len = ARRAY_SIZE(regions);
+
+	debugfs_create_file("exclusions", S_IFREG | S_IRUGO | S_IWUSR, dir,
+		exclusion_data, &brcm_pm_debug_ops);
+	debugfs_create_file("regions", S_IFREG | S_IRUGO | S_IWUSR, dir,
+		region_data, &brcm_pm_debug_ops);
+
+	return 0;
+}
+
+fs_initcall(brcm_pm_debug_init);
+
+#endif /* CONFIG_BRCMSTB_PM_DEBUG */
 
 static int brcmstb_init_sram(struct device_node *dn)
 {
@@ -316,8 +485,8 @@ static inline int region_collision(struct dma_region *reg1,
  * Check if @regions[0] collides with regions in @exceptions, and modify
  * regions[0..(max-1)] to ensure that they they exclude any area in @exceptions
  *
- * Note that the regions in @exceptions must be sorted into ascending order prior
- * to calling this function
+ * Note that the regions in @exceptions must be sorted into ascending order
+ * prior to calling this function
  *
  * Returns the number of @regions used
  *
@@ -497,7 +666,8 @@ static int run_dual_hash(struct dma_region *regions, int numregions,
 	ret = memdma_prepare_descs(desc1, pa1, &regions[0], regions1, true);
 	if (ret)
 		return ret;
-	ret = memdma_prepare_descs(desc2, pa2, &regions[regions1], regions2, false);
+	ret = memdma_prepare_descs(desc2, pa2, &regions[regions1], regions2,
+		false);
 	if (ret)
 		return ret;
 
@@ -521,15 +691,20 @@ static int brcmstb_pm_s3_main_memory_hash(struct brcmstb_s3_params *params,
 		phys_addr_t params_pa, struct dma_region *except,
 		int num_except)
 {
-	struct dma_region regions[40];
+	struct dma_region combined_regions[MAX_EXCLUDE + MAX_REGION + MAX_EXTRA];
 	phys_addr_t descs_pa;
 	struct mcpb_dma_desc *descs;
-	int nregs, ret;
+	int nregs, ret, i;
+	const int max = ARRAY_SIZE(combined_regions);
 
-	nregs = configure_main_hash(regions, ARRAY_SIZE(regions), except,
-			num_except);
+	memset(&combined_regions, 0, sizeof(combined_regions));
+	nregs = configure_main_hash(combined_regions, max, except, num_except);
 	if (nregs < 0)
 		return nregs;
+
+	for (i = 0; i < num_regions && nregs + i < max; i++)
+		combined_regions[nregs + i] = regions[i];
+	nregs += i;
 
 	/* Flush out before hashing main memory */
 	flush_cache_all();
@@ -539,7 +714,8 @@ static int brcmstb_pm_s3_main_memory_hash(struct brcmstb_s3_params *params,
 	descs = (struct mcpb_dma_desc *)params->descriptors;
 
 	/* Split, run hash */
-	ret = run_dual_hash(regions, nregs, descs, descs_pa, params->hash);
+	ret = run_dual_hash(combined_regions, nregs, descs, descs_pa,
+		params->hash);
 	if (ret < 0)
 		return ret;
 	params->desc_offset_2 = ret;
@@ -561,6 +737,21 @@ int brcmstb_pm_mem_exclude(phys_addr_t addr, size_t len)
 	return 0;
 }
 EXPORT_SYMBOL(brcmstb_pm_mem_exclude);
+
+int brcmstb_pm_mem_region(phys_addr_t addr, size_t len)
+{
+	if (num_regions >= MAX_REGION) {
+		pr_err("regions list is full\n");
+		return -ENOSPC;
+	}
+
+	regions[num_regions].addr = addr;
+	regions[num_regions].len = len;
+	num_regions++;
+
+	return 0;
+}
+EXPORT_SYMBOL(brcmstb_pm_mem_region);
 
 /*
  * This function is called on a new stack, so don't allow inlining (which will

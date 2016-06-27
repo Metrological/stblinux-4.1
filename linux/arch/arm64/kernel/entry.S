@@ -209,18 +209,18 @@ ENTRY(vectors)
 	ventry	el1_sync			// Synchronous EL1h
 	ventry	el1_irq				// IRQ EL1h
 	ventry	el1_fiq_invalid			// FIQ EL1h
-	ventry	el1_error_invalid		// Error EL1h
+	ventry	el1_error			// Error EL1h
 
 	ventry	el0_sync			// Synchronous 64-bit EL0
 	ventry	el0_irq				// IRQ 64-bit EL0
 	ventry	el0_fiq_invalid			// FIQ 64-bit EL0
-	ventry	el0_error_invalid		// Error 64-bit EL0
+	ventry	el0_error			// Error 64-bit EL0
 
 #ifdef CONFIG_COMPAT
 	ventry	el0_sync_compat			// Synchronous 32-bit EL0
 	ventry	el0_irq_compat			// IRQ 32-bit EL0
 	ventry	el0_fiq_invalid_compat		// FIQ 32-bit EL0
-	ventry	el0_error_invalid_compat	// Error 32-bit EL0
+	ventry	el0_error_compat		// Error 32-bit EL0
 #else
 	ventry	el0_sync_invalid		// Synchronous 32-bit EL0
 	ventry	el0_irq_invalid			// IRQ 32-bit EL0
@@ -234,10 +234,19 @@ END(vectors)
  */
 	.macro	inv_entry, el, reason, regsize = 64
 	kernel_entry el, \regsize
+	.if	\el == 0
+	enable_dbg
+	ct_user_exit
+	.endif
 	mov	x0, sp
 	mov	x1, #\reason
 	mrs	x2, esr_el1
+	.if	\el == 0
+	bl	bad_mode
+	b	ret_to_user
+	.else
 	b	bad_mode
+	.endif
 	.endm
 
 el0_sync_invalid:
@@ -260,10 +269,6 @@ ENDPROC(el0_error_invalid)
 el0_fiq_invalid_compat:
 	inv_entry 0, BAD_FIQ, 32
 ENDPROC(el0_fiq_invalid_compat)
-
-el0_error_invalid_compat:
-	inv_entry 0, BAD_ERROR, 32
-ENDPROC(el0_error_invalid_compat)
 #endif
 
 el1_sync_invalid:
@@ -388,6 +393,35 @@ el1_preempt:
 	ret	x24
 #endif
 
+	.align	6
+el1_error:
+	kernel_entry 1
+	mrs	x1, esr_el1			// read the syndrome register
+	lsr	x24, x1, #ESR_ELx_EC_SHIFT	// exception class
+	cmp	x24, #ESR_ELx_EC_SERROR		// SError exception in EL1
+	b.eq	el1_serr
+	b	el1_error_inv
+el1_serr:
+	mrs	x0, far_el1
+	enable_dbg
+	// re-enable interrupts if they were enabled in the aborted context
+	tbnz	x23, #7, 1f			// PSR_I_BIT
+	enable_irq
+1:
+	mov	x2, sp				// struct pt_regs
+	bl	do_serr_abort
+
+	// disable interrupts before pulling preserved data off the stack
+	disable_irq
+	kernel_exit 1
+el1_error_inv:
+	enable_dbg
+	mov	x0, sp
+	mov	x1, #BAD_ERROR
+	mrs	x2, esr_el1
+	b	bad_mode
+ENDPROC(el1_error)
+
 /*
  * EL0 mode handlers.
  */
@@ -462,6 +496,11 @@ el0_svc_compat:
 el0_irq_compat:
 	kernel_entry 0, 32
 	b	el0_irq_naked
+
+	.align	6
+el0_error_compat:
+	kernel_entry 0, 32
+	b	el0_error_naked
 #endif
 
 el0_da:
@@ -572,6 +611,35 @@ el0_irq_naked:
 #endif
 	b	ret_to_user
 ENDPROC(el0_irq)
+
+	.align	6
+el0_error:
+	kernel_entry 0
+el0_error_naked:
+	mrs	x25, esr_el1			// read the syndrome register
+	lsr	x24, x25, #ESR_ELx_EC_SHIFT	// exception class
+	cmp	x24, #ESR_ELx_EC_SERROR		// SError exception in EL0
+	b.eq	el0_serr
+	b	el0_error_inv
+el0_serr:
+	mrs	x26, far_el1
+	// enable interrupts before calling the main handler
+	enable_dbg_and_irq
+	ct_user_exit
+	bic	x0, x26, #(0xff << 56)
+	mov	x1, x25
+	mov	x2, sp
+	bl	do_serr_abort
+	b	ret_to_user
+el0_error_inv:
+	enable_dbg
+	ct_user_exit
+	mov	x0, sp
+	mov	x1, #BAD_ERROR
+	mrs	x2, esr_el1
+	bl	bad_mode
+	b	ret_to_user
+ENDPROC(el0_error)
 
 /*
  * Register switch for AArch64. The callee-saved registers need to be saved

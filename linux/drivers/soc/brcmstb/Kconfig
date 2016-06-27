@@ -52,6 +52,17 @@ config BRCMSTB_PM
 	depends on PM
 	depends on ARM && ARCH_BRCMSTB
 
+config BRCMSTB_PM_DEBUG
+	bool "Add debugfs interface for STB suspend/resume driver"
+	default y
+	depends on BRCMSTB_PM && PM_DEBUG && DEBUG_FS
+	help
+	  This option enables debugfs support for the STB suspend/resume
+	  driver. Specifically, for memory regions to be included or excluded
+	  from hashing.
+
+	  If you are unsure, choose Y here.
+
 config BRCMSTB_SRPD
 	tristate "Support enabling DDR self-refresh modes"
 	help

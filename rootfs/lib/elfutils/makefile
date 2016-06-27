@@ -13,11 +13,13 @@ endif
 
 export CC CFLAGS
 
+INSTALL_TMP_DIR = $(shell pwd)/install-tmp
+
 .PHONY: all
 all:
 	if [ ! -e Makefile ]; then \
 		./configure --host=$(MACHINE)-linux \
-		--prefix=$(shell pwd)/install-tmp \
+		--prefix=$(INSTALL_TMP_DIR) \
 		--exec-prefix=$(shell pwd)/install-tmp \
 		--disable-nls --disable-werror; \
 	fi
@@ -26,6 +28,7 @@ all:
 .PHONY: clean distclean
 clean distclean::
 	[ ! -f Makefile ] || $(MAKE) -f Makefile $@
+	rm -fr $(INSTALL_TMP_DIR)
 
 .PHONY: romfs
 romfs:

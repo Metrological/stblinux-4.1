@@ -92,6 +92,12 @@ struct brcm_nand_dma_desc {
 #define FLASH_DMA_ECC_ERROR	(1 << 8)
 #define FLASH_DMA_CORR_ERROR	(1 << 9)
 
+/* Bitfields for DMA_MODE */
+#define FLASH_DMA_MODE_STOP_ON_ERROR	BIT(1) /* stop in Uncorr ECC error */
+#define FLASH_DMA_MODE_MODE		BIT(0) /* link list */
+#define FLASH_DMA_MODE_MASK		(FLASH_DMA_MODE_STOP_ON_ERROR |	\
+						FLASH_DMA_MODE_MODE)
+
 /* 512B flash cache in the NAND controller HW */
 #define FC_SHIFT		9U
 #define FC_BYTES		512U
@@ -1077,18 +1083,31 @@ static irqreturn_t brcmnand_dma_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+static int bcmnand_ctrl_busy_poll(struct brcmnand_controller *ctrl)
+{
+	unsigned long timeout = jiffies + msecs_to_jiffies(100);
+
+	while (!(brcmnand_read_reg(ctrl, BRCMNAND_INTFC_STATUS) &
+	       INTFC_CTLR_READY)) {
+		if (time_after(jiffies, timeout)) {
+			dev_warn(ctrl->dev, "timeout on ctrl_ready\n");
+			return -ETIMEDOUT;
+		}
+		cpu_relax();
+	}
+	return 0;
+}
+
 static void brcmnand_send_cmd(struct brcmnand_host *host, int cmd)
 {
 	struct brcmnand_controller *ctrl = host->ctrl;
-	u32 intfc;
 
 	dev_dbg(ctrl->dev, "send native cmd %d addr_lo 0x%x\n", cmd,
 		brcmnand_read_reg(ctrl, BRCMNAND_CMD_ADDRESS));
 	BUG_ON(ctrl->cmd_pending != 0);
 	ctrl->cmd_pending = cmd;
 
-	intfc = brcmnand_read_reg(ctrl, BRCMNAND_INTFC_STATUS);
-	BUG_ON(!(intfc & INTFC_CTLR_READY));
+	BUG_ON(bcmnand_ctrl_busy_poll(ctrl) == -ETIMEDOUT);
 
 	mb(); /* flush previous writes */
 	brcmnand_write_reg(ctrl, BRCMNAND_CMD_START,
@@ -1467,6 +1486,8 @@ static int brcmnand_read_by_pio(struct mtd_info *mtd, struct nand_chip *chip,
 	/* Clear error addresses */
 	brcmnand_write_reg(ctrl, BRCMNAND_UNCORR_ADDR, 0);
 	brcmnand_write_reg(ctrl, BRCMNAND_CORR_ADDR, 0);
+	brcmnand_write_reg(ctrl, BRCMNAND_UNCORR_EXT_ADDR, 0);
+	brcmnand_write_reg(ctrl, BRCMNAND_CORR_EXT_ADDR, 0);
 
 	brcmnand_write_reg(ctrl, BRCMNAND_CMD_EXT_ADDRESS,
 			(host->cs << 16) | ((addr >> 32) & 0xffff));
@@ -1583,12 +1604,16 @@ static int brcmnand_read(struct mtd_info *mtd, struct nand_chip *chip,
 	struct brcmnand_controller *ctrl = host->ctrl;
 	u64 err_addr = 0;
 	int err;
-	bool retry = true;
+	static bool retry = true;
 
 	dev_dbg(ctrl->dev, "read %llx -> %p\n", (unsigned long long)addr, buf);
 
 try_dmaread:
 	brcmnand_write_reg(ctrl, BRCMNAND_UNCORR_COUNT, 0);
+	brcmnand_write_reg(ctrl, BRCMNAND_UNCORR_ADDR, 0);
+	brcmnand_write_reg(ctrl, BRCMNAND_CORR_ADDR, 0);
+	brcmnand_write_reg(ctrl, BRCMNAND_UNCORR_EXT_ADDR, 0);
+	brcmnand_write_reg(ctrl, BRCMNAND_CORR_EXT_ADDR, 0);
 
 	if (has_flash_dma(ctrl) && !oob && flash_dma_buf_ok(buf)) {
 		err = brcmnand_dma_trans(host, addr, buf, trans * FC_BYTES,
@@ -1608,37 +1633,47 @@ try_dmaread:
 	}
 
 	if (mtd_is_eccerr(err)) {
-		int ret;
 		/*
-		 * On oontroller version >=7.0 if we are doing a DMA read
-		 *  after a prior PIO read that reported uncorrectable error,
+		 * On controller version and 7.0, 7.1 , DMA read after a
+		 * prior PIO read that reported uncorrectable error,
 		 * the DMA engine captures this error following DMA read
 		 * cleared only on subsequent DMA read, so just retry once
 		 * to clear a possible false error reported for current DMA
 		 * read
 		 */
-		if ((ctrl->nand_version >= 0x0700) && retry) {
-			retry = false;
-			goto try_dmaread;
+		if ((ctrl->nand_version == 0x0700) ||
+		    (ctrl->nand_version == 0x0701)) {
+			if (retry) {
+				retry = false;
+				goto try_dmaread;
+			}
 		}
-		ret = brcmstb_nand_verify_erased_page(mtd, chip, buf, addr);
-		if (ret < 0) {
-			dev_dbg(ctrl->dev, "uncorrectable error at 0x%llx\n",
-				(unsigned long long)err_addr);
-			mtd->ecc_stats.failed++;
-			/* NAND layer expects zero on ECC errors */
-			return 0;
-		} else {
-			if (buf)
-				memset(buf, 0xff, FC_BYTES * trans);
-			if (oob)
-				memset(oob, 0xff, mtd->oobsize);
 
-			dev_info(&host->pdev->dev,
-					"corrected %d bitflips in blank page at 0x%llx\n",
-					ret, (unsigned long long)addr);
-			return ret;
+		/*
+		 * Controller version 7.2 has hw encoder to detect erased page
+		 * biflips, apply sw verification for older controller
+		 */
+		if (ctrl->nand_version < 0x0702) {
+			err = brcmstb_nand_verify_erased_page(mtd, chip, buf, addr);
+
+			if (err > 0) {
+				if (buf)
+					memset(buf, 0xff, FC_BYTES * trans);
+				if (oob)
+					memset(oob, 0xff, mtd->oobsize);
+
+				dev_info(&host->pdev->dev,
+					 "%d erased page bitflips @ 0x%llx\n",
+					 err, (unsigned long long)addr);
+				return err;
+			}
 		}
+
+		dev_dbg(ctrl->dev, "uncorrectable error at 0x%llx\n",
+			(unsigned long long)err_addr);
+		mtd->ecc_stats.failed++;
+		/* NAND layer expects zero on ECC errors */
+		return 0;
 	}
 
 	if (mtd_is_bitflip(err)) {
@@ -2307,7 +2342,8 @@ int brcmnand_probe(struct platform_device *pdev, struct brcmnand_soc *soc)
 		if (IS_ERR(ctrl->flash_dma_base))
 			return PTR_ERR(ctrl->flash_dma_base);
 
-		flash_dma_writel(ctrl, FLASH_DMA_MODE, 1); /* linked-list */
+		/* linked-list and stop on error */
+		flash_dma_writel(ctrl, FLASH_DMA_MODE, FLASH_DMA_MODE_MASK);
 		flash_dma_writel(ctrl, FLASH_DMA_ERROR_STATUS, 0);
 
 		/* Allocate descriptor(s) */

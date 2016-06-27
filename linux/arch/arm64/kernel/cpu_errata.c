@@ -21,12 +21,6 @@
 #include <asm/cputype.h>
 #include <asm/cpufeature.h>
 
-#define MIDR_CORTEX_A53 MIDR_CPU_PART(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A53)
-#define MIDR_CORTEX_A57 MIDR_CPU_PART(ARM_CPU_IMP_ARM, ARM_CPU_PART_CORTEX_A57)
-
-#define CPU_MODEL_MASK (MIDR_IMPLEMENTOR_MASK | MIDR_PARTNUM_MASK | \
-			MIDR_ARCHITECTURE_MASK)
-
 static bool __maybe_unused
 is_affected_midr_range(const struct arm64_cpu_capabilities *entry)
 {
@@ -80,6 +74,12 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.desc = "ARM erratum 845719",
 		.capability = ARM64_WORKAROUND_845719,
 		MIDR_RANGE(MIDR_CORTEX_A53, 0x00, 0x04),
+	},
+	{
+	/* Brahma-B53 r0p[0] */
+		.desc = "ARM erratum 845719",
+		.capability = ARM64_WORKAROUND_845719,
+		MIDR_RANGE(MIDR_BRAHMA_B53, 0x00, 0x00),
 	},
 #endif
 	{

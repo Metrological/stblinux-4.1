@@ -4,7 +4,7 @@ BOGUS_TARGETS		:= FORCE makefile $(ROOTDIR)/config.arch
 
 CC			:= $(CROSS_COMPILE)gcc
 STRIP			:= $(CROSS_COMPILE)strip
-CFLAGS			:= -Os
+CFLAGS			:= -Os -DDANGEROUS_COMMANDS_ENABLED
 
 export CC CFLAGS
 

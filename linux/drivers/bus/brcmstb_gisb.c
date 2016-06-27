@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Broadcom Corporation
+ * Copyright (C) 2014-2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,6 +28,11 @@
 #ifdef CONFIG_ARM
 #include <asm/bug.h>
 #include <asm/signal.h>
+#endif
+
+#ifdef CONFIG_ARM64
+#include <asm/signal.h>
+#include <asm/system_misc.h>
 #endif
 
 #ifdef CONFIG_MIPS
@@ -127,9 +132,9 @@ static void gisb_write(struct brcmstb_gisb_arb_device *gdev, u32 val, int reg)
 		return;
 
 	if (gdev->big_endian)
-		iowrite32be(val, gdev->base + reg);
+		iowrite32be(val, gdev->base + offset);
 	else
-		iowrite32(val, gdev->base + reg);
+		iowrite32(val, gdev->base + offset);
 }
 
 static ssize_t gisb_arb_get_timeout(struct device *dev,
@@ -221,31 +226,54 @@ static int brcmstb_gisb_arb_decode_addr(struct brcmstb_gisb_arb_device *gdev,
 	return 0;
 }
 
-#ifdef CONFIG_ARM
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 static int brcmstb_bus_error_handler(unsigned long addr, unsigned int fsr,
 				     struct pt_regs *regs)
 {
-	int ret = 0;
 	struct brcmstb_gisb_arb_device *gdev;
 
 	/* iterate over each GISB arb registered handlers */
 	list_for_each_entry(gdev, &brcmstb_gisb_arb_device_list, next)
-		ret |= brcmstb_gisb_arb_decode_addr(gdev, "bus error");
+		brcmstb_gisb_arb_decode_addr(gdev, "bus error");
+#if defined(CONFIG_ARM) && !defined(CONFIG_ARM_LPAE)
 	/*
 	 * If it was an imprecise abort, then we need to correct the
 	 * return address to be _after_ the instruction.
 	*/
 	if (fsr & (1 << 10))
 		regs->ARM_pc += 4;
+#endif
 
-	return ret;
+	/* Always report unhandled exception */
+	return 1;
+}
+
+#ifdef CONFIG_ARM64
+static int (*serror_chain)(unsigned long addr, unsigned int esr,
+				struct pt_regs *regs);
+static int do_brahma_b53_serror(unsigned long addr, unsigned int esr,
+				struct pt_regs *regs)
+{
+	struct brcmstb_gisb_arb_device *gdev;
+
+	if (((esr & (3 << 22)) == 0) && ((esr & 3) == 2)) {
+		/* iterate over each GISB arb registered handlers */
+		list_for_each_entry(gdev, &brcmstb_gisb_arb_device_list, next)
+			brcmstb_gisb_arb_decode_addr(gdev, "bus error");
+	}
+
+	if (serror_chain)
+		return serror_chain(addr, esr, regs);
+
+	/* Always report unhandled exception */
+	return 1;
 }
 #endif
+#endif /* CONFIG_ARM || CONFIG_ARM64 */
 
 #ifdef CONFIG_MIPS
 static int brcmstb_bus_error_handler(struct pt_regs *regs, int is_fixup)
 {
-	int ret = 0;
 	struct brcmstb_gisb_arb_device *gdev;
 	u32 cap_status;
 
@@ -258,7 +286,7 @@ static int brcmstb_bus_error_handler(struct pt_regs *regs, int is_fixup)
 			goto out;
 		}
 
-		ret |= brcmstb_gisb_arb_decode_addr(gdev, "bus error");
+		brcmstb_gisb_arb_decode_addr(gdev, "bus error");
 	}
 out:
 	return is_fixup ? MIPS_BE_FIXUP : MIPS_BE_FATAL;
@@ -379,8 +407,21 @@ static int __init brcmstb_gisb_arb_probe(struct platform_device *pdev)
 	list_add_tail(&gdev->next, &brcmstb_gisb_arb_device_list);
 
 #ifdef CONFIG_ARM
+#ifdef CONFIG_ARM_LPAE
+	hook_fault_code(16, brcmstb_bus_error_handler, SIGBUS, 0,
+			"synchronous external abort");
+	hook_fault_code(17, brcmstb_bus_error_handler, SIGBUS, 0,
+			"asynchronous external abort");
+#else
 	hook_fault_code(22, brcmstb_bus_error_handler, SIGBUS, 0,
 			"imprecise external abort");
+#endif
+#endif /* CONFIG_ARM */
+#ifdef CONFIG_ARM64
+	hook_fault_code(16, brcmstb_bus_error_handler, SIGBUS, 0,
+			"synchronous external abort");
+	if ((read_cpuid_id() & CPU_MODEL_MASK) == MIDR_BRAHMA_B53)
+		serror_chain = hook_serror_handler(do_brahma_b53_serror);
 #endif
 #ifdef CONFIG_MIPS
 	board_be_handler = brcmstb_bus_error_handler;

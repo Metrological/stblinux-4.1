@@ -369,6 +369,10 @@
 int brcmstb_pm_mem_exclude(phys_addr_t addr, size_t len);
 /* So users can determine whether the kernel provides this API */
 #define BRCMSTB_HAS_PM_MEM_EXCLUDE
+
+/* Add region to be hashed during S3 suspend/resume. */
+int brcmstb_pm_mem_region(phys_addr_t addr, size_t len);
+#define BRCMSTB_HAS_PM_MEM_REGION
 #endif
 
 #endif /* !defined(__ASSEMBLY__) */

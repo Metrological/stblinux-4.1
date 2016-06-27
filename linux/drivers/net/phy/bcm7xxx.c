@@ -31,6 +31,7 @@
 #define  MII_BCM7XXX_SHD_MODE_2		BIT(2)
 #define MII_BCM7XXX_SHD_2_ADDR_CTRL	0xe
 #define MII_BCM7XXX_SHD_2_CTRL_STAT	0xf
+#define MII_BCM7XXX_SHD_2_BIAS_TRIM	0x1a
 #define MII_BCM7XXX_SHD_3_AN_EEE_ADV	0x3
 #define MII_BCM7XXX_SHD_3_PCS_CTRL_2	0x6
 #define  MII_BCM7XXX_PCS_CTRL_2_DEF	0x4400
@@ -39,6 +40,8 @@
 #define  MII_BCM7XXX_AN_EEE_EN		BIT(1)
 #define MII_BCM7XXX_SHD_3_EEE_THRESH	0xe
 #define  MII_BCM7XXX_EEE_THRESH_DEF	0x50
+#define MII_BCM7XXX_SHD_3_TL4		0x23
+#define  MII_BCM7XXX_TL4_RST_MSK	(BIT(2)|BIT(1))
 
 /* 28nm only register definitions */
 #define MISC_ADDR(base, channel)	base, channel
@@ -480,6 +483,51 @@ reset_shadow_mode:
 	return 0;
 }
 
+static int bcm7xxx_28nm_ephy_01_afe_config_init(struct phy_device *phydev)
+{
+	int ret;
+
+	/* set shadow mode 2 */
+	ret = phy_set_clr_bits(phydev, MII_BCM7XXX_TEST,
+			MII_BCM7XXX_SHD_MODE_2, 0);
+	if (ret < 0)
+		return ret;
+
+	/* Set current trim values INT_trim = -1, Ext_trim =0 */
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_BIAS_TRIM, 0x3BE0);
+	if (ret < 0)
+		goto reset_shadow_mode;
+
+	/* Cal reset */
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_ADDR_CTRL,
+			MII_BCM7XXX_SHD_3_TL4);
+	if (ret < 0)
+		goto reset_shadow_mode;
+	ret = phy_set_clr_bits(phydev, MII_BCM7XXX_SHD_2_CTRL_STAT,
+			MII_BCM7XXX_TL4_RST_MSK, 0);
+	if (ret < 0)
+		goto reset_shadow_mode;
+
+	/* Cal reset disable */
+	ret = phy_write(phydev, MII_BCM7XXX_SHD_2_ADDR_CTRL,
+			MII_BCM7XXX_SHD_3_TL4);
+	if (ret < 0)
+		goto reset_shadow_mode;
+	ret = phy_set_clr_bits(phydev, MII_BCM7XXX_SHD_2_CTRL_STAT,
+			0, MII_BCM7XXX_TL4_RST_MSK);
+	if (ret < 0)
+		goto reset_shadow_mode;
+
+reset_shadow_mode:
+	/* reset shadow mode 2 */
+	ret = phy_set_clr_bits(phydev, MII_BCM7XXX_TEST, 0,
+			MII_BCM7XXX_SHD_MODE_2);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 static int bcm7xxx_28nm_ephy_config_init(struct phy_device *phydev)
 {
 	u8 rev = phydev->phy_id & ~phydev->drv->phy_id_mask;
@@ -494,6 +542,13 @@ static int bcm7xxx_28nm_ephy_config_init(struct phy_device *phydev)
 	 * such reads.
 	 */
 	phy_read(phydev, MII_BMSR);
+
+	/* Apply AFE software work-around if necessary */
+	if (rev == 0x01) {
+		ret = bcm7xxx_28nm_ephy_01_afe_config_init(phydev);
+		if (ret)
+			return ret;
+	}
 
 	ret = bcm7xxx_28nm_ephy_eee_enable(phydev);
 	if (ret)

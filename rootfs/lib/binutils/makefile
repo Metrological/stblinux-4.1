@@ -23,7 +23,7 @@ all::
 
 .PHONY: clean distclean
 clean distclean::
-	[ ! -f Makefile ] || $(MAKE) -f Makefile $@
+	[ ! -f Makefile ] || $(MAKE) -j1 -f Makefile $@
 
 .PHONY: romfs
 romfs:

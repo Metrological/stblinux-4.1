@@ -87,9 +87,12 @@
 #define PCI_SLOT_SHIFT			15
 #define PCI_FUNC_SHIFT			12
 
-#define IDX_ADDR(pcie)		((pcie->base) + pcie->reg_offsets[EXT_CFG_INDEX])
-#define DATA_ADDR(pcie)		((pcie->base) + pcie->reg_offsets[EXT_CFG_DATA])
-#define PCIE_RGR1_SW_INIT_1(pcie) ((pcie->base) + pcie->reg_offsets[RGR1_SW_INIT_1])
+#define IDX_ADDR(pcie)	\
+	((pcie->base) + pcie->reg_offsets[EXT_CFG_INDEX])
+#define DATA_ADDR(pcie)	\
+	((pcie->base) + pcie->reg_offsets[EXT_CFG_DATA])
+#define PCIE_RGR1_SW_INIT_1(pcie) \
+	((pcie->base) + pcie->reg_offsets[RGR1_SW_INIT_1])
 
 enum {
 	RGR1_SW_INIT_1,
@@ -135,14 +138,13 @@ static const struct pcie_cfg_data generic_cfg = {
 	.type		= GENERIC,
 };
 
-static int brcm_pci_read_config(struct pci_bus *bus, unsigned int devfn,
-				int where, int size, u32 *data);
-static int brcm_pci_write_config(struct pci_bus *bus, unsigned int devfn,
-				 int where, int size, u32 data);
+static void __iomem *brcm_pci_map_cfg(struct pci_bus *bus, unsigned int devfn,
+				      int where);
 
 static struct pci_ops brcm_pci_ops = {
-	.read = brcm_pci_read_config,
-	.write = brcm_pci_write_config,
+	.map_bus = brcm_pci_map_cfg,
+	.read = pci_generic_config_read32,
+	.write = pci_generic_config_write32,
 };
 
 static int brcm_setup_pcie_bridge(int nr, struct pci_sys_data *sys);
@@ -228,18 +230,21 @@ static void enter_l23(struct brcm_pcie *pcie);
 /* negative return value indicates error */
 static int mdio_read(void __iomem *base, u8 phyad, u8 regad)
 {
+	const int TRYS = 10;
 	u32 data = ((phyad & 0xf) << 16)
 		| (regad & 0x1f)
 		| 0x100000;
+	int i = 0;
 
 	__raw_writel(data, base + PCIE_RC_DL_MDIO_ADDR);
 	__raw_readl(base + PCIE_RC_DL_MDIO_ADDR);
 
 	data = __raw_readl(base + PCIE_RC_DL_MDIO_RD_DATA);
-	if (!(data & 0x80000000)) {
-		mdelay(1);
+	while (!(data & 0x80000000) && ++i < TRYS) {
+		udelay(10);
 		data = __raw_readl(base + PCIE_RC_DL_MDIO_RD_DATA);
 	}
+
 	return (data & 0x80000000) ? (data & 0xffff) : -EIO;
 }
 
@@ -248,23 +253,27 @@ static int mdio_read(void __iomem *base, u8 phyad, u8 regad)
 static int mdio_write(void __iomem *base, u8 phyad, u8 regad, u16 wrdata)
 {
 	u32 data = ((phyad & 0xf) << 16) | (regad & 0x1f);
+	const int TRYS = 10;
+	int i = 0;
 
 	__raw_writel(data, base + PCIE_RC_DL_MDIO_ADDR);
 	__raw_readl(base + PCIE_RC_DL_MDIO_ADDR);
-
 	__raw_writel(0x80000000 | wrdata, base + PCIE_RC_DL_MDIO_WR_DATA);
+
 	data = __raw_readl(base + PCIE_RC_DL_MDIO_WR_DATA);
-	if (!(data & 0x80000000)) {
-		mdelay(1);
+	while ((data & 0x80000000) && ++i < TRYS) {
+		udelay(10);
 		data = __raw_readl(base + PCIE_RC_DL_MDIO_WR_DATA);
 	}
-	return (data & 0x80000000) ? 0 : -EIO;
+
+	return (data & 0x80000000) ? -EIO : 0;
 }
 
 
 static void wr_fld(void __iomem *p, u32 mask, int shift, u32 val)
 {
 	u32 reg = __raw_readl(p);
+
 	reg = (reg & ~mask) | (val << shift);
 	__raw_writel(reg, p);
 }
@@ -309,6 +318,7 @@ static int set_ssc(void __iomem *base)
 static int is_ssc(void __iomem *base)
 {
 	int tmp = mdio_write(base, 0, 0x1f, 0x1100);
+
 	if (tmp < 0)
 		return tmp;
 	tmp = mdio_read(base, 0, 1);
@@ -346,6 +356,7 @@ static int is_pcie_link_up(struct brcm_pcie *pcie)
 {
 	void __iomem *base = pcie->base;
 	u32 val = __raw_readl(base + PCIE_MISC_PCIE_STATUS);
+
 	return  ((val & 0x30) == 0x30) ? 1 : 0;
 }
 
@@ -479,7 +490,8 @@ static const struct irq_domain_ops msi_domain_ops = {
 
 static int brcm_pcie_enable_msi(struct brcm_pcie *pcie, int nr)
 {
-	static const char brcm_msi_name[] = "brcmstb_pcieX_msi";
+	static const char brcm_msi_name[] = "PCIeX_msi";
+	const char trailer[] = "_msi";
 	struct brcm_msi *msi = &pcie->msi;
 	u32 data_val;
 	char *name;
@@ -497,14 +509,11 @@ static int brcm_pcie_enable_msi(struct brcm_pcie *pcie, int nr)
 		 * MSI controllers for them.  We want each to have a
 		 * unique name, so we go to the trouble of having an
 		 * irq_chip per RC (instead of one for all of them). */
-		name = devm_kzalloc(pcie->dev, sizeof(brcm_msi_name),
-				    GFP_KERNEL);
+		name = devm_kzalloc(pcie->dev, sizeof(pcie->name)
+				    + sizeof(trailer), GFP_KERNEL);
 		if (name) {
-			char *p;
-			strcpy(name, brcm_msi_name);
-			p = strchr(name, 'X');
-			if (p)
-				*p = '0' + nr;
+			strcpy(name, pcie->name);
+			strcat(name, trailer);
 			msi->irq_chip.name = name;
 		} else {
 			msi->irq_chip.name = brcm_msi_name;
@@ -620,6 +629,7 @@ static void brcm_pcie_setup_early(struct brcm_pcie *pcie)
 
 	for (i = 0; i < pcie->num_out_wins; i++) {
 		struct brcm_window *w = &pcie->out_wins[i];
+
 		set_pcie_outbound_win(base, i, w->cpu_addr, w->size);
 	}
 
@@ -663,9 +673,6 @@ static void brcm_pcie_setup_early(struct brcm_pcie *pcie)
 	__raw_writel(0xffffffff, base + PCIE_INTR2_CPU_BASE + MASK_SET);
 	(void) __raw_readl(base + PCIE_INTR2_CPU_BASE + MASK_SET);
 
-	if (pcie->ssc)
-		if (set_ssc(base))
-			dev_err(pcie->dev, "error while configuring ssc mode\n");
 	if (pcie->gen)
 		set_gen(base, pcie->gen);
 
@@ -722,10 +729,19 @@ static int brcm_setup_pcie_bridge(int nr, struct pci_sys_data *sys)
 	status = __raw_readl(base + PCIE_RC_CFG_PCIE_LINK_STATUS_CONTROL);
 
 	if (pcie->ssc) {
-		if (is_ssc(base) == 0)
+		if (set_ssc(base))
+			dev_err(pcie->dev,
+				"mdio rd/wt fail during ssc config\n");
+
+		ret = is_ssc(base);
+		if (ret == 0) {
 			ssc_good = true;
-		else
+		} else {
+			if (ret < 0)
+				dev_err(pcie->dev,
+					"mdio rd/wt fail during ssc query\n");
 			dev_err(pcie->dev, "failed to enter SSC mode\n");
+		}
 	}
 
 	dev_info(pcie->dev, "link up, %s Gbps x%u %s\n",
@@ -885,101 +901,32 @@ static int cfg_index(int busnr, int devfn, int reg)
 		| (reg & ~3);
 }
 
-static u32 read_config(struct brcm_pcie *pcie, int cfg_idx)
-{
-	__raw_writel(cfg_idx, IDX_ADDR(pcie));
-	__raw_readl(IDX_ADDR(pcie));
-	return __raw_readl(DATA_ADDR(pcie));
-}
 
-static void write_config(struct brcm_pcie *pcie, int cfg_idx, u32 val)
+static void __iomem *brcm_pci_map_cfg(struct pci_bus *bus, unsigned int devfn,
+				      int where)
 {
-	__raw_writel(cfg_idx, IDX_ADDR(pcie));
-	__raw_readl(IDX_ADDR(pcie));
-	__raw_writel(val, DATA_ADDR(pcie));
-	__raw_readl(DATA_ADDR(pcie));
-}
-
-
-static int brcm_pci_write_config(struct pci_bus *bus, unsigned int devfn,
-				 int where, int size, u32 data)
-{
-	u32 val = 0, mask, shift;
 	struct pci_sys_data *sys = bus->sysdata;
 	struct brcm_pcie *pcie = sys->private_data;
-	void __iomem *base;
-	bool rc_access;
+	void __iomem *base = pcie->base;
+	bool rc_access = pci_is_root_bus(bus);
 	int idx;
 
 	if (!is_pcie_link_up(pcie))
-		return PCIBIOS_DEVICE_NOT_FOUND;
+		return NULL;
 
 	base = pcie->base;
-	rc_access = sys->busnr == bus->number;
 	idx = cfg_index(bus->number, devfn, where);
-	BUG_ON(((where & 3) + size) > 4);
 
-	if (rc_access && PCI_SLOT(devfn))
-		return PCIBIOS_DEVICE_NOT_FOUND;
-
-	if (size < 4) {
-		/* partial word - read, modify, write */
-		if (rc_access)
-			val = __raw_readl(base + (where & ~3));
-		else
-			val = read_config(pcie, idx);
-	}
-
-	shift = (where & 3) << 3;
-	mask = (0xffffffff >> ((4 - size) << 3)) << shift;
-	val = (val & ~mask) | ((data << shift) & mask);
+	__raw_writel(idx, IDX_ADDR(pcie));
 
 	if (rc_access) {
-		__raw_writel(val, base + (where & ~3));
-		__raw_readl(base + (where & ~3));
-	} else {
-		write_config(pcie, idx, val);
-	}
-	return PCIBIOS_SUCCESSFUL;
-}
-
-
-static int brcm_pci_read_config(struct pci_bus *bus, unsigned int devfn,
-				int where, int size, u32 *data)
-{
-	struct pci_sys_data *sys = bus->sysdata;
-	struct brcm_pcie *pcie = sys->private_data;
-	u32 val, mask, shift;
-	void __iomem *base;
-	bool rc_access;
-	int idx;
-
-	if (!is_pcie_link_up(pcie))
-		return PCIBIOS_DEVICE_NOT_FOUND;
-
-	base = pcie->base;
-	rc_access = sys->busnr == bus->number;
-	idx = cfg_index(bus->number, devfn, where);
-	BUG_ON(((where & 3) + size) > 4);
-
-	if (rc_access && PCI_SLOT(devfn)) {
-		*data = 0xffffffff;
-		return PCIBIOS_FUNC_NOT_SUPPORTED;
+		if (PCI_SLOT(devfn))
+			return NULL;
+		return base + (where & ~3);
 	}
 
-	if (rc_access)
-		val = __raw_readl(base + (where & ~3));
-	else
-		val = read_config(pcie, idx);
-
-	shift = (where & 3) << 3;
-	mask = (0xffffffff >> ((4 - size) << 3)) << shift;
-	*data = (val & mask) >> shift;
-
-	return PCIBIOS_SUCCESSFUL;
+	return DATA_ADDR(pcie);
 }
-
-
 
 
 /***********************************************************************
@@ -1212,6 +1159,7 @@ static int brcm_pci_probe(struct platform_device *pdev)
 
 	for (i = 0; i < pcie->num_out_wins; i++) {
 		struct brcm_window *w = &pcie->out_wins[i];
+
 		w->info = (u32) of_read_ulong(ranges + 0, 1);
 		w->pci_addr = of_read_number(ranges + 1, 2);
 		w->cpu_addr = of_translate_address(dn, ranges + 3);

@@ -226,7 +226,7 @@ sub get_tgt($)
 		die "no target specified";
 	}
 
-	unless($tgt =~ m/^(bmips|[0-9]+[a-z][0-9])(_be)?(-\S+)?$/) {
+	unless($tgt =~ m/^(arm64|bmips|[0-9]+[a-z][0-9])(_be)?(-\S+)?$/) {
 		die "invalid target format: $tgt";
 	}
 
@@ -251,7 +251,15 @@ sub populate_linux_defaults($$)
 	# However, it doesn't look like that's actually happening.  Until it
 	# does, we can assume that anything that has an entry under
 	# include/linux/brcmstb is ARM.
-	if(-d "$LINUXDIR/include/linux/brcmstb/${chip}") {
+	if($chip eq "arm64") {
+		if (grep(/^hardened$/, @mods)) {
+			$linux_defaults =~ s/defconfig$/hardened_defconfig/;
+		}
+		$arch_config_options{"ARCH"} = "arm64";
+		$arch_config_options{"LIB_SUFFIX"} = "64";
+		$linux_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_defconfig";
+		$linux_new_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_new_defconfig";
+	} elsif(-d "$LINUXDIR/include/linux/brcmstb/${chip}") {
 		if (grep(/^hardened$/, @mods)) {
 			$linux_defaults =~ s/defconfig$/hardened_defconfig/;
 		}
