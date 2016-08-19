@@ -537,6 +537,7 @@ bool 'cksum'			CONFIG_USER_CKSUM_CKSUM
 bool 'clock'			CONFIG_USER_CLOCK_CLOCK
 bool 'cmatool'			CONFIG_USER_CMATOOL
 bool 'cpu'			CONFIG_USER_CPU_CPU
+bool 'cpufrequtils'		CONFIG_USER_CPUFREQUTILS
 bool 'date'			CONFIG_USER_CAL_DATE
 
 if [ "$CONFIG_USER_DESTEST_DESTEST" = "y" ]; then

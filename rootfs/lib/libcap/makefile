@@ -3,9 +3,9 @@
 #
 
 # for $(CROSS), $(CC), $(STRIPTOOL)
-include $(ROOTDIR)/config.arch
+include $(ARCH_CONFIG)
 
-BOGUS_TARGETS		:= FORCE makefile $(ROOTDIR)/config.arch
+BOGUS_TARGETS		:= FORCE makefile $(ARCH_CONFIG)
 
 CFLAGS			:= -Os
 
@@ -21,13 +21,17 @@ export CC CFLAGS
 #
 
 .PHONY: all
-all::
+all:
 	cp -f _makenames.sh libcap/_makenames
 	$(MAKE) -f Makefile CC=$(CC) AR=$(AR) RANLIB=$(RANLIB) BUILD_CC=true \
-		LIBATTR=no -C libcap libcap.a
+		DYNAMIC="yes" LDFLAGS="-shared" LIBATTR=no \
+		-C libcap
 
 .PHONY: romfs
-romfs::
+romfs:
+	-$(RM) -f $(ROMFSDIR)/lib/$(OSLIB)/libcap.so*
+	cp -af libcap/libcap.so* $(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libcap.so*
 
 .PHONY: clean distclean
 clean distclean::

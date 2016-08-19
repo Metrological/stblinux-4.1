@@ -1,8 +1,8 @@
-include $(ROOTDIR)/config.arch
+include $(ARCH_CONFIG)
 
 unexport MAKEFILE_LIST
 
-BOGUS_TARGETS		:= FORCE makefile $(ROOTDIR)/config.arch
+BOGUS_TARGETS		:= FORCE makefile $(ARCH_CONFIG)
 
 SHELL := /bin/bash
 
@@ -23,23 +23,23 @@ all:: all-$(libc-source)
 
 .PHONY: all-rootfs
 all-rootfs:
-	if [ ! -e build/Makefile ]; then \
-		mkdir -p build; \
-		cd build; \
-		../configure --host=$(shell $(CC) -dumpmachine) \
+	if [ ! -e build/lib/$(OSLIB)/Makefile ]; then \
+		mkdir -p build/lib/$(OSLIB); \
+		cd build/lib/$(OSLIB); \
+		../../configure --host=$(shell $(CC) -dumpmachine) \
 			--prefix=/usr \
 			--with-sysroot=$(shell $(CC) -print-sysroot) \
 			--enable-obsolete-rpc \
 			--disable-nscd; \
 	fi
-	$(MAKE) -C build
+	$(MAKE) -C build/lib/$(OSLIB)
 
 .PHONY: all-toolchain
 all-toolchain:
 
 .PHONY: clean
 clean::
-	[ ! -f build/Makefile ] || $(MAKE) -C build $@
+	[ ! -f build/lib/$(OSLIB)/Makefile ] || $(MAKE) -C build/lib/$(OSLIB) $@
 
 .PHONY: distclean
 distclean::
@@ -49,21 +49,28 @@ distclean::
 # files we actually want from that folder, then copy those to the romfs.
 .PHONY: romfs romfs-rootfs romfs-toolchain
 romfs:: romfs-$(libc-source)
-	-$(STRIP) temp/lib/*.so* temp/lib64/*.so* temp/sbin/ldconfig
+	-$(STRIP) temp/lib/*.so* temp/sbin/ldconfig
 	mkdir -p $(ROMFSDIR)/lib
 	cp -df temp/lib/*.so* $(ROMFSDIR)/lib
-	-cp -df temp/lib64/*.so* $(ROMFSDIR)/lib; \
+ifneq ($(OSLIB),.)
+	-$(STRIP) temp/lib/$(OSLIB)/*.so*
+	mkdir -p $(ROMFSDIR)/lib/$(OSLIB)
+	-cp -df temp/lib/$(OSLIB)/*.so* $(ROMFSDIR)/lib/$(OSLIB)
+endif
 	$(ROMFSINST) -e CONFIG_LIB_LIBC_LDD temp/bin/ldd /bin/ldd
 	$(ROMFSINST) -e CONFIG_LIB_LIBC_LDCONFIG temp/sbin/ldconfig /sbin/ldconfig
 
 romfs-rootfs::
+	rm -fr temp
 	mkdir -p temp
-	make -C build install DESTDIR=$(CURDIR)/temp
+	make -C build/lib/$(OSLIB) install DESTDIR=$(CURDIR)/temp
 
 romfs-toolchain::
-	mkdir -p temp/{bin,lib,lib64,sbin}
+	rm -fr temp
+	mkdir -p temp/{bin,lib,sbin}
 	cp -df $(GCCSYSROOT)/lib/*.so* temp/lib
 	if [ -d "$(GCCSYSROOT)/lib64" ]; then \
+		mkdir -p temp/lib64; \
 		cp -df $(GCCSYSROOT)/lib64/*.so* temp/lib64; \
 	fi
 	# FIXME: libgcc was removed from sysroot in stbgcc-4.8-1.1, eventually

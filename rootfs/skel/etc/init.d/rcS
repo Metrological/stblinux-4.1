@@ -37,6 +37,13 @@ fi
 # Don't let SCHED_FIFO / SCHED_RR realtime threads get preempted
 echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 
+# Enable conservative governor
+cpufreq-info -g | grep conservative >/dev/null
+if [ $? = 0 ]; then
+	echo "Switching to conservative governor"
+	cpufreq-set -g conservative
+fi
+
 # GPLv3 warning
 if [ -e /bin/gdbserver -o -e /bin/gdb ]; then
 	echo "* WARNING: THIS STB CONTAINS GPLv3 SOFTWARE"

@@ -65,6 +65,7 @@ dir_$(CONFIG_USER_CKSUM_CKSUM)              += cksum
 dir_$(CONFIG_USER_CLOCK_CLOCK)              += clock
 dir_$(CONFIG_USER_CMATOOL)                  += cmatool
 dir_$(CONFIG_USER_CPU_CPU)                  += cpu
+dir_$(CONFIG_USER_CPUFREQUTILS)             += cpufrequtils
 dir_$(CONFIG_USER_CRAMFS_MKCRAMFS)          += cramfs
 dir_$(CONFIG_USER_CRAMFS_CRAMFSCK)          += cramfs
 dir_$(CONFIG_USER_CRON_CRON)                += cron

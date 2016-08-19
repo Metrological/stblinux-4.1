@@ -176,10 +176,11 @@ choice
 	config DEBUG_BRCMSTB_UART
 		bool "Use BRCMSTB UART for low-level debug"
 		depends on ARCH_BRCMSTB
-		select DEBUG_UART_8250
 		help
 		  Say Y here if you want the debug print routines to direct
-		  their output to the first serial port on these devices.
+		  their output to the first serial port on these devices. The
+		  UART physical and virtual address is automatically provided
+		  based on the chip identification register value.
 
 		  If you have a Broadcom STB chip and would like early print
 		  messages to appear over the UART, select this option.
@@ -1305,6 +1306,7 @@ config DEBUG_LL_INCLUDE
 	default "debug/zynq.S" if DEBUG_ZYNQ_UART0 || DEBUG_ZYNQ_UART1
 	default "debug/bcm63xx.S" if DEBUG_BCM63XX_UART
 	default "debug/digicolor.S" if DEBUG_DIGICOLOR_UA0
+	default "debug/brcmstb.S" if DEBUG_BRCMSTB_UART
 	default "mach/debug-macro.S"
 
 # Compatibility options for PL01x
@@ -1390,16 +1392,6 @@ config DEBUG_UART_PHYS
 	default 0xe6e60000 if DEBUG_RCAR_GEN2_SCIF0
 	default 0xe8008000 if DEBUG_R7S72100_SCIF2
 	default 0xf0000be0 if ARCH_EBSA110
-	default 0xf040a900 if DEBUG_BRCMSTB_UART && BCM3390A0
-	default 0xf040a900 if DEBUG_BRCMSTB_UART && BCM3390B0
-	default 0xf040b400 if DEBUG_BRCMSTB_UART && BCM7250B0
-	default 0xf040b000 if DEBUG_BRCMSTB_UART && BCM7364A0
-	default 0xf040b000 if DEBUG_BRCMSTB_UART && BCM7366C0
-	default 0xf0406b00 if DEBUG_BRCMSTB_UART && BCM74371A0
-	default 0xf040a900 if DEBUG_BRCMSTB_UART && BCM7439B0
-	default 0xf040ab00 if DEBUG_BRCMSTB_UART && BCM7445D0
-	default 0xf040c000 if DEBUG_BRCMSTB_UART && BCM7271A0
-	default 0xf040ab00 if DEBUG_BRCMSTB_UART
 	default 0xf1012000 if DEBUG_MVEBU_UART0_ALTERNATE
 	default 0xf1012100 if DEBUG_MVEBU_UART1_ALTERNATE
 	default 0xf1012000 if ARCH_DOVE || ARCH_MV78XX0 || \
@@ -1469,16 +1461,6 @@ config DEBUG_UART_VIRT
 	default 0xfb002000 if DEBUG_CNS3XXX
 	default 0xfb009000 if DEBUG_REALVIEW_STD_PORT
 	default 0xfb10c000 if DEBUG_REALVIEW_PB1176_PORT
-	default 0xfc40a900 if DEBUG_BRCMSTB_UART && BCM3390A0
-	default 0xfc40a900 if DEBUG_BRCMSTB_UART && BCM3390B0
-	default 0xfc40b400 if DEBUG_BRCMSTB_UART && BCM7250B0
-	default 0xfc40b000 if DEBUG_BRCMSTB_UART && BCM7364A0
-	default 0xfc40b000 if DEBUG_BRCMSTB_UART && BCM7366C0
-	default 0xfc406b00 if DEBUG_BRCMSTB_UART && BCM74371A0
-	default 0xfc40a900 if DEBUG_BRCMSTB_UART && BCM7439B0
-	default 0xfc40ab00 if DEBUG_BRCMSTB_UART && BCM7445D0
-	default 0xfc40c000 if DEBUG_BRCMSTB_UART && BCM7271A0
-	default 0xfc40ab00 if DEBUG_BRCMSTB_UART
 	default 0xfcfe8600 if DEBUG_BCM63XX_UART
 	default 0xfd000000 if ARCH_SPEAR3XX || ARCH_SPEAR6XX
 	default 0xfd000000 if ARCH_SPEAR13XX
@@ -1547,8 +1529,7 @@ config DEBUG_UART_8250_WORD
 		ARCH_KEYSTONE || DEBUG_ALPINE_UART0 || \
 		DEBUG_DAVINCI_DMx_UART0 || DEBUG_DAVINCI_DA8XX_UART1 || \
 		DEBUG_DAVINCI_DA8XX_UART2 || \
-		DEBUG_BCM_KONA_UART || DEBUG_RK32_UART2 || \
-		DEBUG_BRCMSTB_UART
+		DEBUG_BCM_KONA_UART || DEBUG_RK32_UART2
 
 config DEBUG_UART_8250_FLOW_CONTROL
 	bool "Enable flow control for 8250 UART"
@@ -1559,7 +1540,8 @@ config DEBUG_UNCOMPRESS
 	bool
 	depends on ARCH_MULTIPLATFORM || PLAT_SAMSUNG
 	default y if DEBUG_LL && !DEBUG_OMAP2PLUS_UART && \
-		     (!DEBUG_TEGRA_UART || !ZBOOT_ROM)
+		     (!DEBUG_TEGRA_UART || !ZBOOT_ROM) && \
+		     !DEBUG_BRCMSTB_UART
 	help
 	  This option influences the normal decompressor output for
 	  multiplatform kernels.  Normally, multiplatform kernels disable

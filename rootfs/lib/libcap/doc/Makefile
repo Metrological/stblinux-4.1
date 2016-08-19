@@ -12,7 +12,8 @@ MAN3S = cap_init.3 cap_free.3 cap_dup.3 \
 	cap_get_file.3 cap_get_fd.3 cap_set_file.3 cap_set_fd.3 \
 	cap_copy_ext.3 cap_size.3 cap_copy_int.3 \
 	cap_from_text.3 cap_to_text.3 cap_from_name.3 cap_to_name.3 \
-	capsetp.3 capgetp.3 libcap.3
+	capsetp.3 capgetp.3 libcap.3 \
+	cap_get_bound.3 cap_drop_bound.3
 MAN8S = getcap.8 setcap.8
 
 MANS = $(MAN1S) $(MAN3S) $(MAN8S)
@@ -29,11 +30,11 @@ html:
 	done
 
 install:
-	mkdir -p -m 755 $(MANDIR)/man1 $(MANDIR)/man3 $(MANDIR)/man8
+	mkdir -p -m 755 $(FAKEROOT)$(MANDIR)/man1 $(FAKEROOT)$(MANDIR)/man3 $(FAKEROOT)$(MANDIR)/man8
 	for man in \
-		$(MANDIR)/man1 $(MAN1S) \
-		$(MANDIR)/man3 $(MAN3S) \
-		$(MANDIR)/man8 $(MAN8S) \
+		$(FAKEROOT)$(MANDIR)/man1 $(MAN1S) \
+		$(FAKEROOT)$(MANDIR)/man3 $(MAN3S) \
+		$(FAKEROOT)$(MANDIR)/man8 $(MAN8S) \
 		; \
 	do \
 		case $$man in \

@@ -1,6 +1,6 @@
-include $(ROOTDIR)/config.arch
+include $(ARCH_CONFIG)
 
-BOGUS_TARGETS		:= FORCE makefile $(ROOTDIR)/config.arch
+BOGUS_TARGETS		:= FORCE makefile $(ARCH_CONFIG)
 
 CC			:= $(CROSS_COMPILE)gcc
 STRIP			:= $(CROSS_COMPILE)strip
@@ -40,14 +40,14 @@ clean distclean::
 
 .PHONY: romfs
 romfs:
-	-$(RM) -f $(ROMFSDIR)/lib/libunwind.so*
+	-$(RM) -f $(ROMFSDIR)/lib/$(OSLIB)/libunwind.so*
 	cp -af src/.libs/libunwind.so src/.libs/libunwind.so*[0-9] \
-		$(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libunwind.so
-	-$(RM) -f $(ROMFSDIR)/lib/libunwind-$(MACH_LIB).so*
+		$(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libunwind.so
+	-$(RM) -f $(ROMFSDIR)/lib/$(OSLIB)/libunwind-$(MACH_LIB).so*
 	cp -af src/.libs/libunwind-$(MACH_LIB).so src/.libs/libunwind-$(MACH_LIB).so*[0-9] \
-		$(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libunwind-$(MACH_LIB).so
+		$(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libunwind-$(MACH_LIB).so
 
 # These targets must not be passed through to the original Makefile
 .PHONY: $(BOGUS_TARGETS)

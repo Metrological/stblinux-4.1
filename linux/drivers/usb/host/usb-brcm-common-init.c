@@ -169,6 +169,7 @@ static const struct id_to_type id_to_type_table[] = {
 	{ 0x72680000, BRCM_FAMILY_7271A0 },
 	{ 0x73640000, BRCM_FAMILY_7364A0 },
 	{ 0x73640010, BRCM_FAMILY_7364A0 },
+	{ 0x73640020, BRCM_FAMILY_7364A0 },
 	{ 0x73660020, BRCM_FAMILY_7366C0 },
 	{ 0x07437100, BRCM_FAMILY_74371A0 },
 	{ 0x74390010, BRCM_FAMILY_7439B0 },
@@ -789,4 +790,4 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 		}
 	}
 }
-
+EXPORT_SYMBOL(brcm_usb_common_init);

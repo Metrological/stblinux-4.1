@@ -17,22 +17,36 @@
 #include <linux/irqchip/arm-gic.h>
 #include <linux/of_platform.h>
 
-#if defined(CONFIG_BRCMSTB)
-#include <linux/brcmstb/brcmstb.h>
 #include <linux/brcmstb/cma_driver.h>
 #include <linux/clocksource.h>
 #include <linux/console.h>
 #include <linux/of_address.h>
 #include <linux/soc/brcmstb/brcmstb.h>
 #include <asm/mach/map.h>
-#endif
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
+
+/*
+ * Storage for debug-macro.S's state.
+ *
+ * This must be in .data not .bss so that it gets initialized each time the
+ * kernel is loaded. The data is declared here rather than debug-macro.S so
+ * that multiple inclusions of debug-macro.S point at the same data.
+ */
+u32 brcmstb_uart_config[3] = {
+	/* Debug UART initialization required */
+	1,
+	/* Debug UART physical address */
+	0,
+	/* Debug UART virtual address */
+	0,
+};
 
 static void __init brcmstb_init_irq(void)
 {
 	gic_set_irqchip_flags(IRQCHIP_MASK_ON_SUSPEND);
 	irqchip_init();
+	brcmstb_biuctrl_init();
 }
 
 static const char *const brcmstb_match[] __initconst = {
@@ -40,32 +54,6 @@ static const char *const brcmstb_match[] __initconst = {
 	"brcm,brcmstb",
 	NULL
 };
-
-#if defined(CONFIG_BRCMSTB)
-/*
- * HACK: The following drivers are still using BDEV macros:
- * - XPT DMA
- * - SPI
- * - NAND
- * - SDHCI
- * - MoCA
- *
- * Once these drivers have migrated over to using 'of_iomap()' and standard
- * register accessors, we can eliminate this static mapping.
- */
-static struct map_desc brcmstb_io_map[] __initdata = {
-	{
-	.virtual = (unsigned long)BRCMSTB_PERIPH_VIRT,
-	.pfn     = __phys_to_pfn(BRCMSTB_PERIPH_PHYS),
-	.length  = BRCMSTB_PERIPH_LENGTH,
-	.type    = MT_DEVICE,
-	},
-};
-
-static void __init brcmstb_map_io(void)
-{
-	iotable_init(brcmstb_io_map, ARRAY_SIZE(brcmstb_io_map));
-}
 
 static void __init brcmstb_init_machine(void)
 {
@@ -77,17 +65,12 @@ static void __init brcmstb_init_machine(void)
 
 static void __init brcmstb_init_early(void)
 {
-	brcmstb_biuctrl_init();
 	add_preferred_console("ttyS", 0, "115200");
 }
-#endif
 
 DT_MACHINE_START(BRCMSTB, "Broadcom STB (Flattened Device Tree)")
 	.dt_compat	= brcmstb_match,
 	.init_irq	= brcmstb_init_irq,
-#if defined(CONFIG_BRCMSTB)
-	.map_io		= brcmstb_map_io,
 	.init_machine	= brcmstb_init_machine,
 	.init_early	= brcmstb_init_early,
-#endif
 MACHINE_END

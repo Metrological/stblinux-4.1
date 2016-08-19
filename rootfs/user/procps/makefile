@@ -29,7 +29,7 @@ all::
 
 .PHONY: romfs
 romfs::
-	$(ROMFSINST) proc/libproc-3.2.8.so /lib/libproc-3.2.8.so
+	$(ROMFSINST) proc/libproc-3.2.8.so /lib/$(OSLIB)/libproc-3.2.8.so
 	$(ROMFSINST) -e CONFIG_USER_PROCPS_FREE /bin/free
 	$(ROMFSINST) -e CONFIG_USER_PROCPS_KILL /bin/kill
 	$(ROMFSINST) -e CONFIG_USER_PROCPS_PGREP /bin/pgrep

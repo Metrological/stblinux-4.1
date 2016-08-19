@@ -25,6 +25,12 @@ dir_y  = $(LIBCDIR) libnet
 dir_n  =
 dir_   =
 
+ifeq ($(CONFIG_COMPAT),y)
+dir_y_compat = $(LIBCDIR)
+else
+dir_y_compat =
+endif
+
 ifeq ($(LIBCDIR),libc)
 dir_y += libm
 endif
@@ -99,6 +105,11 @@ ifeq ($(LIBCDIR),glibc/build)
 			--enable-add-ons ; \
 	fi
 endif
+	@for i in $(dir_y_compat); do \
+		echo "--> making compatible lib/$$i"; \
+		$(MAKE) -C $$i ARCH_CONFIG=$(ARCH_CONFIG).32 || exit $$?; \
+		$(MAKE) -C $$i romfs ARCH_CONFIG=$(ARCH_CONFIG).32 || exit $$?; \
+	done
 	@for i in $(dir_y); do \
 		echo "--> making all in lib/$$i"; \
 		$(MAKE) -C $$i || exit $$?; \
@@ -111,34 +122,34 @@ romfs:
 	done
 ifeq ($(INITRD_SUBDIR),) 
 ifeq ($(findstring y,$(CONFIG_LIB_LIBSTDCXX_FORCE)$(CONFIG_LIB_LIBSTDCXX)),y)
-	-$(RM) -f $(ROMFSDIR)/lib/libstdc++.*
+	-$(RM) -f $(ROMFSDIR)/lib/$(OSLIB)/libstdc++.*
 	cp -af $(GCCLIB)/libstdc++.so $(GCCLIB)/libstdc++.so*[0-9] \
-		$(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libstdc++.so
+		$(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libstdc++.so
 endif
 ifeq ($(findstring y,$(CONFIG_LIB_LIBGCC_FORCE)$(CONFIG_LIB_LIBGCC)),y)
 	# THT: Copy libgcc_s.so to romfs dir (see: PR45130, PR44678)
-	-$(RM) -f $(ROMFSDIR)/lib/libgcc_s.so*
+	-$(RM) -f $(ROMFSDIR)/lib/$(OSLIB)/libgcc_s.so*
 	cp -af $(GCCLIB)/libgcc_s.so $(GCCLIB)/libgcc_s.so*[0-9] \
-		$(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libgcc_s.so.1
+		$(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libgcc_s.so.1
 endif
 ifeq ($(findstring y,$(CONFIG_LIB_LIBSSP_FORCE)$(CONFIG_LIB_LIBSSP)),y)
 	# Copy libssp.so to romfs dir for "-fstack-protector-all" gcc arg)
-	-$(RM) -f $(ROMFSDIR)/lib/libssp.so*
+	-$(RM) -f $(ROMFSDIR)/lib/$(OSLIB)/libssp.so*
 	cp -af $(GCCLIB)/libssp.so $(GCCLIB)/libssp.so*[0-9] \
-		$(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libssp.so.0.0.0
+		$(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libssp.so.0.0.0
 endif
 ifeq ($(findstring y,$(CONFIG_LIB_LIBUTIL_FORCE)$(CONFIG_LIB_LIBUTIL)),y)
-	-$(RM) -f $(ROMFSDIR)/lib/libutil.so*
-	cp -af $(GCCSYSROOT)/lib/libutil* $(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libutil.so.[0-9]
+	-$(RM) -f $(ROMFSDIR)/lib/$(OSLIB)/libutil.so*
+	cp -af $(GCCSYSROOT)/lib/libutil* $(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libutil.so.[0-9]
 endif
 ifeq ($(findstring y,$(CONFIG_LIB_LIBCRYPT_FORCE)$(CONFIG_LIB_LIBCRYPT)),y)
-	-$(RM) -f $(ROMFSDIR)/lib/libcrypt.so*
-	cp -af $(GCCSYSROOT)/lib/libcrypt* $(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libcrypt.so.[0-9]
+	-$(RM) -f $(ROMFSDIR)/lib/$(OSLIB)/libcrypt.so*
+	cp -af $(GCCSYSROOT)/lib/libcrypt* $(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libcrypt.so.[0-9]
 endif
 endif
 

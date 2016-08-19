@@ -497,6 +497,9 @@ CONFIG_USER_CLOCK_CLOCK
 CONFIG_USER_CPU_CPU
   cpu tool
 
+CONFIG_USER_CPUFREQUTILS
+  Build cpufreq-utils to interact with the CPUfreq subsystem.
+
 CONFIG_USER_DHCP_ISC_SERVER_DHCPD
   A full featured DHCP daemon that can do almost anything.
 

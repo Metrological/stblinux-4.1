@@ -102,9 +102,6 @@ enum bsp_initiate_command {
 #define PM_INITIATE_SUCCESS	0x00
 #define PM_INITIATE_FAIL	0xfe
 
-/* Several chips have an old PM_INITIATE interface that doesn't ACK commands */
-#define PM_INITIATE_NO_ACK	IS_ENABLED(CONFIG_BCM74371A0)
-
 static struct brcmstb_pm_control ctrl;
 
 #define MAX_EXCLUDE				16
@@ -330,7 +327,7 @@ static int do_bsp_initiate_command(enum bsp_initiate_command cmd)
 	 * If firmware doesn't support the 'ack', then just assume it's done
 	 * after 10ms. Note that this only works for command 0, BSP_CLOCK_STOP
 	 */
-	if (PM_INITIATE_NO_ACK) {
+	if (of_machine_is_compatible("brcm,bcm74371a0")) {
 		(void)__raw_readl(base + AON_CTRL_PM_INITIATE);
 		mdelay(10);
 		return 0;

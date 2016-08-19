@@ -64,10 +64,6 @@
 #include <linux/bmoca.h>
 #endif
 
-#if defined(CONFIG_BRCMSTB) || defined(CONFIG_BMIPS_GENERIC)
-#include <linux/brcmstb/brcmstb.h>
-#endif
-
 #define MOCA_ENABLE		1
 #define MOCA_DISABLE		0
 

@@ -133,6 +133,31 @@ static int m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
 	/* convert the dummy cycles to the number of bytes */
 	dummy /= 8;
 
+	if (spi_flash_read_supported(spi)) {
+		struct spi_flash_read_message msg;
+		int ret;
+
+		memset(&msg, 0, sizeof(msg));
+
+		msg.buf = buf;
+		msg.from = from;
+		msg.len = len;
+		msg.read_opcode = nor->read_opcode;
+		msg.addr_width = nor->addr_width;
+		msg.dummy_bytes = dummy;
+		/* TODO: Support other combinations */
+		msg.opcode_nbits = SPI_NBITS_SINGLE;
+		msg.addr_nbits = SPI_NBITS_SINGLE;
+		msg.data_nbits = m25p80_rx_nbits(nor);
+
+		ret = spi_flash_read(spi, &msg);
+		/* some drivers might need to fallback to spi transfer */
+		if (ret != -EAGAIN) {
+			*retlen = msg.retlen;
+			return ret;
+		}
+	}
+
 	spi_message_init(&m);
 	memset(t, 0, (sizeof t));
 
@@ -310,10 +335,47 @@ static const struct spi_device_id m25p_ids[] = {
 };
 MODULE_DEVICE_TABLE(spi, m25p_ids);
 
+#ifdef CONFIG_PM_SLEEP
+static int m25p_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int m25p_resume(struct device *dev)
+{
+	struct m25p *flash = dev_get_drvdata(dev);
+	struct flash_platform_data	*data;
+	char *flash_name = NULL;
+	enum read_mode mode = SPI_NOR_NORMAL;
+	int ret;
+
+	data = dev_get_platdata(&flash->spi->dev);
+
+	if (data && data->type)
+		flash_name = data->type;
+	else if (!strcmp(flash->spi->modalias, "spi-nor"))
+		flash_name = NULL; /* auto-detect */
+	else
+		flash_name = flash->spi->modalias;
+
+	if (flash->spi->mode & SPI_RX_QUAD)
+		mode = SPI_NOR_QUAD;
+	else if (flash->spi->mode & SPI_RX_DUAL)
+		mode = SPI_NOR_DUAL;
+
+	ret = spi_nor_scan(&flash->spi_nor, flash_name, mode);
+
+	return ret;
+}
+#endif
+
+static SIMPLE_DEV_PM_OPS(m25p_pm_ops, m25p_suspend, m25p_resume);
+
 static struct spi_driver m25p80_driver = {
 	.driver = {
 		.name	= "m25p80",
 		.owner	= THIS_MODULE,
+		.pm	= &m25p_pm_ops,
 	},
 	.id_table	= m25p_ids,
 	.probe	= m25p_probe,

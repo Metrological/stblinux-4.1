@@ -1,7 +1,12 @@
+include $(ARCH_CONFIG)
+
+CFG = "--host=$(MACHINE)-linux --prefix=$(ROMFSDIR) \
+ --libdir=$(ROMFSDIR)/lib/$(OSLIB)"
+
 default:
 	make LDFLAGS='$(filter-out -Wl, $(LDFLAGS))' \
 		CFLAGS="-fPIC" \
-		CFG="--host=$(MACHINE)-linux --prefix=$(ROMFSDIR)" -f Makefile
+		CFG=$(CFG) -f Makefile
 	make -f Makefile
 	make -f Makefile install
 
@@ -10,5 +15,5 @@ distclean clean:
 
 romfs:
 	rm -f $(ROMFSDIR)/bin/freetype-config
-	rm -f $(ROMFSDIR)/lib/libfreetype.*a
+	rm -f $(ROMFSDIR)/lib/$(OSLIB)/libfreetype.*a
 	rm -f $(ROMFSDIR)/share/aclocal/freetype.m4

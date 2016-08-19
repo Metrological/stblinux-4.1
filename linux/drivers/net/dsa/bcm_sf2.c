@@ -367,6 +367,15 @@ static int bcm_sf2_port_setup(struct dsa_switch *ds, int port,
 	if (priv->port_sts[port].eee.eee_enabled)
 		bcm_sf2_eee_enable_set(ds, port, true);
 
+	/* Set per-queue pause threshold to 32 */
+	core_writel(priv, 32, CORE_TXQ_THD_PAUSE_QN_PORT(port));
+
+	/* Set ACB threshold to 24 */
+	reg = acb_readl(priv, ACB_QUEUE_CFG(port * 8));
+	reg &= ~XOFF_THRESHOLD_MASK;
+	reg |= 24;
+	acb_writel(priv, reg, ACB_QUEUE_CFG(port * 8));
+
 	return 0;
 }
 
@@ -766,6 +775,11 @@ static int bcm_sf2_sw_setup(struct dsa_switch *ds)
 		else
 			bcm_sf2_port_disable(ds, port, NULL);
 	}
+
+	/* Enable ACB globally */
+	reg = acb_readl(priv, ACB_CONTROL);
+	reg |= ACB_EN | ACB_ALGORITHM;
+	acb_writel(priv, reg, ACB_CONTROL);
 
 	/* Include the pseudo-PHY address and the broadcast PHY address to
 	 * divert reads towards our workaround. This is only required for

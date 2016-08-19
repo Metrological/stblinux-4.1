@@ -75,6 +75,7 @@ config BRCMSTB_WKTMR
 # Perform memory hashing before entering S3, using XPT DMA
 config BRCMSTB_XPT_HASH
 	select BRCMSTB_MEMORY_API
+	default y
 	bool
 
 config BRCMSTB_NEXUS_API

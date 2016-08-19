@@ -3,6 +3,7 @@
 .target
 .arch
 config.arch
+config.arch.32
 config/.config*
 config/autoconf.h
 config/scripts/lxdialog/lxdialog
@@ -15,6 +16,8 @@ tmp/
 user/busybox/applets/usage_pod
 user/busybox/busybox.links
 user/busybox/docs/busybox.net/
+
+user/cpufrequtils/libcpufreq.a
 
 user/e2fsprogs/e2fsck/crc32table.h
 user/e2fsprogs/e2fsck/gen_crc32table

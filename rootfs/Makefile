@@ -99,6 +99,7 @@ rootfs: .target chkpath
 		cp -a skel romfs || exit 1 ; \
 		chmod -R a+x romfs/{bin,sbin} ; \
 		mkdir -p romfs/{bin,sbin,etc,dev,proc,sys,lib,root,tmp} ; \
+		mkdir -p romfs/lib/$(OSLIB); \
 		mkdir -p romfs/lib/modules ; \
 		mkdir -p romfs/mnt/{hd,usb,flash,nfs} ; \
 		mkdir -p romfs/var/{log,run,tmp} romfs/{opt,data} ; \
@@ -356,7 +357,7 @@ distclean:
 		$(MAKE) -C config clean ; \
 	fi
 	rm -rf romfs tmp
-	rm -f $(CONFIG_CONFIG) $(ARCH_CONFIG) .target .arch
+	rm -f $(CONFIG_CONFIG) $(ARCH_CONFIG) $(ARCH_CONFIG).32 .target .arch
 
 #############################################################################
 # INFORMATIONAL TARGETS

@@ -34,11 +34,11 @@ clean distclean::
 romfs:
 	-$(RM) -f $(ROMFSDIR)/lib/libelf.so*
 	cp -af libelf/libelf.so libelf/libelf.so*[0-9] \
-		$(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libelf.so
+		$(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libelf.so
 	cp -af libdw/libdw.so libdw/libdw.so*[0-9] \
-		$(ROMFSDIR)/lib/
-	$(STRIP) $(ROMFSDIR)/lib/libdw.so
+		$(ROMFSDIR)/lib/$(OSLIB)/
+	$(STRIP) $(ROMFSDIR)/lib/$(OSLIB)/libdw.so
 
 # These targets must not be passed through to the original Makefile
 .PHONY: $(BOGUS_TARGETS)

@@ -6,7 +6,7 @@ cat > cap_names.h <<EOF
  *
  *     <linux/capability.h>
  */
-#define __CAP_BITS   35
+#define __CAP_BITS   37
 
 #ifdef LIBCAP_PLEASE_INCLUDE_ARRAY
   char const *_cap_names[__CAP_BITS] = {
@@ -45,6 +45,8 @@ cat > cap_names.h <<EOF
       /* 32 */	"cap_mac_override",
       /* 33 */	"cap_mac_admin",
       /* 34 */	"cap_syslog",
+      /* 35 */	"cap_wake_alarm",
+      /* 36 */	"cap_block_suspend",
   };
 #endif /* LIBCAP_PLEASE_INCLUDE_ARRAY */
 

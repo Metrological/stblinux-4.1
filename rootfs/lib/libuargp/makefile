@@ -3,9 +3,9 @@
 #
 
 # for $(CROSS), $(CC), $(STRIPTOOL)
-include $(ROOTDIR)/config.arch
+include $(ARCH_CONFIG)
 
-BOGUS_TARGETS		:= FORCE makefile $(ROOTDIR)/config.arch
+BOGUS_TARGETS		:= FORCE makefile $(ARCH_CONFIG)
 
 CFLAGS			:= -Os -I.
 
@@ -25,9 +25,9 @@ all::
 
 .PHONY: romfs
 romfs::
-	$(ROMFSINST) -e CONFIG_LIB_UARGP /lib/libuargp.so.1.0.1
+	$(ROMFSINST) -e CONFIG_LIB_UARGP /lib/$(OSLIB)/libuargp.so.1.0.1
 	$(ROMFSINST) -e CONFIG_LIB_UARGP -s libuargp.so.1.0.1 \
-		/lib/libuargp.so
+		/lib/$(OSLIB)/libuargp.so
 
 .PHONY: clean distclean
 clean distclean::

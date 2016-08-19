@@ -29,7 +29,6 @@
 #include <linux/clkdev.h>
 #include <linux/clk-provider.h>
 #include <linux/syscore_ops.h>
-#include <linux/brcmstb/brcmstb.h>
 
 static bool shut_off_unused_clks = true;
 static int bcm_full_clk = 2;

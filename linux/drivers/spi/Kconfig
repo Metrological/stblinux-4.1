@@ -645,6 +645,27 @@ config SPI_BRCMSTB
 	help
 	  Say Y to enable support for SPI (serial) flash devices.
 
+config SPI_BCM_QSPI
+	tristate "Broadcom BSPI and MSPI controller support"
+	depends on ARCH_BRCMSTB || ARCH_BCM || ARCH_BCM_NSP || \
+			ARCH_BCM_CYGNUS || COMPILE_TEST
+	default SPI_BRCMSTB
+
+	help
+	  Enables support for the Broadcom SPI flash and MSPI controller.
+	  Select this option for any one of BRCMSTB, Cygnus, NSP, NS2 SoCs
+	  based platforms. This driver works for both SPI master for spi-nor
+	  flash device as well as MSPI device.
+	  Say Y to enable support for BRCMSTB MSPI and SPI flash devices.
+
+config SPI_BRCMSTB_MSPI
+	tristate "Broadcom MSPI master support for STB chips"
+	depends on (SPI_BCM_QSPI && BCM7120_L2_IRQ) || COMPILE_TEST
+	default n
+	help
+	  Enables support for the Broadcom MSPI controller.  Currently only
+	  supports BRCMSTB.
+
 #
 # There are lots of SPI device types, with sensors and memory
 # being probably the most widely used ones.

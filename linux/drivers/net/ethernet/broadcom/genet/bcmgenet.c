@@ -1325,6 +1325,14 @@ static unsigned int __bcmgenet_tx_reclaim(struct net_device *dev,
 	unsigned int txbds_ready;
 	unsigned int txbds_processed = 0;
 
+	/* Clear status before servicing to reduce spurious interrupts */
+	if (ring->index == DESC_INDEX)
+		bcmgenet_intrl2_0_writel(priv, UMAC_IRQ_TXDMA_DONE,
+					 INTRL2_CPU_CLEAR);
+	else
+		bcmgenet_intrl2_1_writel(priv, (1 << ring->index),
+					 INTRL2_CPU_CLEAR);
+
 	/* Compute how many buffers are transmitted since last xmit call */
 	c_index = bcmgenet_tdma_ring_readl(priv, ring->index, TDMA_CONS_INDEX)
 		& DMA_C_INDEX_MASK;
@@ -1361,7 +1369,7 @@ static unsigned int __bcmgenet_tx_reclaim(struct net_device *dev,
 	}
 
 	ring->free_bds += txbds_processed;
-	ring->c_index = (ring->c_index + txbds_processed) & DMA_C_INDEX_MASK;
+	ring->c_index = c_index;
 
 	dev->stats.tx_packets += pkts_compl;
 	dev->stats.tx_bytes += bytes_compl;
@@ -1372,7 +1380,7 @@ static unsigned int __bcmgenet_tx_reclaim(struct net_device *dev,
 			netif_tx_wake_queue(txq);
 	}
 
-	return pkts_compl;
+	return txbds_processed;
 }
 
 static unsigned int bcmgenet_tx_reclaim(struct net_device *dev,
@@ -1736,6 +1744,15 @@ static unsigned int bcmgenet_desc_rx(struct bcmgenet_rx_ring *ring,
 	unsigned int discards;
 	unsigned int chksum_ok = 0;
 
+	/* Clear status before servicing to reduce spurious interrupts */
+	if (ring->index == DESC_INDEX)
+		bcmgenet_intrl2_0_writel(priv, UMAC_IRQ_RXDMA_DONE,
+			INTRL2_CPU_CLEAR);
+	else
+		bcmgenet_intrl2_1_writel(priv,
+			1 << (UMAC_IRQ1_RX_INTR_SHIFT + ring->index),
+			INTRL2_CPU_CLEAR);
+
 	p_index = bcmgenet_rdma_ring_readl(priv, ring->index, RDMA_PROD_INDEX);
 
 	discards = (p_index >> DMA_P_INDEX_DISCARD_CNT_SHIFT) &
@@ -2012,8 +2029,6 @@ static int init_umac(struct bcmgenet_priv *priv)
 	int ret;
 	u32 reg;
 	u32 int0_enable = 0;
-	u32 int1_enable = 0;
-	int i;
 
 	dev_dbg(&priv->pdev->dev, "bcmgenet: init_umac\n");
 
@@ -2040,12 +2055,6 @@ static int init_umac(struct bcmgenet_priv *priv)
 
 	bcmgenet_intr_disable(priv);
 
-	/* Enable Rx default queue 16 interrupts */
-	int0_enable |= UMAC_IRQ_RXDMA_DONE;
-
-	/* Enable Tx default queue 16 interrupts */
-	int0_enable |= UMAC_IRQ_TXDMA_DONE;
-
 	/* Configure backpressure vectors for MoCA */
 	if (priv->phy_interface == PHY_INTERFACE_MODE_MOCA) {
 		reg = bcmgenet_bp_mc_get(priv);
@@ -2063,16 +2072,7 @@ static int init_umac(struct bcmgenet_priv *priv)
 	if (priv->hw_params->flags & GENET_HAS_MDIO_INTR)
 		int0_enable |= (UMAC_IRQ_MDIO_DONE | UMAC_IRQ_MDIO_ERROR);
 
-	/* Enable Rx priority queue interrupts */
-	for (i = 0; i < priv->hw_params->rx_queues; ++i)
-		int1_enable |= (1 << (UMAC_IRQ1_RX_INTR_SHIFT + i));
-
-	/* Enable Tx priority queue interrupts */
-	for (i = 0; i < priv->hw_params->tx_queues; ++i)
-		int1_enable |= (1 << i);
-
 	bcmgenet_intrl2_0_writel(priv, int0_enable, INTRL2_CPU_MASK_CLEAR);
-	bcmgenet_intrl2_1_writel(priv, int1_enable, INTRL2_CPU_MASK_CLEAR);
 
 	dev_dbg(kdev, "done init umac\n");
 
@@ -2205,21 +2205,32 @@ static void bcmgenet_init_tx_napi(struct bcmgenet_priv *priv)
 static void bcmgenet_enable_tx_napi(struct bcmgenet_priv *priv)
 {
 	unsigned int i;
+	u32 int0_enable = UMAC_IRQ_TXDMA_DONE;
+	u32 int1_enable = 0;
 	struct bcmgenet_tx_ring *ring;
 
 	for (i = 0; i < priv->hw_params->tx_queues; ++i) {
 		ring = &priv->tx_rings[i];
 		napi_enable(&ring->napi);
+		int1_enable |= (1 << i);
 	}
 
 	ring = &priv->tx_rings[DESC_INDEX];
 	napi_enable(&ring->napi);
+
+	bcmgenet_intrl2_0_writel(priv, int0_enable, INTRL2_CPU_MASK_CLEAR);
+	bcmgenet_intrl2_1_writel(priv, int1_enable, INTRL2_CPU_MASK_CLEAR);
 }
 
 static void bcmgenet_disable_tx_napi(struct bcmgenet_priv *priv)
 {
 	unsigned int i;
+	u32 int0_disable = UMAC_IRQ_TXDMA_DONE;
+	u32 int1_disable = 0xffff;
 	struct bcmgenet_tx_ring *ring;
+
+	bcmgenet_intrl2_0_writel(priv, int0_disable, INTRL2_CPU_MASK_SET);
+	bcmgenet_intrl2_1_writel(priv, int1_disable, INTRL2_CPU_MASK_SET);
 
 	for (i = 0; i < priv->hw_params->tx_queues; ++i) {
 		ring = &priv->tx_rings[i];
@@ -2333,21 +2344,32 @@ static void bcmgenet_init_rx_napi(struct bcmgenet_priv *priv)
 static void bcmgenet_enable_rx_napi(struct bcmgenet_priv *priv)
 {
 	unsigned int i;
+	u32 int0_enable = UMAC_IRQ_RXDMA_DONE;
+	u32 int1_enable = 0;
 	struct bcmgenet_rx_ring *ring;
 
 	for (i = 0; i < priv->hw_params->rx_queues; ++i) {
 		ring = &priv->rx_rings[i];
 		napi_enable(&ring->napi);
+		int1_enable |= (1 << (UMAC_IRQ1_RX_INTR_SHIFT + i));
 	}
 
 	ring = &priv->rx_rings[DESC_INDEX];
 	napi_enable(&ring->napi);
+
+	bcmgenet_intrl2_0_writel(priv, int0_enable, INTRL2_CPU_MASK_CLEAR);
+	bcmgenet_intrl2_1_writel(priv, int1_enable, INTRL2_CPU_MASK_CLEAR);
 }
 
 static void bcmgenet_disable_rx_napi(struct bcmgenet_priv *priv)
 {
 	unsigned int i;
+	u32 int0_disable = UMAC_IRQ_RXDMA_DONE;
+	u32 int1_disable = 0xffff << UMAC_IRQ1_RX_INTR_SHIFT;
 	struct bcmgenet_rx_ring *ring;
+
+	bcmgenet_intrl2_0_writel(priv, int0_disable, INTRL2_CPU_MASK_SET);
+	bcmgenet_intrl2_1_writel(priv, int1_disable, INTRL2_CPU_MASK_SET);
 
 	for (i = 0; i < priv->hw_params->rx_queues; ++i) {
 		ring = &priv->rx_rings[i];

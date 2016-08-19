@@ -63,7 +63,6 @@ my %arch_config_options = (
 	"MACHINE"         => "",
 	"ARCH"            => "",
 	"CROSS_COMPILE"   => "",
-	"LIB_SUFFIX"	  => "",
 );
 
 my @patchlist = ("lttng", "newubi");
@@ -226,7 +225,7 @@ sub get_tgt($)
 		die "no target specified";
 	}
 
-	unless($tgt =~ m/^(arm64|bmips|[0-9]+[a-z][0-9])(_be)?(-\S+)?$/) {
+	unless($tgt =~ m/^(arm64|arm|bmips|[0-9]+[a-z][0-9])(_be)?(-\S+)?$/) {
 		die "invalid target format: $tgt";
 	}
 
@@ -256,10 +255,16 @@ sub populate_linux_defaults($$)
 			$linux_defaults =~ s/defconfig$/hardened_defconfig/;
 		}
 		$arch_config_options{"ARCH"} = "arm64";
-		$arch_config_options{"LIB_SUFFIX"} = "64";
 		$linux_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_defconfig";
 		$linux_new_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_new_defconfig";
-	} elsif(-d "$LINUXDIR/include/linux/brcmstb/${chip}") {
+	} elsif($chip eq "arm") {
+		if (grep(/^hardened$/, @mods)) {
+			$linux_defaults =~ s/defconfig$/hardened_defconfig/;
+		}
+		$arch_config_options{"ARCH"} = "arm";
+		$linux_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_defconfig";
+		$linux_new_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_new_defconfig";
+	} elsif ($chip ne "bmips") {
 		if (grep(/^hardened$/, @mods)) {
 			$linux_defaults =~ s/defconfig$/hardened_defconfig/;
 		}
@@ -268,7 +273,6 @@ sub populate_linux_defaults($$)
 				$arch_config_options{"ARCH"} = "arm";
 			} else {
 				$arch_config_options{"ARCH"} = "arm64";
-				$arch_config_options{"LIB_SUFFIX"} = "64";
 			}
 		} else {
 			$arch_config_options{"ARCH"} = "arm";
@@ -471,11 +475,47 @@ sub test_opt($$)
 	exit $result;
 }
 
-sub gen_arch_config($)
+sub gen_arch_config($$)
 {
 	my $arch = shift;
+	my $be = shift;
 	my $out = "";
 
+	# overrides based on endian/arch setting
+	if($be == 0) {
+		if ($arch eq "arm64") {
+			$arch_config_options{"MACHINE"} = "aarch64";
+		} elsif ($arch eq "arm") {
+			$arch_config_options{"MACHINE"} = "arm";
+		} else {
+			$arch_config_options{"MACHINE"} = "mipsel";
+		}
+	} else {
+		if ($arch eq "arm64") {
+			$arch_config_options{"MACHINE"} = "aarch64_be";
+		} elsif ($arch eq "armeb") {
+			$arch_config_options{"MACHINE"} = "arm";
+		} else {
+			$arch_config_options{"MACHINE"} = "mips";
+		}
+	}
+	$arch_config_options{"CROSS_COMPILE"} = qq($arch_config_options{"MACHINE"}-linux-);
+	if($arch_config_options{"LIBCDIR"} eq "uClibc") {
+		if($arch eq "arm") {
+			$arch_config_options{"CROSS_COMPILE"} .= "uclibceabi-";
+		} else {
+			$arch_config_options{"CROSS_COMPILE"} .= "uclibc-"
+		}
+	} else {  # (e)glibc
+		if($arch eq "arm") {
+			$arch_config_options{"CROSS_COMPILE"} .= "gnueabihf-";
+		} else {
+			$arch_config_options{"CROSS_COMPILE"} .= "gnu-";
+		}
+	}
+	$arch_config_options{"ARCH"} = $arch;
+
+	# generate arch_config file
 	unlink($arch_config);
 	open(IN, "<$arch_defaults") or
 		die "can't open $arch_defaults: $!";
@@ -850,13 +890,6 @@ sub cmd_defaults($)
 		$uclibc{"ARCH_WANTS_LITTLE_ENDIAN"} = "y";
 		$uclibc{"ARCH_BIG_ENDIAN"} = "n";
 		$uclibc{"ARCH_WANTS_BIG_ENDIAN"} = "n";
-		if ($arch_config_options{"ARCH"} eq "arm64") {
-			$arch_config_options{"MACHINE"} = "aarch64";
-		} elsif ($arch_config_options{"ARCH"} eq "arm") {
-			$arch_config_options{"MACHINE"} = "arm";
-		} else {
-			$arch_config_options{"MACHINE"} = "mipsel";
-		}
 	} else {
 		$linux{"CONFIG_CPU_LITTLE_ENDIAN"} = "n";
 		$linux{"CONFIG_CPU_BIG_ENDIAN"} = "y";
@@ -865,34 +898,20 @@ sub cmd_defaults($)
 		$uclibc{"ARCH_WANTS_LITTLE_ENDIAN"} = "n";
 		$uclibc{"ARCH_BIG_ENDIAN"} = "y";
 		$uclibc{"ARCH_WANTS_BIG_ENDIAN"} = "y";
-		if ($arch_config_options{"ARCH"} eq "arm64") {
-			$arch_config_options{"MACHINE"} = "aarch64_be";
-		} elsif ($arch_config_options{"ARCH"} eq "armeb") {
-			$arch_config_options{"MACHINE"} = "arm";
-		} else {
-			$arch_config_options{"MACHINE"} = "mips";
-		}
 	}
 
-	$arch_config_options{"CROSS_COMPILE"} = qq($arch_config_options{"MACHINE"}-linux-);
-	if($arch_config_options{"LIBCDIR"} eq "uClibc") {
-		if($arch_config_options{"ARCH"} eq "arm") {
-			$arch_config_options{"CROSS_COMPILE"} .= "uclibceabi-";
-		} else {
-			$arch_config_options{"CROSS_COMPILE"} .= "uclibc-"
-		}
-	} else {  # (e)glibc
-		if($arch_config_options{"ARCH"} eq "arm") {
-			$arch_config_options{"CROSS_COMPILE"} .= "gnueabihf-";
-		} else {
-			$arch_config_options{"CROSS_COMPILE"} .= "gnu-";
-		}
+	if ($arch_config_options{"ARCH"} eq "arm64") {
+		my $orig_arch_config = $arch_config;
+		$arch_config = $orig_arch_config.".32";
+		gen_arch_config("arm", $be);
+		$arch_config_options{"ARCH"} = "arm64";
+		$arch_config = $orig_arch_config;
 	}
+	gen_arch_config($arch_config_options{"ARCH"}, $be);
+
 	$uclibc{"CROSS_COMPILER_PREFIX"} = '"'.$arch_config_options{"CROSS_COMPILE"}.'"';
 	$busybox{"CONFIG_CROSS_COMPILER_PREFIX"} = '"'.$arch_config_options{"CROSS_COMPILE"}.'"';
 	$linux{"CONFIG_CROSS_COMPILE"} = '"'.$arch_config_options{"CROSS_COMPILE"}.'"';
-
-	gen_arch_config($arch_config_options{"ARCH"});
 
 	# misc
 

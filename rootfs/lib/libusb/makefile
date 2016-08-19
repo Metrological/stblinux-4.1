@@ -1,7 +1,8 @@
-include $(ROOTDIR)/config.arch
+include $(ARCH_CONFIG)
 
 all:
-	./configure --host=$(MACHINE)-linux --prefix=$(ROMFSDIR)
+	./configure --host=$(MACHINE)-linux --prefix=$(ROMFSDIR) \
+		    --libdir=$(ROMFSDIR)/lib/$(OSLIB)
 	make -f Makefile SUBDIRS="."
 
 all-% install-% clean-% distclean-%:
@@ -18,3 +19,4 @@ romfs:
 	make -f Makefile install SUBDIRS="."
 
 .PHONY: all clean distclean romfs all-% install-% clean-% distclean-%
+.PHONY: $(ARCH_CONFIG)
