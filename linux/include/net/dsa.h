@@ -121,6 +121,8 @@ struct dsa_switch_tree {
 	struct dsa_switch	*ds[DSA_MAX_SWITCHES];
 };
 
+struct netlink_callback;
+
 struct dsa_switch {
 	/*
 	 * Parent switch tree, and switch index.
@@ -302,6 +304,9 @@ struct dsa_switch_driver {
 			   const unsigned char *addr, u16 vid);
 	int	(*fdb_getnext)(struct dsa_switch *ds, int port,
 			       unsigned char *addr, bool *is_static);
+	int	(*fdb_dump)(struct dsa_switch *ds, int port,
+			    struct net_device *dev, struct sk_buff *skb,
+			    struct netlink_callback *cb, int idx);
 };
 
 void register_switch_driver(struct dsa_switch_driver *type);
@@ -317,4 +322,10 @@ static inline bool dsa_uses_tagged_protocol(struct dsa_switch_tree *dst)
 {
 	return dst->rcv != NULL;
 }
+
+int dsa_slave_fill_info(struct net_device *dev, struct sk_buff *skb,
+			       const unsigned char *addr, u16 vid,
+			       bool is_static,
+			       u32 portid, u32 seq, int type,
+			       unsigned int flags);
 #endif

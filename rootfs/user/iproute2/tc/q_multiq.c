@@ -12,14 +12,13 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 59 Temple
- * Place - Suite 330, Boston, MA 02111-1307 USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
  *
  * Author: Alexander Duyck <alexander.h.duyck@intel.com>
  *
  * Original Authors:	PJ Waskiewicz, <peter.p.waskiewicz.jr@intel.com> (RR)
- * 			Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru> (from PRIO)
+ *			Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru> (from PRIO)
  *
  */
 
@@ -41,14 +40,12 @@ static void explain(void)
 	fprintf(stderr, "Usage: ... multiq [help]\n");
 }
 
-#define usage() return(-1)
-
 static int multiq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			    struct nlmsghdr *n)
 {
 	struct tc_multiq_qopt opt;
 
-	if (argc > 0) {
+	if (argc) {
 		if (strcmp(*argv, "help") == 0) {
 			explain();
 			return -1;
@@ -57,14 +54,13 @@ static int multiq_parse_opt(struct qdisc_util *qu, int argc, char **argv,
 			explain();
 			return -1;
 		}
-		argc--; argv++;
 	}
 
 	addattr_l(n, 1024, TCA_OPTIONS, &opt, sizeof(opt));
 	return 0;
 }
 
-int multiq_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
+static int multiq_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
 	struct tc_multiq_qopt *qopt;
 

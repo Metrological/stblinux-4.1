@@ -12,9 +12,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 59 Temple
- * Place - Suite 330, Boston, MA 02111-1307 USA.
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
  *
  * Authors:	Alexander Duyck <alexander.h.duyck@intel.com>
  *
@@ -31,10 +30,13 @@
 static void
 explain(void)
 {
-	fprintf(stderr, "Usage: ... skbedit "
-			"queue_mapping QUEUE_MAPPING | priority PRIORITY \n"
-			"QUEUE_MAPPING = device transmit queue to use\n"
-			"PRIORITY = classID to assign to priority field\n");
+	fprintf(stderr, "Usage: ... skbedit <[QM] [PM] [MM]>\n"
+		"QM = queue_mapping QUEUE_MAPPING\n"
+		"PM = priority PRIORITY \n"
+		"MM = mark MARK \n"
+		"QUEUE_MAPPING = device transmit queue to use\n"
+		"PRIORITY = classID to assign to priority field\n"
+		"MARK = firewall mark to set\n");
 }
 
 static void
@@ -54,7 +56,7 @@ parse_skbedit(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 	struct rtattr *tail;
 	unsigned int tmp;
 	__u16 queue_mapping;
-	__u32 flags = 0, priority;
+	__u32 flags = 0, priority, mark;
 	struct tc_skbedit sel = { 0 };
 
 	if (matches(*argv, "skbedit") != 0)
@@ -80,6 +82,14 @@ parse_skbedit(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 				return -1;
 			}
 			ok++;
+		} else if (matches(*argv, "mark") == 0) {
+			flags |= SKBEDIT_F_MARK;
+			NEXT_ARG();
+			if (get_u32(&mark, *argv, 0)) {
+				fprintf(stderr, "Illegal mark\n");
+				return -1;
+			}
+			ok++;
 		} else if (matches(*argv, "help") == 0) {
 			usage();
 		} else {
@@ -89,6 +99,7 @@ parse_skbedit(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 		argv++;
 	}
 
+	sel.action = TC_ACT_PIPE;
 	if (argc) {
 		if (matches(*argv, "reclassify") == 0) {
 			sel.action = TC_ACT_RECLASSIFY;
@@ -137,6 +148,9 @@ parse_skbedit(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 	if (flags & SKBEDIT_F_PRIORITY)
 		addattr_l(n, MAX_MSG, TCA_SKBEDIT_PRIORITY,
 			  &priority, sizeof(priority));
+	if (flags & SKBEDIT_F_MARK)
+		addattr_l(n, MAX_MSG, TCA_SKBEDIT_MARK,
+			  &mark, sizeof(mark));
 	tail->rta_len = (char *)NLMSG_TAIL(n) - (char *)tail;
 
 	*argc_p = argc;
@@ -146,11 +160,12 @@ parse_skbedit(struct action_util *a, int *argc_p, char ***argv_p, int tca_id,
 
 static int print_skbedit(struct action_util *au, FILE *f, struct rtattr *arg)
 {
-	struct tc_skbedit *sel;
 	struct rtattr *tb[TCA_SKBEDIT_MAX + 1];
 	SPRINT_BUF(b1);
 	__u32 *priority;
+	__u32 *mark;
 	__u16 *queue_mapping;
+	struct tc_skbedit *p = NULL;
 
 	if (arg == NULL)
 		return -1;
@@ -161,8 +176,7 @@ static int print_skbedit(struct action_util *au, FILE *f, struct rtattr *arg)
 		fprintf(f, "[NULL skbedit parameters]");
 		return -1;
 	}
-
-	sel = RTA_DATA(tb[TCA_SKBEDIT_PARMS]);
+	p = RTA_DATA(tb[TCA_SKBEDIT_PARMS]);
 
 	fprintf(f, " skbedit");
 
@@ -174,6 +188,12 @@ static int print_skbedit(struct action_util *au, FILE *f, struct rtattr *arg)
 		priority = RTA_DATA(tb[TCA_SKBEDIT_PRIORITY]);
 		fprintf(f, " priority %s", sprint_tc_classid(*priority, b1));
 	}
+	if (tb[TCA_SKBEDIT_MARK] != NULL) {
+		mark = RTA_DATA(tb[TCA_SKBEDIT_MARK]);
+		fprintf(f, " mark %d", *mark);
+	}
+
+	fprintf(f, "\n\t index %d ref %d bind %d", p->index, p->refcnt, p->bindcnt);
 
 	if (show_stats) {
 		if (tb[TCA_SKBEDIT_TM]) {
@@ -181,6 +201,8 @@ static int print_skbedit(struct action_util *au, FILE *f, struct rtattr *arg)
 			print_tm(f, tm);
 		}
 	}
+
+	fprintf(f, "\n ");
 
 	return 0;
 }

@@ -366,6 +366,7 @@ if [ "$CONFIG_USER_IPROUTE2" = "y" ]; then
 	bool '  ifstat'		CONFIG_USER_IPROUTE2_MISC_IFSTAT
 	bool '  lnstat'		CONFIG_USER_IPROUTE2_MISC_LNSTAT
 	bool '  genl'		CONFIG_USER_IPROUTE2_GENL
+	bool '  bridge'		CONFIG_USER_IPROUTE2_BRIDGE
 fi
 
 bool 'iptables'			CONFIG_USER_IPTABLES_IPTABLES

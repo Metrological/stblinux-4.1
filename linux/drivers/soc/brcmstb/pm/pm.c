@@ -574,11 +574,6 @@ static int configure_main_hash(struct dma_region *regions, int max,
 	sort(exclude, num_exclude, sizeof(exclude[0]), &dma_region_compare,
 			NULL);
 
-	/* Make sure that phys_addr_t is large enough compared to the
-	 * range address encoding
-	 */
-	BUILD_BUG_ON(sizeof(phys_addr_t) < sizeof(range->addr));
-
 	/*
 	 * Hash up to MAX_HASH_SIZE_BANK from each memory bank, with a
 	 * total limit of MAX_HASH_SIZE. Account for collisions with the
@@ -930,6 +925,11 @@ struct ddr_phy_ofdata {
 	size_t pll_status_offset;
 };
 
+static struct ddr_phy_ofdata ddr_phy_71_1 = {
+	.supports_warm_boot = false,
+	.pll_status_offset = 0x0c
+};
+
 static struct ddr_phy_ofdata ddr_phy_72_0 = {
 	.supports_warm_boot = false,
 	.pll_status_offset = 0x10
@@ -946,6 +946,10 @@ static struct ddr_phy_ofdata ddr_phy_240_1 = {
 };
 
 static const struct of_device_id ddr_phy_dt_ids[] = {
+	{
+		.compatible = "brcm,brcmstb-ddr-phy-v71.1",
+		.data = &ddr_phy_71_1,
+	},
 	{
 		.compatible = "brcm,brcmstb-ddr-phy-v72.0",
 		.data = &ddr_phy_72_0,

@@ -144,6 +144,8 @@ Control registers for this memory controller's DDR PHY.
 
 Required properties:
 - compatible     : should contain one of these
+	"brcm,brcmstb-ddr-phy-v71.1"
+	"brcm,brcmstb-ddr-phy-v72.0"
 	"brcm,brcmstb-ddr-phy-v225.1"
 	"brcm,brcmstb-ddr-phy-v240.1"
 	"brcm,brcmstb-ddr-phy-v240.2"
@@ -163,11 +165,46 @@ Required properties:
 Sequencer DRAM parameters and control registers. Used for Self-Refresh
 Power-Down (SRPD), among other things.
 
+It is recommended to always include "brcm,brcmstb-memc-ddr" as the last
+compatible string for any memory controller. The most version specific
+compatible string should be listed first. For revision b.1.3, it is also
+recommended to add "brcm,brcmstb-memc-ddr-rev-b.1.x" as the second to last
+compatible string.
+
 Required properties:
-- compatible     : should contain "brcm,brcmstb-memc-ddr"
+- compatible     : should contain one or more of these
+	"brcm,brcmstb-memc-ddr-rev-b.2.1"
+	"brcm,brcmstb-memc-ddr-rev-b.2.0"
+	"brcm,brcmstb-memc-ddr-rev-b.1.3"
+	"brcm,brcmstb-memc-ddr-rev-b.1.x"
+	"brcm,brcmstb-memc-ddr"
+
+- reg            : the MEMC DDR register range
+
+== MEMC GEN
+
+Testability Registers (MSA, CRC, etc) Registers. Used to access the hardware
+revision ID of the memory controller and other low-level information and
+settings.
+
+It is recommended to use the generic compatible string
+"brcm,brcmstb-memc-gen" whenever possible.
+
+Required properties:
+- compatible     : should contain one or more of these
+	"brcm,brcmstb-memc-gen-rev-b.2.1"
+	"brcm,brcmstb-memc-gen-rev-b.2.0"
+	"brcm,brcmstb-memc-gen-rev-b.1.3"
+	"brcm,brcmstb-memc-gen"
+
 - reg            : the MEMC DDR register range
 
 Example:
+
+Please note that revisions of memc-ddr and memc-gen would not actually be
+different between memory controllers within the same chip. Different
+revisions are shown below to illustrate the different compatible strings
+supported.
 
 memory_controllers {
 	ranges;
@@ -189,7 +226,13 @@ memory_controllers {
 
 		memc-ddr@f1102000 {
 			reg = <0xf1102000 0x800>;
-			compatible = "brcm,brcmstb-memc-ddr";
+			compatible = "brcm,brcmstb-memc-ddr-rev-b.2.1",
+				"brcm,brcmstb-memc-ddr";
+		};
+		memc-gen@f1100000 {
+			compatible = "brcm,brcmstb-memc-gen-rev-b.2.1",
+				brcm,brcmstb-memc-gen";
+			reg = <0xf1100000 0x800>;
 		};
 	};
 
@@ -209,7 +252,13 @@ memory_controllers {
 
 		memc-ddr@f1182000 {
 			reg = <0xf1182000 0x800>;
-			compatible = "brcm,brcmstb-memc-ddr";
+			compatible = "brcm,brcmstb-memc-ddr-rev-b.2.0",
+				"brcm,brcmstb-memc-ddr";
+		};
+		memc-gen@f1180000 {
+			compatible = "brcm,brcmstb-memc-gen-rev-b.2.0",
+				brcm,brcmstb-memc-gen";
+			reg = <0xf1180000 0x800>;
 		};
 	};
 
@@ -229,7 +278,15 @@ memory_controllers {
 
 		memc-ddr@f1202000 {
 			reg = <0xf1202000 0x800>;
-			compatible = "brcm,brcmstb-memc-ddr";
+			compatible = brcm,brcmstb-memc-ddr-rev-b.1.3",
+				"brcm,brcmstb-memc-ddr-rev-b.1.x",
+				"brcm,brcmstb-memc-ddr";
+		};
+
+		memc-gen@f1200000 {
+			compatible = "brcm,brcmstb-memc-gen-rev-b.1.3",
+				"brcm,brcmstb-memc-gen";
+			reg = <0xf1200000 0x800>;
 		};
 	};
 };

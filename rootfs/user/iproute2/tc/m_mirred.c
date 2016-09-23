@@ -26,8 +26,6 @@
 #include "tc_common.h"
 #include <linux/tc_act/tc_mirred.h>
 
-int mirred_d = 1;
-
 static void
 explain(void)
 {
@@ -47,7 +45,7 @@ usage(void)
 	exit(-1);
 }
 
-char *mirred_n2a(int action)
+static const char *mirred_n2a(int action)
 {
 	switch (action) {
 	case TCA_EGRESS_REDIR:
@@ -63,8 +61,9 @@ char *mirred_n2a(int action)
 	}
 }
 
-int
-parse_egress(struct action_util *a, int *argc_p, char ***argv_p, int tca_id, struct nlmsghdr *n)
+static int
+parse_egress(struct action_util *a, int *argc_p, char ***argv_p,
+	     int tca_id, struct nlmsghdr *n)
 {
 
 	int argc = *argc_p;
@@ -106,7 +105,7 @@ parse_egress(struct action_util *a, int *argc_p, char ***argv_p, int tca_id, str
 			} else if (!mirror && matches(*argv, "mirror") == 0) {
 				mirror=1;
 				if (redir) {
-					fprintf(stderr, "Cant have both mirror and redir\n");
+					fprintf(stderr, "Can't have both mirror and redir\n");
 					return -1;
 				}
 				p.eaction = TCA_EGRESS_MIRROR;
@@ -115,7 +114,7 @@ parse_egress(struct action_util *a, int *argc_p, char ***argv_p, int tca_id, str
 			} else if (!redir && matches(*argv, "redirect") == 0) {
 				redir=1;
 				if (mirror) {
-					fprintf(stderr, "Cant have both mirror and redir\n");
+					fprintf(stderr, "Can't have both mirror and redir\n");
 					return -1;
 				}
 				p.eaction = TCA_EGRESS_REDIR;
@@ -196,9 +195,6 @@ parse_egress(struct action_util *a, int *argc_p, char ***argv_p, int tca_id, str
 		}
 	}
 
-	if (mirred_d)
-		fprintf(stdout, "Action %d device %s ifindex %d\n",p.action, d,p.ifindex);
-
 	tail = NLMSG_TAIL(n);
 	addattr_l(n, MAX_MSG, tca_id, NULL, 0);
 	addattr_l(n, MAX_MSG, TCA_MIRRED_PARMS, &p, sizeof (p));
@@ -210,22 +206,23 @@ parse_egress(struct action_util *a, int *argc_p, char ***argv_p, int tca_id, str
 }
 
 
-int
-parse_mirred(struct action_util *a, int *argc_p, char ***argv_p, int tca_id, struct nlmsghdr *n)
+static int
+parse_mirred(struct action_util *a, int *argc_p, char ***argv_p,
+	     int tca_id, struct nlmsghdr *n)
 {
 
 	int argc = *argc_p;
 	char **argv = *argv_p;
 
 	if (argc < 0) {
-		fprintf(stderr,"mirred bad arguement count %d\n", argc);
+		fprintf(stderr,"mirred bad argument count %d\n", argc);
 		return -1;
 	}
 
 	if (matches(*argv, "mirred") == 0) {
 		NEXT_ARG();
 	} else {
-		fprintf(stderr,"mirred bad arguement %s\n", *argv);
+		fprintf(stderr,"mirred bad argument %s\n", *argv);
 		return -1;
 	}
 
@@ -250,7 +247,7 @@ parse_mirred(struct action_util *a, int *argc_p, char ***argv_p, int tca_id, str
 
 }
 
-int
+static int
 print_mirred(struct action_util *au,FILE * f, struct rtattr *arg)
 {
 	struct tc_mirred *p;

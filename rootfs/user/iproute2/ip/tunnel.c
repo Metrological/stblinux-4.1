@@ -12,8 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
  */
 /*
  * split from ip_tunnel.c
@@ -26,6 +25,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -51,6 +51,9 @@ const char *tnl_strproto(__u8 proto)
 	case IPPROTO_IPV6:
 		strcpy(buf, "ipv6");
 		break;
+	case IPPROTO_ESP:
+		strcpy(buf, "esp");
+		break;
 	case 0:
 		strcpy(buf, "any");
 		break;
@@ -62,58 +65,6 @@ const char *tnl_strproto(__u8 proto)
 	return buf;
 }
 
-int tnl_ioctl_get_ifindex(const char *dev)
-{
-	struct ifreq ifr;
-	int fd;
-	int err;
-
-	strncpy(ifr.ifr_name, dev, IFNAMSIZ);
-	fd = socket(preferred_family, SOCK_DGRAM, 0);
-	err = ioctl(fd, SIOCGIFINDEX, &ifr);
-	if (err) {
-		perror("ioctl");
-		return 0;
-	}
-	close(fd);
-	return ifr.ifr_ifindex;
-}
-
-int tnl_ioctl_get_iftype(const char *dev)
-{
-	struct ifreq ifr;
-	int fd;
-	int err;
-
-	strncpy(ifr.ifr_name, dev, IFNAMSIZ);
-	fd = socket(preferred_family, SOCK_DGRAM, 0);
-	err = ioctl(fd, SIOCGIFHWADDR, &ifr);
-	if (err) {
-		perror("ioctl");
-		return -1;
-	}
-	close(fd);
-	return ifr.ifr_addr.sa_family;
-}
-
-
-char * tnl_ioctl_get_ifname(int idx)
-{
-	static struct ifreq ifr;
-	int fd;
-	int err;
-
-	ifr.ifr_ifindex = idx;
-	fd = socket(preferred_family, SOCK_DGRAM, 0);
-	err = ioctl(fd, SIOCGIFNAME, &ifr);
-	if (err) {
-		perror("ioctl");
-		return NULL;
-	}
-	close(fd);
-	return ifr.ifr_name;
-}
-
 int tnl_get_ioctl(const char *basedev, void *p)
 {
 	struct ifreq ifr;
@@ -122,10 +73,18 @@ int tnl_get_ioctl(const char *basedev, void *p)
 
 	strncpy(ifr.ifr_name, basedev, IFNAMSIZ);
 	ifr.ifr_ifru.ifru_data = (void*)p;
+
 	fd = socket(preferred_family, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		fprintf(stderr, "create socket failed: %s\n", strerror(errno));
+		return -1;
+	}
+
 	err = ioctl(fd, SIOCGETTUNNEL, &ifr);
 	if (err)
-		perror("ioctl");
+		fprintf(stderr, "get tunnel \"%s\" failed: %s\n", basedev,
+			strerror(errno));
+
 	close(fd);
 	return err;
 }
@@ -141,10 +100,17 @@ int tnl_add_ioctl(int cmd, const char *basedev, const char *name, void *p)
 	else
 		strncpy(ifr.ifr_name, basedev, IFNAMSIZ);
 	ifr.ifr_ifru.ifru_data = p;
+
 	fd = socket(preferred_family, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		fprintf(stderr, "create socket failed: %s\n", strerror(errno));
+		return -1;
+	}
+
 	err = ioctl(fd, cmd, &ifr);
 	if (err)
-		perror("ioctl");
+		fprintf(stderr, "add tunnel \"%s\" failed: %s\n", ifr.ifr_name,
+			strerror(errno));
 	close(fd);
 	return err;
 }
@@ -159,16 +125,25 @@ int tnl_del_ioctl(const char *basedev, const char *name, void *p)
 		strncpy(ifr.ifr_name, name, IFNAMSIZ);
 	else
 		strncpy(ifr.ifr_name, basedev, IFNAMSIZ);
+
 	ifr.ifr_ifru.ifru_data = p;
+
 	fd = socket(preferred_family, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		fprintf(stderr, "create socket failed: %s\n", strerror(errno));
+		return -1;
+	}
+
 	err = ioctl(fd, SIOCDELTUNNEL, &ifr);
 	if (err)
-		perror("ioctl");
+		fprintf(stderr, "delete tunnel \"%s\" failed: %s\n",
+			ifr.ifr_name, strerror(errno));
 	close(fd);
 	return err;
 }
 
-int tnl_prl_ioctl(int cmd, const char *name, void *p)
+static int tnl_gen_ioctl(int cmd, const char *name,
+			 void *p, int skiperr)
 {
 	struct ifreq ifr;
 	int fd;
@@ -176,10 +151,32 @@ int tnl_prl_ioctl(int cmd, const char *name, void *p)
 
 	strncpy(ifr.ifr_name, name, IFNAMSIZ);
 	ifr.ifr_ifru.ifru_data = p;
+
 	fd = socket(preferred_family, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		fprintf(stderr, "create socket failed: %s\n", strerror(errno));
+		return -1;
+	}
+
 	err = ioctl(fd, cmd, &ifr);
-	if (err)
-		perror("ioctl");
+	if (err && errno != skiperr)
+		fprintf(stderr, "%s: ioctl %x failed: %s\n", name,
+			cmd, strerror(errno));
 	close(fd);
 	return err;
+}
+
+int tnl_prl_ioctl(int cmd, const char *name, void *p)
+{
+	return tnl_gen_ioctl(cmd, name, p, -1);
+}
+
+int tnl_6rd_ioctl(int cmd, const char *name, void *p)
+{
+	return tnl_gen_ioctl(cmd, name, p, -1);
+}
+
+int tnl_ioctl_get_6rd(const char *name, void *p)
+{
+	return tnl_gen_ioctl(SIOCGET6RD, name, p, EINVAL);
 }

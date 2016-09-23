@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
  *
  *
  * Based on iprule.c.
@@ -59,7 +58,6 @@ int print_addrlabel(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg
 	FILE *fp = (FILE*)arg;
 	struct ifaddrlblmsg *ifal = NLMSG_DATA(n);
 	int len = n->nlmsg_len;
-	int host_len = -1;
 	struct rtattr *tb[IFAL_MAX+1];
 	char abuf[256];
 
@@ -71,11 +69,6 @@ int print_addrlabel(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg
 		return -1;
 
 	parse_rtattr(tb, IFAL_MAX, IFAL_RTA(ifal), len);
-
-	if (ifal->ifal_family == AF_INET)
-		host_len = 32;
-	else if (ifal->ifal_family == AF_INET6)
-		host_len = 128;
 
 	if (n->nlmsg_type == RTM_DELADDRLABEL)
 		fprintf(fp, "Deleted ");
@@ -92,10 +85,10 @@ int print_addrlabel(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg
 	if (ifal->ifal_index)
 		fprintf(fp, "dev %s ", ll_index_to_name(ifal->ifal_index));
 
-	if (tb[IFAL_LABEL] && RTA_PAYLOAD(tb[IFAL_LABEL]) == sizeof(int32_t)) {
-		int32_t label;
+	if (tb[IFAL_LABEL] && RTA_PAYLOAD(tb[IFAL_LABEL]) == sizeof(uint32_t)) {
+		uint32_t label;
 		memcpy(&label, RTA_DATA(tb[IFAL_LABEL]), sizeof(label));
-		fprintf(fp, "label %d ", label);
+		fprintf(fp, "label %u ", label);
 	}
 
 	fprintf(fp, "\n");
@@ -120,7 +113,7 @@ static int ipaddrlabel_list(int argc, char **argv)
 		return 1;
 	}
 
-	if (rtnl_dump_filter(&rth, print_addrlabel, stdout, NULL, NULL) < 0) {
+	if (rtnl_dump_filter(&rth, print_addrlabel, stdout) < 0) {
 		fprintf(stderr, "Dump terminated\n");
 		return 1;
 	}
@@ -132,15 +125,15 @@ static int ipaddrlabel_list(int argc, char **argv)
 static int ipaddrlabel_modify(int cmd, int argc, char **argv)
 {
 	struct {
-		struct nlmsghdr 	n;
+		struct nlmsghdr	n;
 		struct ifaddrlblmsg	ifal;
-		char   			buf[1024];
+		char  			buf[1024];
 	} req;
 
 	inet_prefix prefix;
 	uint32_t label = 0xffffffffUL;
 	char *p = NULL;
-	char *l = NULL;        
+	char *l = NULL;
 
 	memset(&req, 0, sizeof(req));
 	memset(&prefix, 0, sizeof(prefix));
@@ -189,8 +182,8 @@ static int ipaddrlabel_modify(int cmd, int argc, char **argv)
 	if (req.ifal.ifal_family == AF_UNSPEC)
 		req.ifal.ifal_family = AF_INET6;
 
-	if (rtnl_talk(&rth, &req.n, 0, 0, NULL, NULL, NULL) < 0)
-		return 2;
+	if (rtnl_talk(&rth, &req.n, NULL, 0) < 0)
+		return -2;
 
 	return 0;
 }
@@ -216,7 +209,7 @@ static int flush_addrlabel(const struct sockaddr_nl *who, struct nlmsghdr *n, vo
 		if (rtnl_open(&rth2, 0) < 0)
 			return -1;
 
-		if (rtnl_talk(&rth2, n, 0, 0, NULL, NULL, NULL) < 0)
+		if (rtnl_talk(&rth2, n, NULL, 0) < 0)
 			return -2;
 
 		rtnl_close(&rth2);
@@ -239,12 +232,12 @@ static int ipaddrlabel_flush(int argc, char **argv)
 
 	if (rtnl_wilddump_request(&rth, af, RTM_GETADDRLABEL) < 0) {
 		perror("Cannot send dump request");
-		return 1;
+		return -1;
 	}
 
-	if (rtnl_dump_filter(&rth, flush_addrlabel, NULL, NULL, NULL) < 0) {
+	if (rtnl_dump_filter(&rth, flush_addrlabel, NULL) < 0) {
 		fprintf(stderr, "Flush terminated\n");
-		return 1;
+		return -1;
 	}
 
 	return 0;
@@ -255,6 +248,7 @@ int do_ipaddrlabel(int argc, char **argv)
 	if (argc < 1) {
 		return ipaddrlabel_list(0, NULL);
 	} else if (matches(argv[0], "list") == 0 ||
+		   matches(argv[0], "lst") == 0 ||
 		   matches(argv[0], "show") == 0) {
 		return ipaddrlabel_list(argc-1, argv+1);
 	} else if (matches(argv[0], "add") == 0) {

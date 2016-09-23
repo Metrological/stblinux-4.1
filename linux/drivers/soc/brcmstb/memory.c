@@ -27,6 +27,7 @@
 #include <linux/vmalloc.h>
 #include <linux/vme.h>
 #include <linux/sched.h>
+#include <linux/sizes.h>
 #include <linux/brcmstb/bmem.h>
 #include <linux/brcmstb/cma_driver.h>
 #include <linux/brcmstb/memory_api.h>
@@ -83,6 +84,7 @@ static struct {
  * If the DT nodes are handy, determine which MEMC holds the specified
  * physical address.
  */
+#ifdef CONFIG_ARCH_BRCMSTB
 int brcmstb_memory_phys_addr_to_memc(phys_addr_t pa)
 {
 	int memc = -1;
@@ -125,6 +127,21 @@ cleanup:
 
 	return memc;
 }
+#elif defined(CONFIG_MIPS)
+int brcmstb_memory_phys_addr_to_memc(phys_addr_t pa)
+{
+	/* The logic here is fairly simple and hardcoded: if pa <= 0x5000_0000,
+	 * then this is MEMC0, else MEMC1.
+	 *
+	 * For systems with 2GB on MEMC0, MEMC1 starts at 9000_0000, with 1GB
+	 * on MEMC0, MEMC1 starts at 6000_0000.
+	 */
+	if (pa >= 0x50000000ULL)
+		return 1;
+	else
+		return 0;
+}
+#endif
 
 static int populate_memc(struct brcmstb_memory *mem, int addr_cells,
 		int size_cells)
@@ -195,7 +212,8 @@ static int populate_memc(struct brcmstb_memory *mem, int addr_cells,
 
 static int populate_lowmem(struct brcmstb_memory *mem)
 {
-#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64) || \
+	defined(CONFIG_BMIPS_GENERIC)
 	mem->lowmem.range[0].addr = __pa(PAGE_OFFSET);
 	mem->lowmem.range[0].size = (unsigned long)high_memory - PAGE_OFFSET;
 	++mem->lowmem.count;

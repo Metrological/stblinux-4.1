@@ -169,6 +169,7 @@ config BMIPS_GENERIC
 	select MIPS_GENERIC_PCI
 	select PINCTRL
 	select PINCTRL_SINGLE
+	select SOC_BRCMSTB
 	help
 	  Build a generic DT-based kernel image that boots on select
 	  BCM33xx cable modem chips, BCM63xx DSL chips, and BCM7xxx set-top

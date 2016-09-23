@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -112,9 +112,9 @@ static int cma_get_mem(int fd, uint32_t dev_index, uint32_t num_bytes,
 
 	ret = get_mem_p.status;
 	if (ret == 0)
-		printf("alloc PA=0x%llx LEN=0x%x\n", *addr, num_bytes);
+		printf("alloc PA=0x%"PRIx64" LEN=0x%x\n", *addr, num_bytes);
 	else
-		printf("alloc PA=0x%llx LEN=0x%x failed (%d)\n", *addr,
+		printf("alloc PA=0x%"PRIx64" LEN=0x%x failed (%d)\n", *addr,
 			num_bytes, ret);
 
 	return ret;
@@ -138,9 +138,9 @@ static int cma_put_mem(int fd, uint32_t dev_index, uint64_t addr,
 
 	ret = put_mem_p.status;
 	if (ret == 0)
-		printf("freed PA=0x%llx LEN=0x%x\n", addr, num_bytes);
+		printf("freed PA=0x%"PRIx64" LEN=0x%x\n", addr, num_bytes);
 	else
-		printf("failed to free PA=0x%llx LEN=0x%x (%d)\n", addr,
+		printf("failed to free PA=0x%"PRIx64" LEN=0x%x (%d)\n", addr,
 			num_bytes, ret);
 
 	return ret;
@@ -165,7 +165,7 @@ static int cma_get_phys_info(int fd, uint32_t dev_index, uint64_t *addr,
 		*addr = physinfo_p.addr;
 		*num_bytes = physinfo_p.num_bytes;
 		*memc = physinfo_p.memc;
-		printf("region %-2u   0x%016llx-0x%016llx %12u (MEMC%d)\n",
+		printf("region %-2u   0x%016"PRIx64"-0x%016"PRIx64" %12u (MEMC%d)\n",
 		       dev_index, *addr, *addr + *num_bytes, *num_bytes, *memc);
 	} else
 		printf("getphysinfo failed\n");
@@ -211,7 +211,7 @@ static int cma_get_region_info(int fd, uint32_t dev_index, uint32_t region_num,
 	*num_bytes = getreginfo_p.num_bytes;
 
 	if (!ret) {
-		printf("  alloc     0x%016llx-0x%016llx %12u\n", *addr, *addr+*num_bytes,
+		printf("  alloc     0x%016"PRIx64"-0x%016"PRIx64" %12u\n", *addr, *addr+*num_bytes,
 		       *num_bytes);
 	} else
 		printf("%s failed (%d)\n", __func__, ret);
@@ -292,7 +292,7 @@ static bool exists_region(int fd, uint32_t cma_idx)
 static void __run_unit_tests(int fd, uint32_t cma_idx)
 {
 	int i;
-	uint64_t addr[32];
+	uint64_t addr[32], max_align = 16 * 1024 * 1024;
 	uint32_t len[32];
 	uint32_t x;
 	uint64_t y;
@@ -342,13 +342,60 @@ static void __run_unit_tests(int fd, uint32_t cma_idx)
 	printf("t: verify (2) regions have expected alignment and size\n");
 	for (i = 0; i < 2; i++) {
 		int32_t memc;
+		uint64_t addr, align;
+		uint32_t num_bytes;
+
+		assert(cma_get_region_info(fd, cma_idx, i, &memc, &addr, &num_bytes)
+			== 0);
+		assert(num_bytes == len[i]);
+
+		/* CONFIG_CMA_ALIGNMENT reduced to 2MB alignment */
+		assert((addr % (2 * 1024 * 1024)) == 0);
+
+		align = addr & -addr;
+		if (align < max_align)
+			max_align = align;
+	}
+	if (max_align != 16 * 1024 * 1024)
+		printf("!!!WARNING: Max CMA alignment is %"PRId64
+			" bytes!!!\n", max_align);
+	printf("ok\n\n");
+
+	printf("t: free (2) region\n");
+	for (i = 0; i < 2; i++)
+		assert(cma_put_mem(fd, cma_idx, addr[i], len[i]) == 0);
+	printf("ok\n\n");
+
+	if (max_align == 16 * 1024 * 1024)
+		goto test_3;
+
+	/* === TEST CASE 2B === */
+
+	printf("t: alloc (2) regions w/ %"PRId64" byte alignment\n",
+		max_align/2);
+	for (i = 0; i < 2; i++) {
+		len[i] = 0x1000;
+		assert(cma_get_mem(fd, cma_idx, len[i], max_align/2, &addr[i])
+			== 0);
+	}
+	printf("ok\n\n");
+
+	printf("t: verify (2) regions allocated\n");
+	assert(cma_get_num_regions(fd, cma_idx, &x) == 0);
+	assert(x == 2);
+	printf("ok\n\n");
+
+	printf("t: verify (2) regions have expected alignment and size\n");
+	for (i = 0; i < 2; i++) {
+		int32_t memc;
 		uint64_t addr;
 		uint32_t num_bytes;
 
 		assert(cma_get_region_info(fd, cma_idx, i, &memc, &addr, &num_bytes)
 			== 0);
-		assert((addr % (16 * 1024 * 1024)) == 0);
 		assert(num_bytes == len[i]);
+
+		assert((addr % (max_align/2)) == 0);
 	}
 	printf("ok\n\n");
 
@@ -357,6 +404,7 @@ static void __run_unit_tests(int fd, uint32_t cma_idx)
 		assert(cma_put_mem(fd, cma_idx, addr[i], len[i]) == 0);
 	printf("ok\n\n");
 
+test_3:
 	/* === TEST CASE 3 === */
 
 	printf("t: alloc and free (2) regions\n");
@@ -470,6 +518,10 @@ static void __run_unit_tests(int fd, uint32_t cma_idx)
 				   len[0] - 0x2000) == 0);
 	}
 	printf("ok\n\n");
+
+	/* Warn in case 16MB alignment is required */
+	if (max_align < 16 * 1024 * 1024)
+		printf("!!!WARNING: Max CMA alignment is no longer 16MB!!!\n");
 
 	printf("UNIT TEST PASSED! (region %u)\n", cma_idx);
 }
@@ -771,7 +823,7 @@ int main(int argc, char *argv[])
 			goto done;
 		}
 
-		printf("PA=0x%llx\n", addr);
+		printf("PA=0x%"PRIx64"\n", addr);
 		break;
 	}
 	case CMD_FREE: {
@@ -780,7 +832,7 @@ int main(int argc, char *argv[])
 		uint32_t num_bytes;
 
 		sscanf(cmd_argv[0], "%u", &cma_dev_index);
-		sscanf(cmd_argv[1], "%llx", &addr);
+		sscanf(cmd_argv[1], "%"PRIx64, &addr);
 		hex_or_dec_input_u32(cmd_argv[2], &num_bytes);
 
 		ret = cma_put_mem(fd, cma_dev_index, addr, num_bytes);

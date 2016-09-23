@@ -27,7 +27,7 @@
 #ifndef _ASM_BRCMSTB_BRCMSTB_H
 #define _ASM_BRCMSTB_BRCMSTB_H
 
-#define BRCMSTB_H_VERSION  8
+#define BRCMSTB_H_VERSION  9
 
 #if !defined(__ASSEMBLY__)
 
@@ -50,7 +50,7 @@
 #if defined(CONFIG_MIPS)
 
 #include <asm/bmips.h>
-#define BVIRTADDR(x)		KSEG1ADDR(BPHYSADDR(x))
+#define BCHP_PHYSICAL_OFFSET	0x10000000
 
 #elif defined(CONFIG_ARM)
 #define BCHP_PHYSICAL_OFFSET	0xf0000000

@@ -933,10 +933,18 @@ static ssize_t show_brcm_avs_voltage(struct cpufreq_policy *policy, char *buf)
 	return sprintf(buf, "0x%08lx\n", brcm_avs_get_voltage(priv->base));
 }
 
+static ssize_t show_brcm_avs_frequency(struct cpufreq_policy *policy, char *buf)
+{
+	struct private_data *priv = policy->driver_data;
+
+	return sprintf(buf, "0x%08lx\n", brcm_avs_get_frequency(priv->base));
+}
+
 cpufreq_freq_attr_ro(brcm_avs_pstate);
 cpufreq_freq_attr_ro(brcm_avs_mode);
 cpufreq_freq_attr_ro(brcm_avs_pmap);
 cpufreq_freq_attr_ro(brcm_avs_voltage);
+cpufreq_freq_attr_ro(brcm_avs_frequency);
 
 struct freq_attr *brcm_avs_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
@@ -944,6 +952,7 @@ struct freq_attr *brcm_avs_cpufreq_attr[] = {
 	&brcm_avs_mode,
 	&brcm_avs_pmap,
 	&brcm_avs_voltage,
+	&brcm_avs_frequency,
 	NULL
 };
 

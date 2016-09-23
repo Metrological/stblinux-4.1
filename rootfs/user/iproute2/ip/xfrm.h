@@ -14,8 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * along with this program; if not, see <http://www.gnu.org/licenses>.
  */
 /*
  * Authors:
@@ -121,6 +120,7 @@ int xfrm_xfrmproto_is_ipsec(__u8 proto);
 int xfrm_xfrmproto_is_ro(__u8 proto);
 int xfrm_xfrmproto_getbyname(char *name);
 int xfrm_algotype_getbyname(char *name);
+int xfrm_parse_mark(struct xfrm_mark *mark, int *argcp, char ***argvp);
 const char *strxf_xfrmproto(__u8 proto);
 const char *strxf_algotype(int type);
 const char *strxf_mask8(__u8 mask);
@@ -153,5 +153,6 @@ int xfrm_reqid_parse(__u32 *reqid, int *argcp, char ***argvp);
 int xfrm_selector_parse(struct xfrm_selector *sel, int *argcp, char ***argvp);
 int xfrm_lifetime_cfg_parse(struct xfrm_lifetime_cfg *lft,
 			    int *argcp, char ***argvp);
-
+int xfrm_sctx_parse(char *ctxstr, char *context,
+		    struct xfrm_user_sec_ctx *sctx);
 #endif

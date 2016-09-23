@@ -2,7 +2,7 @@ include $(ROOTDIR)/config.arch
 
 LINUXDIR := linux
 
-CFLAGS += -I$(ROOTDIR)/$(LINUXDIR)/include/uapi -Wall -Wextra -Werror
+CFLAGS += -idirafter $(ROOTDIR)/$(LINUXDIR)/include/uapi -Wall -Wextra -Werror
 
 .PHONY: all
 all: cmatool

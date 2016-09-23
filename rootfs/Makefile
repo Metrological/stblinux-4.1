@@ -282,7 +282,7 @@ oldconfig: .target chkpath
 defaults-%: chkpath
 	@touch .dirty
 	@chmod -R 0755 config/scripts/{Configure,Menuconfig} bin
-	+$(CFG) defaults $*
+	+$(CFG) defaults $* $(DOTVERSION)
 	$(MAKE) -j1 silentoldconfig
 	@echo "***************************************************************"
 	@echo "* Build configuration"
@@ -297,7 +297,7 @@ defaults-%: chkpath
 
 .PHONY: save_defaults
 save_defaults: .target
-	+$(CFG) save_defaults $(PLAT)
+	+$(CFG) save_defaults $(PLAT) $(DOTVERSION)
 
 .PHONY: menuconfig-linux menuconfig-vendor menuconfig-uclibc \
 	menuconfig-busybox xconfig-linux

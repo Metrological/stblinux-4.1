@@ -1,11 +1,20 @@
 KERNEL_INCLUDE=$(ROOTDIR)/$(LINUXDIR)/include
 CC	:= $(CROSS_COMPILE)gcc
 
-export KERNEL_INCLUDE CC
+export KERNEL_INCLUDE CC PKG_CONFIG_PATH
 
 .PHONY: all
 
 all:
+	echo "PKG_CONFIG:=/bin/true" > Config
+	echo "AR:=$(CROSS_COMPILE)ar" >> Config
+	echo "CC:=$(CC)" >> Config
+	echo "TC_CONFIG_IPSET:=n" >> Config
+	echo "IPT_LIB_DIR:=/lib/xtables" >> Config
+	echo "IP_CONFIG_SETNS:=y" >> Config
+	echo "HAVE_SELINUX:=n" >> Config
+	echo "HAVE_LATEX:=n" >> Config
+	echo "HAVE_PDFLATEX:=n" >> Config
 	$(MAKE) -f Makefile all
 	
 romfs:
@@ -27,6 +36,7 @@ romfs:
 		$(ROMFSINST) -s lnstat /sbin/ctstat; \
 	fi
 	$(ROMFSINST) -e CONFIG_USER_IPROUTE2_GENL genl/genl /sbin/genl
+	$(ROMFSINST) -e CONFIG_USER_IPROUTE2_BRIDGE bridge/bridge /sbin/bridge
 
 .PHONY: clean distclean
 clean distclean::

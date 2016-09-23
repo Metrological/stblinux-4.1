@@ -18,8 +18,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
-#include <linux/if.h>
-#include <linux/if_arp.h>
+#include <net/if.h>
+#include <net/if_arp.h>
 #include <linux/ip.h>
 #include <linux/if_tunnel.h>
 
@@ -32,15 +32,16 @@ static void usage(void) __attribute__((noreturn));
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: ip tunnel { add | change | del | show | prl } [ NAME ]\n");
-	fprintf(stderr, "          [ mode { ipip | gre | sit | isatap } ] [ remote ADDR ] [ local ADDR ]\n");
+	fprintf(stderr, "Usage: ip tunnel { add | change | del | show | prl | 6rd } [ NAME ]\n");
+	fprintf(stderr, "          [ mode { ipip | gre | sit | isatap | vti } ] [ remote ADDR ] [ local ADDR ]\n");
 	fprintf(stderr, "          [ [i|o]seq ] [ [i|o]key KEY ] [ [i|o]csum ]\n");
 	fprintf(stderr, "          [ prl-default ADDR ] [ prl-nodefault ADDR ] [ prl-delete ADDR ]\n");
+	fprintf(stderr, "          [ 6rd-prefix ADDR ] [ 6rd-relay_prefix ADDR ] [ 6rd-reset ]\n");
 	fprintf(stderr, "          [ ttl TTL ] [ tos TOS ] [ [no]pmtudisc ] [ dev PHYS_DEV ]\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Where: NAME := STRING\n");
 	fprintf(stderr, "       ADDR := { IP_ADDRESS | any }\n");
-	fprintf(stderr, "       TOS  := { NUMBER | inherit }\n");
+	fprintf(stderr, "       TOS  := { STRING | 00..ff | inherit | inherit/STRING | inherit/00..ff }\n");
 	fprintf(stderr, "       TTL  := { 1..255 | inherit }\n");
 	fprintf(stderr, "       KEY  := { DOTTED_QUAD | NUMBER }\n");
 	exit(-1);
@@ -93,8 +94,15 @@ static int parse_args(int argc, char **argv, int cmd, struct ip_tunnel_parm *p)
 				}
 				p->iph.protocol = IPPROTO_IPV6;
 				isatap++;
+			} else if (strcmp(*argv, "vti") == 0) {
+				if (p->iph.protocol && p->iph.protocol != IPPROTO_IPIP) {
+					fprintf(stderr, "You managed to ask for more than one tunnel mode.\n");
+					exit(-1);
+				}
+				p->iph.protocol = IPPROTO_IPIP;
+				p->i_flags |= VTI_ISVTI;
 			} else {
-				fprintf(stderr,"Cannot guess tunnel mode.\n");
+				fprintf(stderr,"Unknown tunnel mode \"%s\"\n", *argv);
 				exit(-1);
 			}
 		} else if (strcmp(*argv, "key") == 0) {
@@ -106,7 +114,7 @@ static int parse_args(int argc, char **argv, int cmd, struct ip_tunnel_parm *p)
 				p->i_key = p->o_key = get_addr32(*argv);
 			else {
 				if (get_unsigned(&uval, *argv, 0)<0) {
-					fprintf(stderr, "invalid value of \"key\"\n");
+					fprintf(stderr, "invalid value for \"key\": \"%s\"; it should be an unsigned integer\n", *argv);
 					exit(-1);
 				}
 				p->i_key = p->o_key = htonl(uval);
@@ -119,7 +127,7 @@ static int parse_args(int argc, char **argv, int cmd, struct ip_tunnel_parm *p)
 				p->i_key = get_addr32(*argv);
 			else {
 				if (get_unsigned(&uval, *argv, 0)<0) {
-					fprintf(stderr, "invalid value of \"ikey\"\n");
+					fprintf(stderr, "invalid value for \"ikey\": \"%s\"; it should be an unsigned integer\n", *argv);
 					exit(-1);
 				}
 				p->i_key = htonl(uval);
@@ -132,7 +140,7 @@ static int parse_args(int argc, char **argv, int cmd, struct ip_tunnel_parm *p)
 				p->o_key = get_addr32(*argv);
 			else {
 				if (get_unsigned(&uval, *argv, 0)<0) {
-					fprintf(stderr, "invalid value of \"okey\"\n");
+					fprintf(stderr, "invalid value for \"okey\": \"%s\"; it should be an unsigned integer\n", *argv);
 					exit(-1);
 				}
 				p->o_key = htonl(uval);
@@ -159,10 +167,14 @@ static int parse_args(int argc, char **argv, int cmd, struct ip_tunnel_parm *p)
 			NEXT_ARG();
 			if (strcmp(*argv, "any"))
 				p->iph.daddr = get_addr32(*argv);
+			else
+				p->iph.daddr = htonl(INADDR_ANY);
 		} else if (strcmp(*argv, "local") == 0) {
 			NEXT_ARG();
 			if (strcmp(*argv, "any"))
 				p->iph.saddr = get_addr32(*argv);
+			else
+				p->iph.saddr = htonl(INADDR_ANY);
 		} else if (strcmp(*argv, "dev") == 0) {
 			NEXT_ARG();
 			strncpy(medium, *argv, IFNAMSIZ-1);
@@ -180,14 +192,21 @@ static int parse_args(int argc, char **argv, int cmd, struct ip_tunnel_parm *p)
 		} else if (strcmp(*argv, "tos") == 0 ||
 			   strcmp(*argv, "tclass") == 0 ||
 			   matches(*argv, "dsfield") == 0) {
+			char *dsfield;
 			__u32 uval;
 			NEXT_ARG();
+			dsfield = *argv;
+			strsep(&dsfield, "/");
 			if (strcmp(*argv, "inherit") != 0) {
-				if (rtnl_dsfield_a2n(&uval, *argv))
-					invarg("bad TOS value", *argv);
-				p->iph.tos = uval;
+				dsfield = *argv;
+				p->iph.tos = 0;
 			} else
 				p->iph.tos = 1;
+			if (dsfield) {
+				if (rtnl_dsfield_a2n(&uval, dsfield))
+					invarg("bad TOS value", *argv);
+				p->iph.tos |= uval;
+			}
 		} else {
 			if (strcmp(*argv, "name") == 0) {
 				NEXT_ARG();
@@ -219,20 +238,27 @@ static int parse_args(int argc, char **argv, int cmd, struct ip_tunnel_parm *p)
 		else if (memcmp(p->name, "isatap", 6) == 0) {
 			p->iph.protocol = IPPROTO_IPV6;
 			isatap++;
+		} else if (memcmp(p->name, "vti", 3) == 0) {
+			p->iph.protocol = IPPROTO_IPIP;
+			p->i_flags |= VTI_ISVTI;
 		}
 	}
 
-	if (p->iph.protocol == IPPROTO_IPIP || p->iph.protocol == IPPROTO_IPV6) {
-		if ((p->i_flags & GRE_KEY) || (p->o_flags & GRE_KEY)) {
-			fprintf(stderr, "Keys are not allowed with ipip and sit.\n");
+	if ((p->i_flags & GRE_KEY) || (p->o_flags & GRE_KEY)) {
+		if (!(p->i_flags & VTI_ISVTI) &&
+		    (p->iph.protocol != IPPROTO_GRE)) {
+			fprintf(stderr, "Keys are not allowed with ipip and sit tunnels\n");
 			return -1;
 		}
 	}
 
 	if (medium[0]) {
-		p->link = tnl_ioctl_get_ifindex(medium);
-		if (p->link == 0)
+		p->link = if_nametoindex(medium);
+		if (p->link == 0) {
+			fprintf(stderr, "Cannot find device \"%s\"\n",
+				medium);
 			return -1;
+		}
 	}
 
 	if (p->i_key == 0 && IN_MULTICAST(ntohl(p->iph.daddr))) {
@@ -244,7 +270,7 @@ static int parse_args(int argc, char **argv, int cmd, struct ip_tunnel_parm *p)
 		p->o_flags |= GRE_KEY;
 	}
 	if (IN_MULTICAST(ntohl(p->iph.daddr)) && !p->iph.saddr) {
-		fprintf(stderr, "Broadcast tunnel requires a source address.\n");
+		fprintf(stderr, "A broadcast tunnel requires a source address\n");
 		return -1;
 	}
 	if (isatap)
@@ -262,19 +288,22 @@ static int do_add(int cmd, int argc, char **argv)
 		return -1;
 
 	if (p.iph.ttl && p.iph.frag_off == 0) {
-		fprintf(stderr, "ttl != 0 and noptmudisc are incompatible\n");
+		fprintf(stderr, "ttl != 0 and nopmtudisc are incompatible\n");
 		return -1;
 	}
 
 	switch (p.iph.protocol) {
 	case IPPROTO_IPIP:
-		return tnl_add_ioctl(cmd, "tunl0", p.name, &p);
+		if (p.i_flags & VTI_ISVTI)
+			return tnl_add_ioctl(cmd, "ip_vti0", p.name, &p);
+		else
+			return tnl_add_ioctl(cmd, "tunl0", p.name, &p);
 	case IPPROTO_GRE:
 		return tnl_add_ioctl(cmd, "gre0", p.name, &p);
 	case IPPROTO_IPV6:
 		return tnl_add_ioctl(cmd, "sit0", p.name, &p);
 	default:
-		fprintf(stderr, "cannot determine tunnel mode (ipip, gre or sit)\n");
+		fprintf(stderr, "cannot determine tunnel mode (ipip, gre, vti or sit)\n");
 		return -1;
 	}
 	return -1;
@@ -289,7 +318,10 @@ static int do_del(int argc, char **argv)
 
 	switch (p.iph.protocol) {
 	case IPPROTO_IPIP:
-		return tnl_del_ioctl("tunl0", p.name, &p);
+		if (p.i_flags & VTI_ISVTI)
+			return tnl_del_ioctl("ip_vti0", p.name, &p);
+		else
+			return tnl_del_ioctl("tunl0", p.name, &p);
 	case IPPROTO_GRE:
 		return tnl_del_ioctl("gre0", p.name, &p);
 	case IPPROTO_IPV6:
@@ -302,13 +334,11 @@ static int do_del(int argc, char **argv)
 
 static void print_tunnel(struct ip_tunnel_parm *p)
 {
+	struct ip_tunnel_6rd ip6rd;
 	char s1[1024];
 	char s2[1024];
-	char s3[64];
-	char s4[64];
 
-	inet_ntop(AF_INET, &p->i_key, s3, sizeof(s3));
-	inet_ntop(AF_INET, &p->o_key, s4, sizeof(s4));
+	memset(&ip6rd, 0, sizeof(ip6rd));
 
 	/* Do not use format_host() for local addr,
 	 * symbolic name will not be useful.
@@ -316,22 +346,22 @@ static void print_tunnel(struct ip_tunnel_parm *p)
 	printf("%s: %s/ip  remote %s  local %s ",
 	       p->name,
 	       tnl_strproto(p->iph.protocol),
-	       p->iph.daddr ? format_host(AF_INET, 4, &p->iph.daddr, s1, sizeof(s1))  : "any",
+	       p->iph.daddr ? format_host(AF_INET, 4, &p->iph.daddr, s1, sizeof(s1)) : "any",
 	       p->iph.saddr ? rt_addr_n2a(AF_INET, 4, &p->iph.saddr, s2, sizeof(s2)) : "any");
 
-	if (p->i_flags & SIT_ISATAP) {
+	if (p->iph.protocol == IPPROTO_IPV6 && (p->i_flags & SIT_ISATAP)) {
 		struct ip_tunnel_prl prl[16];
 		int i;
-		
+
 		memset(prl, 0, sizeof(prl));
 		prl[0].datalen = sizeof(prl) - sizeof(prl[0]);
 		prl[0].addr = htonl(INADDR_ANY);
-	
+
 		if (!tnl_prl_ioctl(SIOCGETPRL, p->name, prl))
 			for (i = 1; i < sizeof(prl) / sizeof(prl[0]); i++)
 		{
 			if (prl[i].addr != htonl(INADDR_ANY)) {
-				printf(" %s %s ", 
+				printf(" %s %s ",
 					(prl[i].flags & PRL_DEFAULT) ? "pdr" : "pr",
 					format_host(AF_INET, 4, &prl[i].addr, s1, sizeof(s1)));
 			}
@@ -339,7 +369,7 @@ static void print_tunnel(struct ip_tunnel_parm *p)
 	}
 
 	if (p->link) {
-		char *n = tnl_ioctl_get_ifname(p->link);
+		const char *n = ll_index_to_name(p->link);
 		if (n)
 			printf(" dev %s ", n);
 	}
@@ -362,17 +392,28 @@ static void print_tunnel(struct ip_tunnel_parm *p)
 	if (!(p->iph.frag_off&htons(IP_DF)))
 		printf(" nopmtudisc");
 
+	if (p->iph.protocol == IPPROTO_IPV6 && !tnl_ioctl_get_6rd(p->name, &ip6rd) && ip6rd.prefixlen) {
+		printf(" 6rd-prefix %s/%u ",
+		       inet_ntop(AF_INET6, &ip6rd.prefix, s1, sizeof(s1)),
+		       ip6rd.prefixlen);
+		if (ip6rd.relay_prefix) {
+			printf("6rd-relay_prefix %s/%u ",
+			       format_host(AF_INET, 4, &ip6rd.relay_prefix, s1, sizeof(s1)),
+			       ip6rd.relay_prefixlen);
+		}
+	}
+
 	if ((p->i_flags&GRE_KEY) && (p->o_flags&GRE_KEY) && p->o_key == p->i_key)
-		printf(" key %s", s3);
+		printf(" key %u", ntohl(p->i_key));
 	else if ((p->i_flags|p->o_flags)&GRE_KEY) {
 		if (p->i_flags&GRE_KEY)
-			printf(" ikey %s ", s3);
+			printf(" ikey %u ", ntohl(p->i_key));
 		if (p->o_flags&GRE_KEY)
-			printf(" okey %s ", s4);
+			printf(" okey %u ", ntohl(p->o_key));
 	}
 
 	if (p->i_flags&GRE_SEQ)
-		printf("%s  Drop packets out of sequence.\n", _SL_);
+		printf("%s  Drop packets out of sequence.", _SL_);
 	if (p->i_flags&GRE_CSUM)
 		printf("%s  Checksum in received packet is required.", _SL_);
 	if (p->o_flags&GRE_SEQ)
@@ -388,7 +429,6 @@ static int do_tunnels_list(struct ip_tunnel_parm *p)
 	rx_fifo, rx_frame,
 	tx_bytes, tx_packets, tx_errs, tx_drops,
 	tx_fifo, tx_colls, tx_carrier, rx_multi;
-	int type;
 	struct ip_tunnel_parm p1;
 
 	char buf[512];
@@ -398,15 +438,22 @@ static int do_tunnels_list(struct ip_tunnel_parm *p)
 		return -1;
 	}
 
-	fgets(buf, sizeof(buf), fp);
-	fgets(buf, sizeof(buf), fp);
+	/* skip header lines */
+	if (!fgets(buf, sizeof(buf), fp) ||
+	    !fgets(buf, sizeof(buf), fp)) {
+		fprintf(stderr, "/proc/net/dev read error\n");
+		fclose(fp);
+		return -1;
+	}
 
 	while (fgets(buf, sizeof(buf), fp) != NULL) {
+		int index, type;
 		char *ptr;
 		buf[sizeof(buf) - 1] = 0;
 		if ((ptr = strchr(buf, ':')) == NULL ||
 		    (*ptr++ = 0, sscanf(buf, "%s", name) != 1)) {
-			fprintf(stderr, "Wrong format of /proc/net/dev. Sorry.\n");
+			fprintf(stderr, "Wrong format for /proc/net/dev. Giving up.\n");
+			fclose(fp);
 			return -1;
 		}
 		if (sscanf(ptr, "%ld%ld%ld%ld%ld%ld%ld%*d%ld%ld%ld%ld%ld%ld%ld",
@@ -417,9 +464,12 @@ static int do_tunnels_list(struct ip_tunnel_parm *p)
 			continue;
 		if (p->name[0] && strcmp(p->name, name))
 			continue;
-		type = tnl_ioctl_get_iftype(name);
+		index = ll_name_to_index(name);
+		if (index == 0)
+			continue;
+		type = ll_index_to_type(index);
 		if (type == -1) {
-			fprintf(stderr, "Failed to get type of [%s]\n", name);
+			fprintf(stderr, "Failed to get type of \"%s\"\n", name);
 			continue;
 		}
 		if (type != ARPHRD_TUNNEL && type != ARPHRD_IPGRE && type != ARPHRD_SIT)
@@ -445,6 +495,7 @@ static int do_tunnels_list(struct ip_tunnel_parm *p)
 		}
 		printf("\n");
 	}
+	fclose(fp);
 	return 0;
 }
 
@@ -453,12 +504,16 @@ static int do_show(int argc, char **argv)
 	int err;
 	struct ip_tunnel_parm p;
 
+	ll_init_map(&rth);
 	if (parse_args(argc, argv, SIOCGETTUNNEL, &p) < 0)
 		return -1;
 
 	switch (p.iph.protocol) {
 	case IPPROTO_IPIP:
-		err = tnl_get_ioctl(p.name[0] ? p.name : "tunl0", &p);
+		if (p.i_flags & VTI_ISVTI)
+			err = tnl_get_ioctl(p.name[0] ? p.name : "ip_vti0", &p);
+		else
+			err = tnl_get_ioctl(p.name[0] ? p.name : "tunl0", &p);
 		break;
 	case IPPROTO_GRE:
 		err = tnl_get_ioctl(p.name[0] ? p.name : "gre0", &p);
@@ -511,21 +566,67 @@ static int do_prl(int argc, char **argv)
 			strncpy(medium, *argv, IFNAMSIZ-1);
 			devname++;
 		} else {
-			fprintf(stderr,"%s: Invalid PRL parameter.\n", *argv);
+			fprintf(stderr,"Invalid PRL parameter \"%s\"\n", *argv);
 			exit(-1);
 		}
 		if (count > 1) {
-			fprintf(stderr,"One PRL entry at a time.\n");
+			fprintf(stderr,"One PRL entry at a time\n");
 			exit(-1);
 		}
 		argc--; argv++;
 	}
 	if (devname == 0) {
-		fprintf(stderr, "Must specify dev.\n");
+		fprintf(stderr, "Must specify device\n");
 		exit(-1);
 	}
 
 	return tnl_prl_ioctl(cmd, medium, &p);
+}
+
+static int do_6rd(int argc, char **argv)
+{
+	struct ip_tunnel_6rd ip6rd;
+	int devname = 0;
+	int cmd = 0;
+	char medium[IFNAMSIZ];
+	inet_prefix prefix;
+
+	memset(&ip6rd, 0, sizeof(ip6rd));
+	memset(&medium, 0, sizeof(medium));
+
+	while (argc > 0) {
+		if (strcmp(*argv, "6rd-prefix") == 0) {
+			NEXT_ARG();
+			if (get_prefix(&prefix, *argv, AF_INET6))
+				invarg("invalid 6rd_prefix\n", *argv);
+			cmd = SIOCADD6RD;
+			memcpy(&ip6rd.prefix, prefix.data, 16);
+			ip6rd.prefixlen = prefix.bitlen;
+		} else if (strcmp(*argv, "6rd-relay_prefix") == 0) {
+			NEXT_ARG();
+			if (get_prefix(&prefix, *argv, AF_INET))
+				invarg("invalid 6rd-relay_prefix\n", *argv);
+			cmd = SIOCADD6RD;
+			memcpy(&ip6rd.relay_prefix, prefix.data, 4);
+			ip6rd.relay_prefixlen = prefix.bitlen;
+		} else if (strcmp(*argv, "6rd-reset") == 0) {
+			cmd = SIOCDEL6RD;
+		} else if (strcmp(*argv, "dev") == 0) {
+			NEXT_ARG();
+			strncpy(medium, *argv, IFNAMSIZ-1);
+			devname++;
+		} else {
+			fprintf(stderr,"Invalid 6RD parameter \"%s\"\n", *argv);
+			exit(-1);
+		}
+		argc--; argv++;
+	}
+	if (devname == 0) {
+		fprintf(stderr, "Must specify device\n");
+		exit(-1);
+	}
+
+	return tnl_6rd_ioctl(cmd, medium, &ip6rd);
 }
 
 int do_iptunnel(int argc, char **argv)
@@ -544,7 +645,7 @@ int do_iptunnel(int argc, char **argv)
 	case AF_INET6:
 		return do_ip6tunnel(argc, argv);
 	default:
-		fprintf(stderr, "Unsupported family:%d\n", preferred_family);
+		fprintf(stderr, "Unsupported protocol family: %d\n", preferred_family);
 		exit(-1);
 	}
 
@@ -553,7 +654,7 @@ int do_iptunnel(int argc, char **argv)
 			return do_add(SIOCADDTUNNEL, argc-1, argv+1);
 		if (matches(*argv, "change") == 0)
 			return do_add(SIOCCHGTUNNEL, argc-1, argv+1);
-		if (matches(*argv, "del") == 0)
+		if (matches(*argv, "delete") == 0)
 			return do_del(argc-1, argv+1);
 		if (matches(*argv, "show") == 0 ||
 		    matches(*argv, "lst") == 0 ||
@@ -561,11 +662,13 @@ int do_iptunnel(int argc, char **argv)
 			return do_show(argc-1, argv+1);
 		if (matches(*argv, "prl") == 0)
 			return do_prl(argc-1, argv+1);
+		if (matches(*argv, "6rd") == 0)
+			return do_6rd(argc-1, argv+1);
 		if (matches(*argv, "help") == 0)
 			usage();
 	} else
 		return do_show(0, NULL);
 
-	fprintf(stderr, "Command \"%s\" is unknown, try \"ip tunnel help\".\n", *argv);
+	fprintf(stderr, "Command \"%s\" is unknown, try \"ip tunnel help\"\n", *argv);
 	exit(-1);
 }

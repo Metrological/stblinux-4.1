@@ -167,6 +167,25 @@
 			brcm,irq-can-wake;
 		};
 
+		hif_spi: spi@41c200 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "brcm,spi-brcmstb",
+				"brcm,spi-bcm-qspi";
+			status = "disabled";
+			reg = <0x41c200 0x188 0x41c000 0x50
+				0x41c100 0x24 0x41ad00 0x30
+				0x419920 0x4>;
+			reg-names = "hif_mspi",
+				"bspi",
+				"bspi_raf",
+				"hif_spi_intr2",
+				"cs_reg";
+			interrupt-parent = <&periph_intc>;
+			interrupts = <0x19>;
+			interrupt-names = "hif_spi";
+		};
+
 		nand: nand@41b800 {
 			#address-cells = <1>;
 			#size-cells = <0>;

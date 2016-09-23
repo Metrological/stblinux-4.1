@@ -228,7 +228,7 @@ static int dsa_slave_fdb_del(struct ndmsg *ndm, struct nlattr *tb[],
 	return ret;
 }
 
-static int dsa_slave_fill_info(struct net_device *dev, struct sk_buff *skb,
+int dsa_slave_fill_info(struct net_device *dev, struct sk_buff *skb,
 			       const unsigned char *addr, u16 vid,
 			       bool is_static,
 			       u32 portid, u32 seq, int type,
@@ -273,6 +273,9 @@ static int dsa_slave_fdb_dump(struct sk_buff *skb, struct netlink_callback *cb,
 	struct dsa_switch *ds = p->parent;
 	unsigned char addr[ETH_ALEN] = { 0 };
 	int ret;
+
+	if (ds->drv->fdb_dump)
+		return ds->drv->fdb_dump(ds, p->port, dev, skb, cb, idx);
 
 	if (!ds->drv->fdb_getnext)
 		return -EOPNOTSUPP;

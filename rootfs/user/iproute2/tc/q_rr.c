@@ -28,11 +28,9 @@ static void explain(void)
 	fprintf(stderr, "Usage: ... rr bands NUMBER priomap P1 P2... [multiqueue]\n");
 }
 
-#define usage() return(-1)
 
 static int rr_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nlmsghdr *n)
 {
-	int ok = 0;
 	int pmap_mode = 0;
 	int idx = 0;
 	struct tc_prio_qopt opt={3,{ 1, 2, 2, 2, 1, 2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1 }};
@@ -48,7 +46,6 @@ static int rr_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nlm
 				fprintf(stderr, "Illegal \"bands\"\n");
 				return -1;
 			}
-			ok++;
 		} else if (strcmp(*argv, "priomap") == 0) {
 			if (pmap_mode) {
 				fprintf(stderr, "Error: duplicate priomap\n");
@@ -91,7 +88,7 @@ static int rr_parse_opt(struct qdisc_util *qu, int argc, char **argv, struct nlm
 	return 0;
 }
 
-int rr_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
+static int rr_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 {
 	int i;
 	struct tc_prio_qopt *qopt;
@@ -110,7 +107,7 @@ int rr_print_opt(struct qdisc_util *qu, FILE *f, struct rtattr *opt)
 
 	if (tb[TCA_PRIO_MQ])
 		fprintf(f, " multiqueue: %s ",
-		    *(unsigned char *)RTA_DATA(tb[TCA_PRIO_MQ]) ? "on" : "off");
+			rta_getattr_u8(tb[TCA_PRIO_MQ]) ? "on" : "off");
 
 	return 0;
 }

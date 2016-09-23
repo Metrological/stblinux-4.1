@@ -89,7 +89,7 @@
 			native-endian;
 			interrupt-parent = <&sun_l2_intc>;
 			interrupts = <0>, <2>;
-			brcm,gisb-arb-master-mask = <0x177b>;
+			brcm,gisb-arb-master-mask = <0x673>;
 			brcm,gisb-arb-master-names = "ssp_0", "cpu_0",
 						     "bsp_0", "rdc_0",
 						     "raaga_0", "jtag_0",
@@ -138,6 +138,25 @@
 			interrupt-controller;
 			interrupts = <0x16>;
 			interrupt-names = "hif";
+		};
+
+		hif_spi: spi@413200 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "brcm,spi-brcmstb",
+				"brcm,spi-bcm-qspi";
+			status = "disabled";
+			reg = <0x413200 0x188 0x413000 0x50
+				0x413100 0x24 0x411d00 0x30
+				0x410920 0x4>;
+			reg-names = "hif_mspi",
+				"bspi",
+				"bspi_raf",
+				"hif_spi_intr2",
+				"cs_reg";
+			interrupts = <0x17>;
+			interrupt-parent = <&periph_intc>;
+			interrupt-names = "hif_spi";
 		};
 
 		nand: nand@412800 {

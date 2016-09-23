@@ -33,6 +33,9 @@
 #define GIO_DATA_OFFSET 4
 #define GIO_DIR_OFFSET	8
 
+/* The largest register bus aperture is 64MB so limit offsets to 26 bits */
+#define BCHP_BUS_MASK	0x3FFFFFF
+
 static const char *brcmstb_gpio_compat = GPIO_DT_COMPAT;
 
 static int brcmstb_gpio_chip_find(struct gpio_chip *chip, void *data)
@@ -74,7 +77,7 @@ static int brcmstb_gpio_request(unsigned int gpio)
 	return ret;
 }
 
-static int brcmstb_gpio_find_base_by_addr(uint32_t addr, phys_addr_t *start)
+static int brcmstb_gpio_find_base_by_addr(uint32_t addr, uint32_t *start)
 {
 	struct device_node *dn;
 	struct gpio_chip *gc;
@@ -93,16 +96,16 @@ static int brcmstb_gpio_find_base_by_addr(uint32_t addr, phys_addr_t *start)
 			continue;
 		}
 
-		/* Mask address with the physical offset, since the address has
-		 * already been translated based on the busing hierarchy
-		 */
-		res.start &= ~BCHP_PHYSICAL_OFFSET;
-		res.end &= ~BCHP_PHYSICAL_OFFSET;
-
-		/* Verify address in the resource range, if not, go to the
+		/* Verify address is in the resource range, if not, go to the
 		 * other GPIO controllers
+		 *
+		 * NB: of_address_to_resource already performs the physical
+		 * address transformation based on the "reg" and parent node's
+		 * "ranges" property. The bus base address must be masked off
+		 * for comparisons
 		 */
-		if (addr < res.start || addr >= res.end)
+		if (addr < (res.start & BCHP_BUS_MASK) ||
+			addr >= (res.end & BCHP_BUS_MASK))
 			continue;
 
 		gc = gpiochip_find(dn, brcmstb_gpio_chip_find);
@@ -112,7 +115,7 @@ static int brcmstb_gpio_find_base_by_addr(uint32_t addr, phys_addr_t *start)
 		}
 
 		if (start)
-			*start = (phys_addr_t)res.start;
+			*start = (uint32_t)(res.start & BCHP_BUS_MASK);
 
 		return gc->base;
 	}
@@ -123,19 +126,19 @@ static int brcmstb_gpio_find_base_by_addr(uint32_t addr, phys_addr_t *start)
 
 static int brcmstb_gpio_find_by_addr(uint32_t addr, unsigned int shift)
 {
-	int gpio, gpio_base;
-	phys_addr_t start, bank_offset;
+	int gpio, gpio_base, bank_offset;
+	uint32_t start;
 
 	gpio_base = brcmstb_gpio_find_base_by_addr(addr, &start);
 	if (gpio_base >= 0) {
 		/* Now find out what GPIO bank this pin belongs to */
-		bank_offset = ((phys_addr_t)addr - start) / GIO_BANK_SIZE;
+		bank_offset = (addr - start) / GIO_BANK_SIZE;
 
 		gpio = gpio_base + shift + bank_offset * GPIO_PER_BANK;
 
 		pr_debug("%s: xlate base=%d, offset=%d, shift=%d, gpio=%d\n",
-			__func__, (int)gpio_base, (int)bank_offset, shift,
-			(int)(gpio - gpio_base));
+			__func__, gpio_base, bank_offset, shift,
+			(gpio - gpio_base));
 
 		return gpio;
 	}
@@ -147,11 +150,16 @@ int brcmstb_gpio_update32(uint32_t addr, uint32_t mask, uint32_t value)
 {
 	struct bgpio_chip *bgc;
 	struct gpio_chip *gc;
-	int ret, bit, gpio_base;
-	phys_addr_t start, offset, bank_offset;
+	int ret, bit, gpio_base, offset, bank_offset;
 	unsigned long flags;
-	uint32_t ivalue;
+	uint32_t start, ivalue;
 	void __iomem *reg;
+
+	/* Silently strip any higher order bits from the addr value passed
+	 * to this function, so that regardless of whether or not it is a
+	 * physical address it will be a Register Bus offset.
+	 */
+	addr &= BCHP_BUS_MASK;
 
 	gpio_base = brcmstb_gpio_find_base_by_addr(addr, &start);
 	if (gpio_base < 0) {
@@ -160,13 +168,13 @@ int brcmstb_gpio_update32(uint32_t addr, uint32_t mask, uint32_t value)
 	}
 
 	/* Now find out what GPIO bank this pin belongs to */
-	offset = (phys_addr_t)addr - start;
+	offset = addr - start;
 	bank_offset = offset / GIO_BANK_SIZE;
 	offset -= bank_offset * GIO_BANK_SIZE;
 
 	pr_debug("%s: xlate base=%d, offset=%d, gpio=%d\n",
-		__func__, (int)gpio_base, (int)bank_offset,
-		(int)(bank_offset * GPIO_PER_BANK));
+		__func__, gpio_base, bank_offset,
+		(bank_offset * GPIO_PER_BANK));
 
 	gpio_base += bank_offset * GPIO_PER_BANK;
 
@@ -185,7 +193,7 @@ int brcmstb_gpio_update32(uint32_t addr, uint32_t mask, uint32_t value)
 
 	/* We got full access to the entire mask, do the write */
 
-	pr_info("%s: offset=0x%08x mask=0x%08x, value=0x%08x\n",
+	pr_debug("%s: offset=0x%08x mask=0x%08x, value=0x%08x\n",
 		__func__, addr, mask, value);
 
 	gc = gpiod_to_chip(gpio_to_desc(gpio_base));
@@ -226,6 +234,12 @@ int brcmstb_gpio_update32(uint32_t addr, uint32_t mask, uint32_t value)
 int brcmstb_gpio_irq(uint32_t addr, unsigned int shift)
 {
 	int gpio, ret;
+
+	/* Silently strip any higher order bits from the addr value passed
+	 * to this function, so that regardless of whether or not it is a
+	 * physical address it will be a Register Bus offset.
+	 */
+	addr &= BCHP_BUS_MASK;
 
 	gpio = brcmstb_gpio_find_by_addr(addr, shift);
 	if (gpio < 0)

@@ -215,17 +215,41 @@ sub def($$$)
 }
 
 # This returns a tuple containing ($tgt, $chip, $be, $suffix).
-sub get_tgt($)
+sub get_tgt($$)
 {
-	my ($tgt, $chip, $be, $suffix);
+	my ($tgt, $chip, $be, $suffix, $linux_full_version, $linux_version, $chip_regexp);
+	my %subst = (
+		"7271a0" => "arm64",
+	);
 
-	($tgt) = (@_);
+	($tgt, $linux_full_version) = (@_);
 
 	if(! defined($tgt)) {
 		die "no target specified";
 	}
 
-	unless($tgt =~ m/^(arm64|arm|bmips|[0-9]+[a-z][0-9])(_be)?(-\S+)?$/) {
+	if ($linux_full_version =~ m/^([0-9].[0-9]+)(-\S+)?$/) {
+		$linux_version = $1;
+	}
+
+	if ($linux_version eq "3.14") {
+		$chip_regexp = '^([0-9]+[a-z][0-9])(_be)?(-\S+)?$';
+	} elsif ($linux_version ge "4.1") {
+		if ($tgt =~ m/^([0-9]+[a-z][0-9])(_be)?(-\S+)?$/) {
+			my $tmp = $1 . (defined($3) ? $3 : "");
+			print "Using deprecated build format, consider using\n".
+			      "the following replacement build targets:\n".
+			      "$tmp => " . (defined($subst{$tmp}) ? $subst{$tmp} : "arm") .
+			      "\n";
+			die("")
+		}
+
+		$chip_regexp = '^(arm64|arm|bmips)(_be)?(-\S+)?$';
+	} else {
+		die("Unsupported Linux version: $linux_version\n");
+	}
+
+	unless($tgt =~ m/$chip_regexp/) {
 		die "invalid target format: $tgt";
 	}
 
@@ -550,7 +574,7 @@ sub cmd_badcmd($)
 sub cmd_defaults($)
 {
 	my ($cmd) = @_;
-	($tgt, $chip, $be, $suffix) = get_tgt(shift @ARGV);
+	($tgt, $chip, $be, $suffix) = get_tgt(shift @ARGV, shift @ARGV);
 	my @mods = gen_modifiers($chip, $suffix);
 	populate_linux_defaults(\@mods, $chip);
 
@@ -599,12 +623,14 @@ sub cmd_defaults($)
 
 	# set architecture (only for uClibc)
 
-	if($arch_config_options{"ARCH"} eq "arm") {
+	if ($arch_config_options{"ARCH"} eq "arm") {
 		my %uclibc_o;
 
 		read_cfg("defaults/override.uClibc-arm", \%uclibc_o);
 		override_cfg(\%uclibc, \%uclibc_o);
-	} else {
+	}
+
+	if ($arch_config_options{"ARCH"} eq "mips") {
 		# The kernel CMA components are currently arm-only.
 		$vendor{"CONFIG_USER_CMATOOL"} = "n";
 	}
@@ -986,7 +1012,7 @@ sub cmd_defaults($)
 
 sub cmd_save_defaults()
 {
-	($tgt, $chip, $be, $suffix) = get_tgt(shift @ARGV);
+	($tgt, $chip, $be, $suffix) = get_tgt(shift @ARGV, shift @ARGV);
 	my @mods = gen_modifiers($chip, $suffix);
 	populate_linux_defaults(\@mods, $chip);
 

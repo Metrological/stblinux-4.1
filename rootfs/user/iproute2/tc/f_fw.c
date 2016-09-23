@@ -25,13 +25,11 @@
 
 static void explain(void)
 {
-	fprintf(stderr, "Usage: ... fw [ classid CLASSID ] [ police POLICE_SPEC ]\n");
-	fprintf(stderr, "       POLICE_SPEC := ... look at TBF\n");
+	fprintf(stderr, "Usage: ... fw [ classid CLASSID ] [ action ACTION_SPEC ]\n");
+	fprintf(stderr, "       ACTION_SPEC := ... look at individual actions\n");
 	fprintf(stderr, "       CLASSID := X:Y\n");
 	fprintf(stderr, "\nNOTE: CLASSID is parsed as hexadecimal input.\n");
 }
-
-#define usage() return(-1)
 
 static int fw_parse_opt(struct filter_util *qu, char *handle, int argc, char **argv, struct nlmsghdr *n)
 {
@@ -132,7 +130,7 @@ static int fw_print_opt(struct filter_util *qu, FILE *f, struct rtattr *opt, __u
 		if(handle)
 			mark = handle;
 		if(tb[TCA_FW_MASK] &&
-		    (mask = *(__u32*)RTA_DATA(tb[TCA_FW_MASK])) != 0xFFFFFFFF)
+		    (mask = rta_getattr_u32(tb[TCA_FW_MASK])) != 0xFFFFFFFF)
 			fprintf(f, "handle 0x%x/0x%x ", mark, mask);
 		else
 			fprintf(f, "handle 0x%x ", handle);
@@ -140,14 +138,14 @@ static int fw_print_opt(struct filter_util *qu, FILE *f, struct rtattr *opt, __u
 
 	if (tb[TCA_FW_CLASSID]) {
 		SPRINT_BUF(b1);
-		fprintf(f, "classid %s ", sprint_tc_classid(*(__u32*)RTA_DATA(tb[TCA_FW_CLASSID]), b1));
+		fprintf(f, "classid %s ", sprint_tc_classid(rta_getattr_u32(tb[TCA_FW_CLASSID]), b1));
 	}
 
 	if (tb[TCA_FW_POLICE])
 		tc_print_police(f, tb[TCA_FW_POLICE]);
 	if (tb[TCA_FW_INDEV]) {
 		struct rtattr *idev = tb[TCA_FW_INDEV];
-		fprintf(f, "input dev %s ",(char *)RTA_DATA(idev));
+		fprintf(f, "input dev %s ",rta_getattr_str(idev));
 	}
 
 	if (tb[TCA_FW_ACT]) {

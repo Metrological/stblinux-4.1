@@ -7,7 +7,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		mips-hpt-frequency = <163125000>;
+		mips-hpt-frequency = <175625000>;
 
 		cpu@0 {
 			compatible = "brcm,bmips5200";
@@ -181,6 +181,25 @@
 				<0x100000>;
 			brcm,int-fwd-mask = <0x0>;
 			brcm,irq-can-wake;
+		};
+
+		hif_spi: spi@41d400 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "brcm,spi-brcmstb",
+				"brcm,spi-bcm-qspi";
+			status = "disabled";
+			reg = <0x41d400 0x188 0x41d200 0x50
+				0x41d300 0x24 0x41bd00 0x30
+				0x41a920 0x4>;
+			reg-names = "hif_mspi",
+				"bspi",
+				"bspi_raf",
+				"hif_spi_intr2",
+				"cs_reg";
+			interrupts = <0x19>;
+			interrupt-parent = <&periph_intc>;
+			interrupt-names = "hif_spi";
 		};
 
 		nand: nand@41c800 {

@@ -13,7 +13,7 @@ if SOC_BRCMSTB
 
 config BRCMSTB_BMEM
 	bool "Enable BMEM reserved A/V memory"
-	depends on HAVE_MEMBLOCK && ARCH_BRCMSTB && BRCMSTB_MEMORY_API
+	depends on HAVE_MEMBLOCK && (ARCH_BRCMSTB || BMIPS_GENERIC) && BRCMSTB_MEMORY_API
 	help
 	  The A/V peripherals (managed by the PI/Nexus middleware) require
 	  large, contiguous memory regions to be set aside at boot time.  This
@@ -38,7 +38,7 @@ config BRCMSTB_CMA
 
 config BRCMSTB_MEMORY_API
 	bool "Enable BRCMSTB memory API"
-	depends on HAVE_MEMBLOCK && ARCH_BRCMSTB
+	depends on HAVE_MEMBLOCK && (ARCH_BRCMSTB || BMIPS_GENERIC)
 	select LIBFDT
 	help
 	  This provides information on how system memory is arranged so that

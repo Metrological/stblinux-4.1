@@ -61,6 +61,9 @@ forms. Currently, the following options are available:
 appears twice or more, the amount of information increases.
 As a rule, the information is statistics or some time values.
 
+\item \verb|-d|, \verb|-details|
+
+--- output more detailed information.
 
 \item \verb|-f|, \verb|-family| followed by a protocol family
 identifier: \verb|inet|, \verb|inet6| or \verb|link|.
@@ -102,6 +105,38 @@ host addresses.
 \begin{NB}
  \verb|ip| never uses DNS to resolve names to addresses.
 \end{NB}
+
+\item \verb|-b|, \verb|-batch FILE|
+
+--- read commands from provided file or standart input and invoke them.
+First failure will cause termination of \verb|ip|.
+In batch \verb|FILE| everything which begins with \verb|#| symbol is
+ignored and can be used for comments.
+\paragraph{Example:}
+\begin{verbatim}
+kuznet@kaiser $ cat /tmp/ip_batch.ip
+# This is a comment
+tuntap add mode tap tap1 # This is an another comment
+link set up dev tap1
+addr add 10.0.0.1/24 dev tap1
+kuznet@kaiser $ sudo ip -b /tmp/ip_batch.ip
+\end{verbatim}
+or from standart input:
+\begin{verbatim}
+kuznet@kaiser $ cat /tmp/ip_batch.ip | sudo ip -b -
+\end{verbatim}
+
+\item \verb|-force|
+
+--- don't terminate ip on errors in batch mode.
+If there were any errors during execution of the commands,
+the application return code will be non zero.
+
+\item \verb|-l|, \verb|-loops COUNT|
+
+--- specify maximum number of loops the 'ip addr flush' logic will attempt
+before giving up. The default is 10.  Zero (0) means loop until all
+addresses are removed.
 
 \end{itemize}
 
@@ -1336,6 +1371,13 @@ peers are allowed to send to us.
     MSS (``Maximal Segment Size'') for same connection. The default is
     zero, meaning to use the values specified in~\cite{RFC2414}.
 
++\item \verb|initrwnd NUMBER|
+ 
++--- [2.6.33+ only] Initial receive window size for connections to 
++    this destination. The actual window size is this value multiplied
++    by the MSS (''Maximal Segment Size'') of the connection. The default
++    value is zero, meaning to use Slow Start value.
+ 
 \item \verb|nexthop NEXTHOP|
 
 --- the nexthop of a multipath route. \verb|NEXTHOP| is a complex value
@@ -1390,13 +1432,16 @@ database.
 even if it does not match any interface prefix. One application of this
 option may be found in~\cite{IP-TUNNELS}.
 
-\item \verb|equalize|
+\item \verb|pref PREF|
 
---- allow packet by packet randomization on multipath routes.
-Without this modifier, the route will be frozen to one selected
-nexthop, so that load splitting will only occur on per-flow base.
-\verb|equalize| only works if the kernel is patched.
-
+--- the IPv6 route preference.
+\verb|PREF| PREF is a string specifying the route preference as defined in
+RFC4191 for Router Discovery messages. Namely:
+\begin{itemize}
+\item \verb|low| --- the route has a lowest priority.
+\item \verb|medium| --- the route has a default priority.
+\item \verb|high| --- the route has a highest priority.
+\end{itemize}
 
 \end{itemize}
 
@@ -1676,6 +1721,41 @@ information about this route is shown:
 \item \verb|used| --- the number of lookups of this route since its creation.
 \end{itemize}
 
+\subsection{{\tt ip route save} -- save routing tables}
+\label{IP-ROUTE-SAVE}
+
+\paragraph{Description:} this command saves the contents of the routing
+tables or the route(s) selected by some criteria to standard output.
+
+\paragraph{Arguments:} \verb|ip route save| has the same arguments as
+\verb|ip route show|.
+
+\paragraph{Example:} This saves all the routes to the {\tt saved\_routes}
+file:
+\begin{verbatim}
+dan@caffeine:~ # ip route save > saved_routes
+\end{verbatim}
+
+\paragraph{Output format:} The format of the data stream provided by
+\verb|ip route save| is that of \verb|rtnetlink|.  See
+\verb|rtnetlink(7)| for more information.
+
+\subsection{{\tt ip route restore} -- restore routing tables}
+\label{IP-ROUTE-RESTORE}
+
+\paragraph{Description:} this command restores the contents of the routing
+tables according to a data stream as provided by \verb|ip route save| via
+standard input.  Note that any routes already in the table are left unchanged.
+Any routes in the input stream that already exist in the tables are ignored.
+
+\paragraph{Arguments:} This command takes no arguments.
+
+\paragraph{Example:} This restores all routes that were saved to the
+{\tt saved\_routes} file:
+
+\begin{verbatim}
+dan@caffeine:~ # ip route restore < saved_routes
+\end{verbatim}
 
 \subsection{{\tt ip route flush} --- flush routing tables}
 \label{IP-ROUTE-FLUSH}
@@ -2508,13 +2588,15 @@ Namely,
 the \verb|monitor| command is the first in the command line and then
 the object list follows:
 \begin{verbatim}
-  ip monitor [ file FILE ] [ all | OBJECT-LIST ]
+  ip monitor [ file FILE ] [ all | OBJECT-LIST ] [ label ]
 \end{verbatim}
-\verb|OBJECT-LIST| is the list of object types that we want to monitor.
-It may contain \verb|link|, \verb|address| and \verb|route|.
-If no \verb|file| argument is given, \verb|ip| opens RTNETLINK,
-listens on it and dumps state changes in the format described
-in previous sections.
+\verb|OBJECT-LIST| is the list of object types that we want to
+monitor.  It may contain \verb|link|, \verb|address| and \verb|route|.
+Specifying \verb|label| indicates that output lines should be labelled
+with the type of object being printed --- this happens by default if
+\verb|all| is specified.  If no \verb|file| argument is given,
+\verb|ip| opens RTNETLINK, listens on it and dumps state changes in
+the format described in previous sections.
 
 If a file name is given, it does not listen on RTNETLINK,
 but opens the file containing RTNETLINK messages saved in binary format

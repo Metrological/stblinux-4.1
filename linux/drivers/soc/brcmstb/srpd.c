@@ -1,7 +1,7 @@
 /*
  * DDR Self-Refresh Power Down (SRPD) support for Broadcom STB SoCs
  *
- * Copyright © 2014 Broadcom Corporation
+ * Copyright © 2014, 2016 Broadcom
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -20,27 +20,29 @@
 #include <linux/of_device.h>
 #include <linux/io.h>
 
-#define REG_SRPD_CONFIG			0x3c
- #define INACT_COUNT_SHIFT		0
- #define INACT_COUNT_MASK		0xffff
- #define SRPD_EN_SHIFT			16
- #define SRPD_EN_MASK			0x10000
+#define REG_MEMC_SRPD_CFG_21		0x20
+#define REG_MEMC_SRPD_CFG_20		0x34
+#define REG_MEMC_SRPD_CFG_1x		0x3c
+#define INACT_COUNT_SHIFT		0
+#define INACT_COUNT_MASK		0xffff
+#define SRPD_EN_SHIFT			16
 
-#define REG_POWER_DOWN_STATUS		0x44
- #define SRPD_STATUS_SHIFT		1
- #define SRPD_STATUS_MASK		0x2
+struct brcmstb_memc_data {
+       u32 srpd_offset;
+};
 
 struct brcmstb_memc {
 	struct device *dev;
 	void __iomem *ddr_ctrl;
 	unsigned int timeout_cycles;
 	u32 frequency;
+	u32 srpd_offset;
 };
 
 static int brcmstb_memc_srpd_config(struct brcmstb_memc *memc,
 				    unsigned int cycles)
 {
-	void __iomem *cfg = memc->ddr_ctrl + REG_SRPD_CONFIG;
+	void __iomem *cfg = memc->ddr_ctrl + memc->srpd_offset;
 	u32 val;
 
 	/* Max timeout supported in HW */
@@ -107,8 +109,12 @@ static struct attribute_group dev_attr_group = {
 	.attrs = dev_attrs,
 };
 
+static const struct of_device_id brcmstb_memc_of_match[];
+
 static int brcmstb_memc_probe(struct platform_device *pdev)
 {
+	const struct brcmstb_memc_data *memc_data;
+	const struct of_device_id *of_id;
 	struct device *dev = &pdev->dev;
 	struct brcmstb_memc *memc;
 	struct resource *res;
@@ -119,6 +125,12 @@ static int brcmstb_memc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	dev_set_drvdata(dev, memc);
+
+	of_id = of_match_device(brcmstb_memc_of_match, dev);
+	if (!of_id || !of_id->data)
+		return -EINVAL;
+	memc_data = of_id->data;
+	memc->srpd_offset = memc_data->srpd_offset;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	memc->ddr_ctrl = devm_ioremap_resource(dev, res);
@@ -148,9 +160,37 @@ static int brcmstb_memc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+enum brcmstb_memc_hwtype {
+	BRCMSTB_MEMC_V21,
+	BRCMSTB_MEMC_V20,
+	BRCMSTB_MEMC_V1X,
+};
+
+static const struct brcmstb_memc_data brcmstb_memc_versions[] = {
+	{ .srpd_offset = REG_MEMC_SRPD_CFG_21 },
+	{ .srpd_offset = REG_MEMC_SRPD_CFG_20 },
+	{ .srpd_offset = REG_MEMC_SRPD_CFG_1x },
+};
+
 static const struct of_device_id brcmstb_memc_of_match[] = {
-	{ .compatible = "brcm,brcmstb-memc-ddr" },
-	{},
+	{
+		.compatible = "brcm,brcmstb-memc-ddr-rev-b.2.1",
+		.data = &brcmstb_memc_versions[BRCMSTB_MEMC_V21]
+	},
+	{
+		.compatible = "brcm,brcmstb-memc-ddr-rev-b.2.0",
+		.data = &brcmstb_memc_versions[BRCMSTB_MEMC_V20]
+	},
+	{
+		.compatible = "brcm,brcmstb-memc-ddr-rev-b.1.x",
+		.data = &brcmstb_memc_versions[BRCMSTB_MEMC_V1X]
+	},
+	/* default to the original offset */
+	{
+		.compatible = "brcm,brcmstb-memc-ddr",
+		.data = &brcmstb_memc_versions[BRCMSTB_MEMC_V1X]
+	},
+	{}
 };
 
 static struct platform_driver brcmstb_memc_driver = {

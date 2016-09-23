@@ -38,6 +38,10 @@
 #include <asm/smp-ops.h>
 #include <asm/prom.h>
 
+#ifdef CONFIG_BRCMSTB_MEMORY_API
+#include <linux/brcmstb/memory_api.h>
+#endif
+
 struct cpuinfo_mips cpu_data[NR_CPUS] __read_mostly;
 
 EXPORT_SYMBOL(cpu_data);
@@ -696,6 +700,10 @@ static void __init arch_mem_init(char **cmdline_p)
 	for_each_memblock(reserved, reg)
 		if (reg->size != 0)
 			reserve_bootmem(reg->base, reg->size, BOOTMEM_DEFAULT);
+
+#ifdef CONFIG_BRCMSTB_MEMORY_API
+	brcmstb_memory_init();
+#endif
 }
 
 static void __init resource_init(void)

@@ -1315,7 +1315,7 @@ int bcm_qspi_probe(struct platform_device *pdev, struct bcm_qspi_soc *soc)
 	qspi->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(qspi->clk)) {
 		dev_warn(dev, "unable to get clock\n");
-		goto err2;
+		qspi->clk = NULL;
 	}
 
 	ret = clk_prepare_enable(qspi->clk);
@@ -1401,10 +1401,7 @@ static int bcm_qspi_resume(struct device *dev)
 }
 #endif /* CONFIG_PM_SLEEP */
 
-const struct dev_pm_ops bcm_qspi_pm_ops = {
-	.suspend = bcm_qspi_suspend,
-	.resume  = bcm_qspi_resume,
-};
+SIMPLE_DEV_PM_OPS(bcm_qspi_pm_ops, bcm_qspi_suspend, bcm_qspi_resume);
 EXPORT_SYMBOL_GPL(bcm_qspi_pm_ops);
 
 MODULE_AUTHOR("Kamal Dasu");

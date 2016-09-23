@@ -1,1 +1,9 @@
-# Generated config based on /exp/leisun/leisun_2631_test/vobs/Ref_Linux_Kernel/uclinux-rootfs/linux-2.6.x/include
+PKG_CONFIG:=/bin/true
+AR:=arm-linux-gnueabihf-ar
+CC:=arm-linux-gnueabihf-gcc
+TC_CONFIG_IPSET:=n
+IPT_LIB_DIR:=/lib/xtables
+IP_CONFIG_SETNS:=y
+HAVE_SELINUX:=n
+HAVE_LATEX:=n
+HAVE_PDFLATEX:=n

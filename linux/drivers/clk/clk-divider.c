@@ -80,12 +80,14 @@ static unsigned int _get_table_div(const struct clk_div_table *table,
 }
 
 static unsigned int _get_div(const struct clk_div_table *table,
-			     unsigned int val, unsigned long flags)
+			     unsigned int val, unsigned long flags, u8 width)
 {
 	if (flags & CLK_DIVIDER_ONE_BASED)
 		return val;
 	if (flags & CLK_DIVIDER_POWER_OF_TWO)
 		return 1 << val;
+	if (flags & CLK_DIVIDER_MAX_AT_ZERO)
+		return val ? val : div_mask(width) + 1;
 	if (table)
 		return _get_table_div(table, val);
 	return val + 1;
@@ -103,12 +105,14 @@ static unsigned int _get_table_val(const struct clk_div_table *table,
 }
 
 static unsigned int _get_val(const struct clk_div_table *table,
-			     unsigned int div, unsigned long flags)
+			     unsigned int div, unsigned long flags, u8 width)
 {
 	if (flags & CLK_DIVIDER_ONE_BASED)
 		return div;
 	if (flags & CLK_DIVIDER_POWER_OF_TWO)
 		return __ffs(div);
+	if (flags & CLK_DIVIDER_MAX_AT_ZERO)
+		return (div == div_mask(width) + 1) ? 0 : div;
 	if (table)
 		return  _get_table_val(table, div);
 	return div - 1;
@@ -119,9 +123,10 @@ unsigned long divider_recalc_rate(struct clk_hw *hw, unsigned long parent_rate,
 				  const struct clk_div_table *table,
 				  unsigned long flags)
 {
+	struct clk_divider *divider = to_clk_divider(hw);
 	unsigned int div;
 
-	div = _get_div(table, val, flags);
+	div = _get_div(table, val, flags, divider->width);
 	if (!div) {
 		WARN(!(flags & CLK_DIVIDER_ALLOW_ZERO),
 			"%s: Zero divisor and CLK_DIVIDER_ALLOW_ZERO not set\n",
@@ -353,7 +358,8 @@ static long clk_divider_round_rate(struct clk_hw *hw, unsigned long rate,
 	if (divider->flags & CLK_DIVIDER_READ_ONLY) {
 		bestdiv = readl(divider->reg) >> divider->shift;
 		bestdiv &= div_mask(divider->width);
-		bestdiv = _get_div(divider->table, bestdiv, divider->flags);
+		bestdiv = _get_div(divider->table, bestdiv, divider->flags,
+				   divider->width);
 		return DIV_ROUND_UP_ULL((u64)*prate, bestdiv);
 	}
 
@@ -372,7 +378,7 @@ int divider_get_val(unsigned long rate, unsigned long parent_rate,
 	if (!_is_valid_div(table, div, flags))
 		return -EINVAL;
 
-	value = _get_val(table, div, flags);
+	value = _get_val(table, div, flags, width);
 
 	return min_t(unsigned int, value, div_mask(width));
 }
@@ -608,6 +614,9 @@ void of_divider_clk_setup(struct device_node *node)
 
 	if (of_property_read_bool(node, "index-allow-zero"))
 		clk_divider_flags |= CLK_DIVIDER_ALLOW_ZERO;
+
+	if (of_property_read_bool(node, "index-max-mult-at-zero"))
+		clk_divider_flags |= CLK_DIVIDER_MAX_AT_ZERO;
 
 	if (of_property_read_bool(node, "hiword-mask"))
 		clk_divider_flags |= CLK_DIVIDER_HIWORD_MASK;

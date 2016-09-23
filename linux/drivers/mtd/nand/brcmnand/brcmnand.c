@@ -497,7 +497,7 @@ static int brcmnand_revision_init(struct brcmnand_controller *ctrl)
 	/* Maximum spare area sector size (per 512B) */
 	if (ctrl->nand_version >= 0x0702)
 		ctrl->max_oob = 128;
-	if (ctrl->nand_version >= 0x0600)
+	else if (ctrl->nand_version >= 0x0600)
 		ctrl->max_oob = 64;
 	else if (ctrl->nand_version >= 0x0500)
 		ctrl->max_oob = 32;
@@ -602,7 +602,7 @@ static void brcmnand_wr_corr_thresh(struct brcmnand_host *host, u8 val)
 
 	if (ctrl->nand_version >= 0x0702)
 		bits = 7;
-	if (ctrl->nand_version >= 0x0600)
+	else if (ctrl->nand_version >= 0x0600)
 		bits = 6;
 	else if (ctrl->nand_version >= 0x0500)
 		bits = 5;

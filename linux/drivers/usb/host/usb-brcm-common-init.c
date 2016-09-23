@@ -84,7 +84,6 @@
 #define USB_XHCI_EC_IRADAT 0x65c
 
 enum brcm_family_type {
-	BRCM_FAMILY_DEFAULT,
 	BRCM_FAMILY_3390A0,
 	BRCM_FAMILY_7250B0,
 	BRCM_FAMILY_7271A0,
@@ -94,6 +93,8 @@ enum brcm_family_type {
 	BRCM_FAMILY_7439B0,
 	BRCM_FAMILY_7445D0,
 	BRCM_FAMILY_COUNT,
+	/* DEFAULT (default to latest chip, currently the 7271) */
+	BRCM_FAMILY_DEFAULT = BRCM_FAMILY_7271A0
 };
 
 enum {
@@ -165,8 +166,10 @@ static const struct id_to_type id_to_type_table[] = {
 	{ 0x33900000, BRCM_FAMILY_3390A0 },
 	{ 0x33900010, BRCM_FAMILY_3390A0 },
 	{ 0x72500010, BRCM_FAMILY_7250B0 },
-	{ 0x72710000, BRCM_FAMILY_7271A0 },
+	{ 0x72600000, BRCM_FAMILY_7271A0 },
 	{ 0x72680000, BRCM_FAMILY_7271A0 },
+	{ 0x72710000, BRCM_FAMILY_7271A0 },
+	{ 0x72710010, BRCM_FAMILY_7271A0 },
 	{ 0x73640000, BRCM_FAMILY_7364A0 },
 	{ 0x73640010, BRCM_FAMILY_7364A0 },
 	{ 0x73640020, BRCM_FAMILY_7364A0 },
@@ -182,23 +185,6 @@ static enum brcm_family_type my_family;
 
 static const uint32_t
 usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
-	/* DEFAULT (default to latest chip, currently the 7271) */
-	[BRCM_FAMILY_DEFAULT] = {
-		USB_CTRL_SETUP_scb1_en_MASK,
-		USB_CTRL_SETUP_scb2_en_MASK,
-		USB_CTRL_SETUP_ss_ehci64bit_en_var_MASK,
-		0, /* USB_CTRL_SETUP_strap_ipp_sel_MASK */
-		0, /* USB_CTRL_SETUP_OC3_DISABLE_MASK */
-		USB_CTRL_PLL_CTL_PLL_IDDQ_PWRDN_MASK,
-		0, /* USB_CTRL_EBRIDGE_ESTOP_SCB_REQ_MASK */
-		0, /* USB_CTRL_USB_PM_bdc_soft_resetb_MASK */
-		0, /* USB_CTRL_USB_PM_xhc_soft_resetb_MASK */
-		0, /* USB_CTRL_USB_PM_USB_PWRDN_MASK */
-		USB_CTRL_USB30_CTL1_xhc_soft_resetb_MASK,
-		USB_CTRL_USB30_CTL1_usb3_ioc_MASK,
-		USB_CTRL_USB30_CTL1_usb3_ipp_MASK,
-		0, /* USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK */
-	},
 	/* 3390B0 */
 	[BRCM_FAMILY_3390A0] = {
 		USB_CTRL_SETUP_scb1_en_MASK,
@@ -665,7 +651,8 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 
 	my_family = get_family_type(params);
 	usb_reg_bits_map = &usb_reg_bits_map_table[my_family][0];
-	xhci_soft_reset(ctrl, 1);
+	if (params->has_xhci)
+		xhci_soft_reset(ctrl, 1);
 
 	if (BRCM_ID(params->family_id) == 0x7366) {
 		/*
@@ -713,12 +700,14 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 		 */
 		USB_CTRL_SET_FAMILY(ctrl, SETUP, ss_ehci64bit_en);
 
-	/*
-	 * Kick start USB3 PHY
-	 * Make sure it's low to insure a rising edge.
-	 */
-	USB_CTRL_UNSET(ctrl, USB30_CTL1, phy3_pll_seq_start);
-	USB_CTRL_SET(ctrl, USB30_CTL1, phy3_pll_seq_start);
+	if (params->has_xhci) {
+		/*
+		 * Kick start USB3 PHY
+		 * Make sure it's low to insure a rising edge.
+		 */
+		USB_CTRL_UNSET(ctrl, USB30_CTL1, phy3_pll_seq_start);
+		USB_CTRL_SET(ctrl, USB30_CTL1, phy3_pll_seq_start);
+	}
 
 	/* Block auto PLL suspend by USB2 PHY */
 	USB_CTRL_SET(ctrl, PLL_CTL, PLL_SUSPEND_EN);
