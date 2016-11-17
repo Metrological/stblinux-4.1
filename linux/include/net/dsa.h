@@ -249,6 +249,7 @@ struct dsa_switch_driver {
 	 */
 	int	(*suspend)(struct dsa_switch *ds);
 	int	(*resume)(struct dsa_switch *ds);
+	void	(*shutdown)(struct dsa_switch *ds);
 
 	/*
 	 * Port enable/disable

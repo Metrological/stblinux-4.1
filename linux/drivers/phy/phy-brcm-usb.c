@@ -39,9 +39,9 @@ struct brcm_usb_phy_data {
 	void __iomem		*xhci_ec_regs;
 	int			ioc;
 	int			ipp;
-	int			has_xhci;
 	int			device_mode;
-	struct clk		*usb_clk;
+	struct clk		*usb_20_clk;
+	struct clk		*usb_30_clk;
 	int			num_phys;
 	struct brcm_usb_phy {
 		struct phy *phy;
@@ -145,14 +145,28 @@ static int brcm_usb_phy_probe(struct platform_device *pdev)
 	if (IS_ERR(phy_provider))
 		return PTR_ERR(phy_provider);
 
-	priv->usb_clk = of_clk_get_by_name(dn, "sw_usb");
-	if (IS_ERR(priv->usb_clk)) {
+	priv->usb_20_clk = of_clk_get_by_name(dn, "sw_usb");
+	if (IS_ERR(priv->usb_20_clk)) {
 		dev_err(&pdev->dev, "Clock not found in Device Tree\n");
-		priv->usb_clk = NULL;
+		priv->usb_20_clk = NULL;
 	}
-	err = clk_prepare_enable(priv->usb_clk);
+	err = clk_prepare_enable(priv->usb_20_clk);
 	if (err)
 		return err;
+
+	/* Get the USB3.0 clocks if we have XHCI */
+	if (priv->ini.has_xhci) {
+		priv->usb_30_clk = of_clk_get_by_name(dn, "sw_usb3");
+		if (IS_ERR(priv->usb_30_clk)) {
+			/* Older device-trees are missing this clock */
+			dev_info(&pdev->dev,
+				"USB3.0 clock not found in Device Tree\n");
+			priv->usb_30_clk = NULL;
+		}
+		err = clk_prepare_enable(priv->usb_30_clk);
+		if (err)
+			return err;
+	}
 
 	brcm_usb_common_init(&priv->ini);
 
@@ -164,7 +178,8 @@ static int brcm_usb_phy_suspend(struct device *dev)
 {
 	struct brcm_usb_phy_data *priv = dev_get_drvdata(dev);
 
-	clk_disable(priv->usb_clk);
+	clk_disable(priv->usb_20_clk);
+	clk_disable(priv->usb_30_clk);
 	return 0;
 }
 
@@ -172,14 +187,16 @@ static int brcm_usb_phy_resume(struct device *dev)
 {
 	struct brcm_usb_phy_data *priv = dev_get_drvdata(dev);
 
-	clk_enable(priv->usb_clk);
+	clk_enable(priv->usb_20_clk);
+	clk_enable(priv->usb_30_clk);
 	brcm_usb_common_init(&priv->ini);
 	return 0;
 }
 #endif /* CONFIG_PM_SLEEP */
 
-static SIMPLE_DEV_PM_OPS(brcm_usb_phy_pm_ops, brcm_usb_phy_suspend,
-		brcm_usb_phy_resume);
+static const struct dev_pm_ops brcm_usb_phy_pm_ops = {
+	SET_LATE_SYSTEM_SLEEP_PM_OPS(brcm_usb_phy_suspend, brcm_usb_phy_resume)
+};
 
 static const struct of_device_id brcm_usb_dt_ids[] = {
 	{ .compatible = "brcm,usb-phy" },

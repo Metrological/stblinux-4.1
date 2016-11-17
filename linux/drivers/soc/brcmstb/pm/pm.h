@@ -24,7 +24,7 @@
 #define AON_CTRL_HOST_MISC_CMDS		0x8c
 #define AON_CTRL_SYSTEM_DATA_RAM_OFS	0x200
 
-/* PM_CTRL bitfield */
+/* PM_CTRL bitfield (Method #0) */
 #define PM_FAST_PWRDOWN			(1 << 6)
 #define PM_WARM_BOOT			(1 << 5)
 #define PM_DEEP_STANDBY			(1 << 4)
@@ -33,8 +33,24 @@
 #define PM_PLL_PWRDOWN			(1 << 1)
 #define PM_PWR_DOWN			(1 << 0)
 
+/* PM_CTRL bitfield (Method #1) */
+#define PM_DPHY_STANDBY_CLEAR		(1 << 20)
+#define PM_MIN_S3_WIDTH_TIMER_BYPASS	(1 << 7)
+
 #define PM_S2_COMMAND	(PM_PLL_PWRDOWN | PM_USE_CPU_RDY | PM_PWR_DOWN)
+
+/* Method 0 bitmasks */
 #define PM_COLD_CONFIG	(PM_PLL_PWRDOWN | PM_DEEP_STANDBY)
 #define PM_WARM_CONFIG	(PM_COLD_CONFIG | PM_USE_CPU_RDY | PM_WARM_BOOT)
 
+/* Method 1 bitmask */
+#define M1_PM_WARM_CONFIG (PM_DPHY_STANDBY_CLEAR | \
+			   PM_MIN_S3_WIDTH_TIMER_BYPASS | \
+			   PM_WARM_BOOT | PM_DEEP_STANDBY | \
+			   PM_PLL_PWRDOWN | PM_PWR_DOWN)
+
+#define M1_PM_COLD_CONFIG (PM_DPHY_STANDBY_CLEAR | \
+			   PM_MIN_S3_WIDTH_TIMER_BYPASS | \
+			   PM_DEEP_STANDBY | \
+			   PM_PLL_PWRDOWN | PM_PWR_DOWN)
 #endif /* __BRCMSTB_PM_H__ */

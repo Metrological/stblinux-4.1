@@ -870,6 +870,68 @@ static void r4k_flush_kernel_vmap_range(unsigned long vaddr, int size)
 	r4k_on_each_cpu(local_r4k_flush_kernel_vmap_range, &args);
 }
 
+#if CONFIG_BRCMSTB
+/*
+ * Fine-grained cacheflush() syscall for usermode Nexus
+ */
+static int __brcmstb_cacheflush(unsigned long addr, unsigned long bytes,
+	unsigned int cache)
+{
+	/*
+	 * SWLINUX-2607, BMIPS5000_5200-ES100-R: Flush JTB and CRS on
+	 * user-initiated invalidations, in case a JIT buffer with mixed
+	 * code+data is getting rewritten.  This helps prevent a possible
+	 * CPU hang from prefetching invalid instructions.
+	 */
+	write_c0_brcm_action(4 << 16); /* reset JTB this thread */
+	write_c0_brcm_action(5 << 16); /* reset JTB other thread */
+	write_c0_brcm_action(6 << 16); /* reset CRS this thread */
+	write_c0_brcm_action(7 << 16); /* reset CRS other thread */
+
+	/* ICACHE/BCACHE is handled by the standard implementation */
+	if (cache & ICACHE) {
+		flush_icache_range(addr, addr + bytes);
+		/*
+		 * DCACHE is not implicitly flushed on bmips5000, do not
+		 * return and fall through for the this case.
+		 */
+		if (current_cpu_type() != CPU_BMIPS5000)
+			return 0;
+	}
+
+	/* New DCACHE implementation flushes D$/L2 out to RAM for DMA */
+	if (cache & DCACHE) {
+		unsigned long pg = addr & PAGE_MASK, end = addr + bytes;
+
+		if (bytes >= dcache_size) {
+			r4k_blast_scache();
+			__sync();
+			return 0;
+		}
+
+		down_read(&current->mm->mmap_sem);
+		while (pg < end) {
+			pgd_t *pgdp = pgd_offset(current->mm, pg);
+			pud_t *pudp = pud_offset(pgdp, pg);
+			pmd_t *pmdp = pmd_offset(pudp, pg);
+			pte_t *ptep = pte_offset(pmdp, pg);
+
+			if (!(pte_val(*ptep) & _PAGE_PRESENT)) {
+				up_read(&current->mm->mmap_sem);
+				return -EFAULT;
+			}
+
+			r4k_blast_scache_page(pg);
+			pg += PAGE_SIZE;
+		}
+		up_read(&current->mm->mmap_sem);
+	}
+
+	__sync();
+	return 0;
+}
+#endif
+
 static inline void rm7k_erratum31(void)
 {
 	const unsigned long ic_lsize = 32;
@@ -1756,6 +1818,9 @@ void r4k_cache_init(void)
 		current_cpu_data.options |= MIPS_CPU_INCLUSIVE_CACHES;
 		break;
 	}
+#if CONFIG_BRCMSTB
+	brcmstb_cacheflush = __brcmstb_cacheflush;
+#endif
 }
 
 static int r4k_cache_pm_notifier(struct notifier_block *self, unsigned long cmd,

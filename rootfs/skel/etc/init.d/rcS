@@ -37,11 +37,15 @@ fi
 # Don't let SCHED_FIFO / SCHED_RR realtime threads get preempted
 echo -1 > /proc/sys/kernel/sched_rt_runtime_us
 
-# Enable conservative governor
-cpufreq-info -g | grep conservative >/dev/null
+# By default, switch to conservative governor on SoCs with AVS CPUfreq only
+cpufreq-info -d | grep 'brcm.*avs' >/dev/null
 if [ $? = 0 ]; then
-	echo "Switching to conservative governor"
-	cpufreq-set -g conservative
+	# Check if system supports the conservative governor and enable it
+	cpufreq-info -g | grep conservative >/dev/null
+	if [ $? = 0 ]; then
+		echo "Switching to conservative governor"
+		cpufreq-set -g conservative
+	fi
 fi
 
 # GPLv3 warning

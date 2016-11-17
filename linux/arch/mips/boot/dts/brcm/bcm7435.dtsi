@@ -84,6 +84,70 @@
 		status = "disabled";
 	};
 
+	nexus-wakeups {
+		interrupts = <0x0>,
+			<0x1>,
+			<0x2>,
+			<0x5>,
+			<0x6>,
+			<0xa>;
+		interrupt-parent = <&aon_pm_l2_intc>;
+		interrupt-names = "cec",
+			"irr",
+			"kpd",
+			"gpio",
+			"uhfr",
+			"xpt_pmu";
+	};
+
+	nexus-irq0 {
+		interrupts = <0x6>,
+			<0x1a>,
+			<0x18>,
+			<0x19>,
+			<0x2>,
+			<0x4>,
+			<0x10>,
+			<0x11>,
+			<0x12>,
+			<0x3>,
+			<0x9>;
+		interrupt-parent = <&upg_irq0_intc>;
+		interrupt-names = "gio",
+			"iica",
+			"iicc",
+			"iicd",
+			"irb",
+			"ua",
+			"uarta",
+			"uartb",
+			"uartc",
+			"ub",
+			"uc";
+	};
+
+	nexus-irq0_aon {
+		interrupts = <0x6>,
+			<0x7>,
+			<0x1c>,
+			<0x1b>,
+			<0x0>,
+			<0x5>,
+			<0x8>,
+			<0x1>,
+			<0x14>;
+		interrupt-parent = <&irq0_aon_intc>;
+		interrupt-names = "gio",
+			"icap",
+			"iicb",
+			"iice",
+			"kbd1",
+			"kbd2",
+			"kbd3",
+			"ldk",
+			"spi";
+	};
+
 	rdb {
 		#address-cells = <1>;
 		#size-cells = <1>;

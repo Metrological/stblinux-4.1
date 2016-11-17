@@ -32,6 +32,7 @@
 #define USB_CTLR_DEVICE_OFF 0
 #define USB_CTLR_DEVICE_ON 1
 #define USB_CTLR_DEVICE_DUAL 2
+#define USB_CTLR_DEVICE_TYPEC_PD 3
 
 struct  brcm_usb_common_init_params {
 	void __iomem *ctrl_regs;

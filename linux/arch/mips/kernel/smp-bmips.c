@@ -388,10 +388,21 @@ void __ref play_dead(void)
 	 * Use BEV !IV (BMIPS_WARM_RESTART_VEC) to avoid the regular Linux
 	 * IRQ handlers; this clears ST0_IE and returns immediately.
 	 */
-	clear_c0_cause(CAUSEF_IV | C_SW0 | C_SW1);
-	change_c0_status(
-		IE_IRQ5 | bmips_tp1_irqs | IE_SW0 | IE_SW1 | ST0_IE | ST0_BEV,
-		IE_SW0 | IE_SW1 | ST0_IE | ST0_BEV);
+	clear_c0_status(IE_IRQ5 | IE_IRQ4 | IE_IRQ3 | IE_IRQ2 | bmips_tp1_irqs |
+			IE_IRQ0 | IE_SW0 | IE_SW1 | ST0_IE | ST0_BEV);
+	switch(current_cpu_type()) {
+	case CPU_BMIPS4350:
+	case CPU_BMIPS4380:
+		clear_c0_cause(CAUSEF_IV | C_SW1 | C_SW0);
+		break;
+	case CPU_BMIPS5000:
+		clear_c0_cause(CAUSEF_IV);
+		write_c0_brcm_action(ACTION_CLR_IPI(smp_processor_id(), 0));
+		write_c0_brcm_action(ACTION_CLR_IPI(smp_processor_id(), 1));
+		break;
+	}
+	set_c0_status(IE_SW1 | IE_SW0 | ST0_BEV);
+	set_c0_status(ST0_IE);
 	irq_disable_hazard();
 
 	/*

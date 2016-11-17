@@ -29,6 +29,7 @@
 #include <linux/etherdevice.h>
 #include <linux/rtnetlink.h>
 #include <net/switchdev.h>
+#include <linux/kexec.h>
 
 #include "bcm_sf2.h"
 #include "bcm_sf2_regs.h"
@@ -1319,6 +1320,18 @@ static int bcm_sf2_sw_resume(struct dsa_switch *ds)
 	return 0;
 }
 
+static void bcm_sf2_sw_shutdown(struct dsa_switch *ds)
+{
+	struct bcm_sf2_priv *priv = ds_to_priv(ds);
+
+	/* For a kernel about to be kexec'd we want to keep the GPHY on
+	 * for a successful MDIO bus scan to occur. If we did turn off
+	 * the GPHY before, this will also power it back on.
+	 */
+	if (priv->hw_params.num_gphy == 1)
+		bcm_sf2_gphy_enable_set(ds, kexec_in_progress);
+}
+
 static void bcm_sf2_sw_get_wol(struct dsa_switch *ds, int port,
 			       struct ethtool_wolinfo *wol)
 {
@@ -1387,6 +1400,7 @@ static struct dsa_switch_driver bcm_sf2_switch_driver = {
 	.fixed_link_update	= bcm_sf2_sw_fixed_link_update,
 	.suspend		= bcm_sf2_sw_suspend,
 	.resume			= bcm_sf2_sw_resume,
+	.shutdown		= bcm_sf2_sw_shutdown,
 	.get_wol		= bcm_sf2_sw_get_wol,
 	.set_wol		= bcm_sf2_sw_set_wol,
 	.port_enable		= bcm_sf2_port_setup,

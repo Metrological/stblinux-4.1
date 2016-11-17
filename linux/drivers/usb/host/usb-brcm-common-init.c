@@ -50,6 +50,8 @@
 #define   USB_CTRL_SETUP_ss_ehci64bit_en_MASK		0x00020000 /* option */
 #define   USB_CTRL_SETUP_ss_ehci64bit_en_var_MASK	0x00010000 /* option */
 #define   USB_CTRL_SETUP_strap_ipp_sel_MASK		0x02000000 /* option */
+#define   USB_CTRL_SETUP_cc_drd_mode_enable_MASK	0x04000000 /* option */
+#define   USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK 0x08000000 /* opt */
 #define   USB_CTRL_SETUP_OC3_DISABLE_MASK		0xc0000000 /* option */
 #define USB_CTRL_PLL_CTL		0x04
 #define   USB_CTRL_PLL_CTL_PLL_SUSPEND_EN_MASK		0x08000000
@@ -67,6 +69,7 @@
 #define   USB_CTRL_USB_PM_xhc_soft_resetb_MASK		0x00400000 /* option */
 #define   USB_CTRL_USB_PM_xhc_soft_resetb_var_MASK	0x40000000 /* option */
 #define   USB_CTRL_USB_PM_USB_PWRDN_MASK		0x80000000 /* option */
+#define   USB_CTRL_USB_PM_soft_reset_MASK		0x40000000 /* option */
 #define USB_CTRL_USB30_CTL1		0x60
 #define   USB_CTRL_USB30_CTL1_phy3_pll_seq_start_MASK	0x00000010
 #define   USB_CTRL_USB30_CTL1_phy3_resetb_MASK		0x00010000
@@ -92,6 +95,7 @@ enum brcm_family_type {
 	BRCM_FAMILY_74371A0,
 	BRCM_FAMILY_7439B0,
 	BRCM_FAMILY_7445D0,
+	BRCM_FAMILY_7260A0,
 	BRCM_FAMILY_COUNT,
 	/* DEFAULT (default to latest chip, currently the 7271) */
 	BRCM_FAMILY_DEFAULT = BRCM_FAMILY_7271A0
@@ -112,6 +116,9 @@ enum {
 	USB_CTRL_USB30_CTL1_usb3_ioc_SELECTOR,
 	USB_CTRL_USB30_CTL1_usb3_ipp_SELECTOR,
 	USB_CTRL_USB_DEVICE_CTL1_port_mode_SELECTOR,
+	USB_CTRL_USB_PM_soft_reset_SELECTOR,
+	USB_CTRL_SETUP_cc_drd_mode_enable_SELECTOR,
+	USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_SELECTOR,
 	USB_CTRL_SELECTOR_COUNT,
 };
 
@@ -166,7 +173,7 @@ static const struct id_to_type id_to_type_table[] = {
 	{ 0x33900000, BRCM_FAMILY_3390A0 },
 	{ 0x33900010, BRCM_FAMILY_3390A0 },
 	{ 0x72500010, BRCM_FAMILY_7250B0 },
-	{ 0x72600000, BRCM_FAMILY_7271A0 },
+	{ 0x72600000, BRCM_FAMILY_7260A0 },
 	{ 0x72680000, BRCM_FAMILY_7271A0 },
 	{ 0x72710000, BRCM_FAMILY_7271A0 },
 	{ 0x72710010, BRCM_FAMILY_7271A0 },
@@ -201,6 +208,9 @@ usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
 		0, /* USB_CTRL_USB30_CTL1_usb3_ioc_MASK */
 		0, /* USB_CTRL_USB30_CTL1_usb3_ipp_MASK */
 		USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK,
+		0, /* USB_CTRL_USB_PM_soft_reset_MASK */
+		0, /* USB_CTRL_SETUP_cc_drd_mode_enable_MASK */
+		0, /* USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK */
 	},
 	/* 7250b0 */
 	[BRCM_FAMILY_7250B0] = {
@@ -218,6 +228,9 @@ usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
 		0, /* USB_CTRL_USB30_CTL1_usb3_ioc_MASK */
 		0, /* USB_CTRL_USB30_CTL1_usb3_ipp_MASK */
 		0, /* USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK */
+		0, /* USB_CTRL_USB_PM_soft_reset_MASK */
+		0, /* USB_CTRL_SETUP_cc_drd_mode_enable_MASK */
+		0, /* USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK */
 	},
 	/* 7271a0 */
 	[BRCM_FAMILY_7271A0] = {
@@ -235,6 +248,9 @@ usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
 		0, /* USB_CTRL_USB30_CTL1_usb3_ioc_MASK */
 		0, /* USB_CTRL_USB30_CTL1_usb3_ipp_MASK */
 		USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK,
+		USB_CTRL_USB_PM_soft_reset_MASK,
+		0, /* USB_CTRL_SETUP_cc_drd_mode_enable_MASK */
+		0, /* USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK */
 	},
 	/* 7364a0 */
 	[BRCM_FAMILY_7364A0] = {
@@ -252,6 +268,9 @@ usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
 		0, /* USB_CTRL_USB30_CTL1_usb3_ioc_MASK */
 		0, /* USB_CTRL_USB30_CTL1_usb3_ipp_MASK */
 		0, /* USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK */
+		0, /* USB_CTRL_USB_PM_soft_reset_MASK */
+		0, /* USB_CTRL_SETUP_cc_drd_mode_enable_MASK */
+		0, /* USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK */
 	},
 	/* 7366c0 */
 	[BRCM_FAMILY_7366C0] = {
@@ -269,6 +288,9 @@ usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
 		0, /* USB_CTRL_USB30_CTL1_usb3_ioc_MASK */
 		0, /* USB_CTRL_USB30_CTL1_usb3_ipp_MASK */
 		0, /* USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK */
+		0, /* USB_CTRL_USB_PM_soft_reset_MASK */
+		0, /* USB_CTRL_SETUP_cc_drd_mode_enable_MASK */
+		0, /* USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK */
 	},
 	/* 74371A0 */
 	[BRCM_FAMILY_74371A0] = {
@@ -286,6 +308,9 @@ usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
 		USB_CTRL_USB30_CTL1_usb3_ioc_MASK,
 		USB_CTRL_USB30_CTL1_usb3_ipp_MASK,
 		0, /* USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK */
+		0, /* USB_CTRL_USB_PM_soft_reset_MASK */
+		0, /* USB_CTRL_SETUP_cc_drd_mode_enable_MASK */
+		0, /* USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK */
 	},
 	/* 7439B0 */
 	[BRCM_FAMILY_7439B0] = {
@@ -303,6 +328,9 @@ usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
 		0, /* USB_CTRL_USB30_CTL1_usb3_ioc_MASK */
 		0, /* USB_CTRL_USB30_CTL1_usb3_ipp_MASK */
 		USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK,
+		0, /* USB_CTRL_USB_PM_soft_reset_MASK */
+		0, /* USB_CTRL_SETUP_cc_drd_mode_enable_MASK */
+		0, /* USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK */
 	},
 	/* 7445d0 */
 	[BRCM_FAMILY_7445D0] = {
@@ -320,6 +348,29 @@ usb_reg_bits_map_table[BRCM_FAMILY_COUNT][USB_CTRL_SELECTOR_COUNT] = {
 		0, /* USB_CTRL_USB30_CTL1_usb3_ioc_MASK */
 		0, /* USB_CTRL_USB30_CTL1_usb3_ipp_MASK */
 		0, /* USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK */
+		0, /* USB_CTRL_USB_PM_soft_reset_MASK */
+		0, /* USB_CTRL_SETUP_cc_drd_mode_enable_MASK */
+		0, /* USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK */
+	},
+	/* 7260a0 */
+	[BRCM_FAMILY_7260A0] = {
+		0, /* USB_CTRL_SETUP_scb1_en_MASK */
+		0, /* USB_CTRL_SETUP_scb2_en_MASK */
+		USB_CTRL_SETUP_ss_ehci64bit_en_MASK,
+		USB_CTRL_SETUP_strap_ipp_sel_MASK,
+		USB_CTRL_SETUP_OC3_DISABLE_MASK,
+		0, /* USB_CTRL_PLL_CTL_PLL_IDDQ_PWRDN_MASK */
+		USB_CTRL_EBRIDGE_ESTOP_SCB_REQ_MASK,
+		USB_CTRL_USB_PM_bdc_soft_resetb_MASK,
+		USB_CTRL_USB_PM_xhc_soft_resetb_MASK,
+		USB_CTRL_USB_PM_USB_PWRDN_MASK,
+		0, /* USB_CTRL_USB30_CTL1_xhc_soft_resetb_MASK */
+		0, /* USB_CTRL_USB30_CTL1_usb3_ioc_MASK */
+		0, /* USB_CTRL_USB30_CTL1_usb3_ipp_MASK */
+		USB_CTRL_USB_DEVICE_CTL1_port_mode_MASK,
+		USB_CTRL_USB_PM_soft_reset_MASK,
+		USB_CTRL_SETUP_cc_drd_mode_enable_MASK,
+		USB_CTRL_SETUP_strap_cc_drd_mode_enable_sel_MASK,
 	},
 };
 
@@ -482,20 +533,48 @@ static void usb3_enable_skip_align(void __iomem *ctrl_base)
 }
 
 
-static void usb3_pll_54Mhz(void __iomem *ctrl_base)
+static void usb3_unfreeze_aeq(void __iomem *ctrl_base)
+{
+	uint32_t val, ofs;
+	int ii;
+
+	ofs = 0;
+	for (ii = 0; ii < 2; ++ii) {
+		/* Let EQ freeze after TSEQ */
+		usb_mdio_write(ctrl_base, 0x1f, (0x80e0 + ofs), MDIO_USB3);
+		val = usb_mdio_read(ctrl_base, 0x01, MDIO_USB3);
+		val &= ~0x0008;
+		usb_mdio_write(ctrl_base, 0x01, val, MDIO_USB3);
+		ofs = 0x1000;
+	}
+}
+
+
+static void usb3_pll_54Mhz(struct brcm_usb_common_init_params *params)
 {
 	uint32_t ofs;
 	int ii;
+	void __iomem *ctrl_base = params->ctrl_regs;
 
-	if (my_family != BRCM_FAMILY_7271A0)
-		return;
 	/*
 	 * On the 7271a0 and 7268a0, the reference clock for the
 	 * 3.0 PLL has been changed from 50MHz to 54MHz so the
 	 * PLL needs to be reprogramed. Later chips will have
 	 * the PLL programmed correctly on power-up.
 	 * See SWLINUX-4006.
+	 *
+	 * On the 7364C0, the reference clock for the
+	 * 3.0 PLL has been changed from 50MHz to 54MHz to
+	 * work around a MOCA issue.
+	 * See SWLINUX-4169.
 	 */
+	if (my_family == BRCM_FAMILY_7364A0) {
+		if (BRCM_REV(params->family_id) < 0x20)
+			return;
+	} else {
+		if (my_family != BRCM_FAMILY_7271A0)
+			return;
+	}
 
 	/* set USB 3.0 PLL to accept 54Mhz reference clock */
 	USB_CTRL_UNSET(ctrl_base, USB30_CTL1, phy3_pll_seq_start);
@@ -547,14 +626,17 @@ static void usb3_ssc_enable(void __iomem *ctrl_base)
 }
 
 
-static void usb3_phy_workarounds(void __iomem *ctrl_base)
+static void usb3_phy_workarounds(struct brcm_usb_common_init_params *params)
 {
+	void __iomem *ctrl_base = params->ctrl_regs;
+
 	usb3_pll_fix(ctrl_base);
-	usb3_pll_54Mhz(ctrl_base);
+	usb3_pll_54Mhz(params);
 	usb3_ssc_enable(ctrl_base);
 	usb3_enable_pipe_reset(ctrl_base);
 	usb3_enable_sigdet(ctrl_base);
 	usb3_enable_skip_align(ctrl_base);
+	usb3_unfreeze_aeq(ctrl_base);
 }
 
 
@@ -675,9 +757,14 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 		msleep(1);
 	}
 
-	/* 3390a0 & 7439b0 so far. */
 	if (USB_CTRL_MASK_FAMILY(USB_PM, USB_PWRDN)) {
 		USB_CTRL_UNSET_FAMILY(ctrl, USB_PM, USB_PWRDN);
+		/* 1 millisecond - for USB clocks to settle down */
+		msleep(1);
+	}
+
+	if (USB_CTRL_MASK_FAMILY(USB_PM, soft_reset)) {
+		USB_CTRL_UNSET_FAMILY(ctrl, USB_PM, soft_reset);
 		/* 1 millisecond - for USB clocks to settle down */
 		msleep(1);
 	}
@@ -715,7 +802,7 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 	usb_phy_ldo_fix(ctrl);
 	usb2_eye_fix(ctrl);
 	if (params->has_xhci)
-		usb3_phy_workarounds(ctrl);
+		usb3_phy_workarounds(params);
 
 	/* Setup the endian bits */
 	reg = brcmusb_readl(USB_CTRL_REG(ctrl, SETUP));
@@ -733,7 +820,7 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 
 	/*
 	 * Make sure the the second and third memory controller
-	 * interfaces are enabled.
+	 * interfaces are enabled if they exist.
 	 */
 	if (USB_CTRL_MASK_FAMILY(SETUP, scb1_en))
 		reg |= USB_CTRL_MASK_FAMILY(SETUP, scb1_en);
@@ -772,11 +859,20 @@ void brcm_usb_common_init(struct brcm_usb_common_init_params *params)
 		case USB_CTLR_DEVICE_OFF:
 			USB_CTRL_UNSET_FAMILY(ctrl, USB_PM, bdc_soft_resetb);
 			break;
-		case USB_CTLR_DEVICE_ON:
-		case USB_CTLR_DEVICE_DUAL:
+		default:
 			USB_CTRL_SET_FAMILY(ctrl, USB_PM, bdc_soft_resetb);
 		break;
 		}
+	}
+	if (USB_CTRL_MASK_FAMILY(SETUP, strap_cc_drd_mode_enable_sel))
+		/* Never use the strap, it's going away. */
+		USB_CTRL_UNSET_FAMILY(ctrl, SETUP,
+				strap_cc_drd_mode_enable_sel);
+	if (USB_CTRL_MASK_FAMILY(SETUP, cc_drd_mode_enable)) {
+		if (params->device_mode == USB_CTLR_DEVICE_TYPEC_PD)
+			USB_CTRL_SET_FAMILY(ctrl, SETUP, cc_drd_mode_enable);
+		else
+			USB_CTRL_UNSET_FAMILY(ctrl, SETUP, cc_drd_mode_enable);
 	}
 }
 EXPORT_SYMBOL(brcm_usb_common_init);

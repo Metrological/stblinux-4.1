@@ -425,6 +425,8 @@ static int get_freq_stats(unsigned int cpu, unsigned int human) {
 	cpufreq_put_stats(stats);
 	if (total_trans)
 		printf("  (%lu)\n", total_trans);
+	else
+		printf("\n");
 	return 0;
 }
 

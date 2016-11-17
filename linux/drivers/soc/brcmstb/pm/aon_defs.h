@@ -31,6 +31,18 @@ enum {
 
 	/* Skip all memory verification */
 	S3_FLAG_NO_MEM_VERIFY		= (1 << 2),
+
+	/*
+	 * Modification of this bit reserved for bootloader only.
+	 * 1=PSCI started Linux, 0=Direct jump to Linux.
+	 */
+	S3_FLAG_PSCI_BOOT		= (1 << 3),
+
+	/*
+	 * Modification of this bit reserved for bootloader only.
+	 * 1=64 bit boot, 0=32 bit boot.
+	 */
+	S3_FLAG_BOOTED64		= (1 << 4),
 };
 
 #define BRCMSTB_HASH_LEN			(128 / 8) /* 128-bit hash */
@@ -46,6 +58,7 @@ enum {
 #define BRCMSTB_PANIC_MAGIC		0x512E115E
 #define BOOTLOADER_SCRATCH_SIZE		64
 #define IMAGE_DESCRIPTORS_BUFSIZE	(2 * 1024)
+#define S3_BOOTLOADER_RESERVED		(S3_FLAG_PSCI_BOOT | S3_FLAG_BOOTED64)
 
 /*
  * Bootloader utilizes a custom parameter block left in DRAM for handling S3

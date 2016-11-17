@@ -10,6 +10,18 @@ config ARM_BIG_LITTLE_CPUFREQ
 	help
 	  This enables the Generic CPUfreq driver for ARM big.LITTLE platforms.
 
+config ARM_BRCMSTB_CPUFREQ
+	tristate "Broadcom STB CPUfreq driver"
+	depends on ARCH_BRCMSTB || COMPILE_TEST
+	help
+	  Some Broadcom SoCs offer multiple operating frequencies that CPUfreq
+	  can take advantage of to improve energy efficiency.
+
+	  Say Y, if you have a supported Broadcom SoC. Say N, if your
+	  Broadcom SoC supports the newer approach of using the AVS firmware
+	  for frequency or voltage scaling. In that case, enable
+	  ARM_BRCM_AVS_CPUFREQ instead.
+
 config ARM_BRCM_AVS_CPUFREQ
 	tristate "Broadcom AVS CPUfreq driver"
 	depends on ARCH_BRCMSTB || COMPILE_TEST

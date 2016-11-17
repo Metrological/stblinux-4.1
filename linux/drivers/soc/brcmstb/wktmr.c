@@ -30,7 +30,11 @@
 #include <linux/reboot.h>
 #include <linux/rtc.h>
 
+#ifdef CONFIG_ARM
 #include <asm/mach/time.h>
+#else
+#include <asm/time.h>
+#endif
 
 #define DRV_NAME	"brcm-waketimer"
 

@@ -25,6 +25,7 @@ all:
 	cp -f _makenames.sh libcap/_makenames
 	$(MAKE) -f Makefile CC=$(CC) AR=$(AR) RANLIB=$(RANLIB) BUILD_CC=true \
 		DYNAMIC="yes" LDFLAGS="-shared" LIBATTR=no \
+		BUILD_GPERF="false" \
 		-C libcap
 
 .PHONY: romfs

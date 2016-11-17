@@ -695,15 +695,24 @@ static void __init arch_mem_init(char **cmdline_p)
 	plat_swiotlb_setup();
 	paging_init();
 
-	dma_contiguous_reserve(PFN_PHYS(max_low_pfn));
-	/* Tell bootmem about cma reserved memblock section */
-	for_each_memblock(reserved, reg)
-		if (reg->size != 0)
-			reserve_bootmem(reg->base, reg->size, BOOTMEM_DEFAULT);
-
 #ifdef CONFIG_BRCMSTB_MEMORY_API
 	brcmstb_memory_init();
 #endif
+
+	dma_contiguous_reserve(PFN_PHYS(max_low_pfn));
+	/* Tell bootmem about reserved memory blocks in memblock */
+	for_each_memblock(reserved, reg) {
+		if (reg->size != 0)
+			continue;
+		/*
+		 * Bootmem does not have knowledge of high mem, however memblock
+		 * does. Make sure the regions we are reserving reside in bootmem
+		 * range. Bootmem range is anything < max_low_pfn.
+		 */
+		if ((reg->base < PFN_PHYS(max_low_pfn)) &&
+		    ((reg->base + reg->size) <= PFN_PHYS(max_low_pfn)))
+			reserve_bootmem(reg->base, reg->size, BOOTMEM_DEFAULT);
+	}
 }
 
 static void __init resource_init(void)

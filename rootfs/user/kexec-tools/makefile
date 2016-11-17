@@ -12,8 +12,11 @@ all:
 	fi
 	$(MAKE) -f Makefile
 
-clean distclean:
+clean:
 	[ ! -f Makefile ] || make -f Makefile $@
+
+distclean:
+	[ ! -f Makefile ] || make -f Makefile clean; rm Makefile
 
 romfs:
 	$(eval BINARIES=$(wildcard build/sbin/*))

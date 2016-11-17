@@ -16,6 +16,7 @@
 #include <linux/mm.h>
 
 #include <asm/cacheflush.h>
+#include <asm/r4kcache.h>
 #include <asm/processor.h>
 #include <asm/cpu.h>
 #include <asm/cpu-features.h>
@@ -50,6 +51,13 @@ EXPORT_SYMBOL_GPL(local_flush_data_cache_page);
 EXPORT_SYMBOL(flush_data_cache_page);
 EXPORT_SYMBOL(flush_icache_all);
 
+#if CONFIG_BRCMSTB
+/* BRCMSTB specific cache operations */
+int (*brcmstb_cacheflush)(unsigned long addr, unsigned long bytes,
+	unsigned int cache);
+EXPORT_SYMBOL(brcmstb_cacheflush);
+#endif
+
 #if defined(CONFIG_DMA_NONCOHERENT) || defined(CONFIG_DMA_MAYBE_COHERENT)
 
 /* DMA cache operations. */
@@ -72,10 +80,12 @@ SYSCALL_DEFINE3(cacheflush, unsigned long, addr, unsigned long, bytes,
 		return 0;
 	if (!access_ok(VERIFY_WRITE, (void __user *) addr, bytes))
 		return -EFAULT;
-
+#if CONFIG_BRCMSTB
+	return brcmstb_cacheflush(addr, bytes, cache);
+#else
 	flush_icache_range(addr, addr + bytes);
-
 	return 0;
+#endif
 }
 
 void __flush_dcache_page(struct page *page)

@@ -30,6 +30,7 @@
 #include <linux/hardirq.h>
 #include <linux/gfp.h>
 #include <linux/kcore.h>
+#include <linux/memblock.h>
 
 #include <asm/asm-offsets.h>
 #include <asm/bootinfo.h>
@@ -323,7 +324,7 @@ static inline void mem_init_free_highmem(void)
 	for (tmp = highstart_pfn; tmp < highend_pfn; tmp++) {
 		struct page *page = pfn_to_page(tmp);
 
-		if (!page_is_ram(tmp))
+		if (!page_is_ram(tmp) || memblock_is_reserved(PFN_PHYS(tmp)))
 			SetPageReserved(page);
 		else
 			free_highmem_page(page);

@@ -52,6 +52,10 @@ extern void (*flush_cache_range)(struct vm_area_struct *vma,
 extern void (*flush_cache_page)(struct vm_area_struct *vma, unsigned long page, unsigned long pfn);
 extern void __flush_dcache_page(struct page *page);
 extern void __flush_icache_page(struct vm_area_struct *vma, struct page *page);
+#if CONFIG_BRCMSTB
+extern int (*brcmstb_cacheflush)(unsigned long addr, unsigned long bytes,
+	unsigned int cache);
+#endif
 
 #define ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE 1
 static inline void flush_dcache_page(struct page *page)

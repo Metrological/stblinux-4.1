@@ -50,7 +50,7 @@ config BRCMSTB_PM
 	bool "Support suspend/resume for STB platforms"
 	default y
 	depends on PM
-	depends on ARM && ARCH_BRCMSTB
+	depends on ARCH_BRCMSTB
 
 config BRCMSTB_PM_DEBUG
 	bool "Add debugfs interface for STB suspend/resume driver"
@@ -71,6 +71,7 @@ config BRCMSTB_SRPD
 
 config BRCMSTB_WKTMR
 	tristate "Support wake-up timer"
+	default BRCMSTB_PM
 
 # Perform memory hashing before entering S3, using XPT DMA
 config BRCMSTB_XPT_HASH

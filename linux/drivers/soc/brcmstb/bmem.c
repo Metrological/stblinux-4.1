@@ -138,6 +138,7 @@ int bmem_region_info(int idx, phys_addr_t *addr, phys_addr_t *size)
 	}
 	return -ENOENT;
 }
+EXPORT_SYMBOL(bmem_region_info);
 
 static void __init bmem_setup_defaults(void)
 {

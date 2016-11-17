@@ -19,6 +19,7 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 
 #define BCHP_PHYSICAL_OFFSET	0xf0000000
 
@@ -30,10 +31,13 @@ struct xpt_dma_priv {
 	void __iomem	*fe_pid;
 	void __iomem	*sec_ns_intrl2;
 	void __iomem	*sec_ns_mac0;
+	void __iomem	*xpt_mcpb;
 	void __iomem	*pmu_fe;
+	void __iomem	*sun_top_ctrl;
 };
 
 static struct xpt_dma_priv xpt_dma_priv;
+static bool has_memdma_mcpb;
 
 #define XPT_DMA_IO_MACRO(name)	\
 static inline u32 name##_readl(u32 off)					\
@@ -50,7 +54,9 @@ XPT_DMA_IO_MACRO(bus_if);
 XPT_DMA_IO_MACRO(fe_pid);
 XPT_DMA_IO_MACRO(sec_ns_intrl2);
 XPT_DMA_IO_MACRO(sec_ns_mac0);
+XPT_DMA_IO_MACRO(xpt_mcpb);
 XPT_DMA_IO_MACRO(pmu_fe);
+XPT_DMA_IO_MACRO(sun_top_ctrl);
 
 
 /* descriptor flags and shifts */
@@ -72,11 +78,17 @@ XPT_DMA_IO_MACRO(pmu_fe);
 	((MEMDMA_MCPB_CH1_REG_START - \
 	 MEMDMA_MCPB_CH0_REG_START) * (channel))
 
+#define MCPB_CHx_SPACING_NMM(channel) \
+	((MCPB_CH1_REG_START - \
+	 MCPB_CH0_REG_START) * (channel))
+
 #define XPT_CHANNEL_A	0
 #define XPT_CHANNEL_B	1
 
 #define PID_CHANNEL_A	1022
 #define PID_CHANNEL_B	1023
+#define PID_CHANNEL_A_NMM	510
+#define PID_CHANNEL_B_NMM	511
 
 #define XPT_MAC_A	0
 #define XPT_MAC_B	1
@@ -88,6 +100,12 @@ XPT_DMA_IO_MACRO(pmu_fe);
 #define MEMDMA_MCPB_CH0_REG_START		0x400
 #define MEMDMA_MCPB_CH1_REG_START		0x600
 
+/* MCPB registers, relative to XPT_MCPB_REG_START */
+#define	MCPB_RUN_SET_CLEAR			0x00
+#define	MCPB_CH0_REG_START			0x400
+#define	MCPB_CH1_REG_START			0x600
+
+/* MCPB_CH0 has same offsets as MEMDMA_MCPB_CH0 */
 #define MEMDMA_MCPB_CH0_DMA_DESC_CONTROL	0x400
 #define MEMDMA_MCPB_CH0_DMA_DATA_CONTROL	0x404
 #define MEMDMA_MCPB_CH0_SP_PKT_LEN		0x474
@@ -98,6 +116,7 @@ XPT_DMA_IO_MACRO(pmu_fe);
 #define BUS_IF_SUB_MODULE_SOFT_INIT_SET		0x34
 #define BUS_IF_SUB_MODULE_SOFT_INIT_CLEAR	0x38
 #define BUS_IF_SUB_MODULE_SOFT_INIT_STATUS	0x3c
+#define  MCPB_SOFT_INIT_STATUS			BIT(0)
 #define  MEMDMA_MCPB_SOFT_INIT			BIT(1)
 #define BUS_IF_SUB_MODULE_SOFT_INIT_DO_MEM_INIT	0x40
 
@@ -120,12 +139,28 @@ XPT_DMA_IO_MACRO(pmu_fe);
 #define PMU_MCPB_SP_PD_MEM_PWR_DN_CTRL		0x24
 #define PMU_MEMDMA_SP_PD_MEM_PWR_DN_CTRL	0x2c
 
+#define TOP_CTRL_SW_INIT_0_SET			0x318
+#define TOP_CTRL_SW_INIT_0_CLEAR		0x31c
+#define TOP_CTRL_SW_INIT_0_XPT_SW_INIT		BIT(18)
+
 static inline void xpt_set_power(int on)
 {
-	uint32_t val = on ? 0 : ~0;
+	uint32_t v, val = on ? 0 : ~0;
 
 	if (!xpt_dma_priv.pmu_fe)
 		return;
+
+	if (on && xpt_dma_priv.sun_top_ctrl) {
+		v = sun_top_ctrl_readl(TOP_CTRL_SW_INIT_0_SET);
+		v |= TOP_CTRL_SW_INIT_0_XPT_SW_INIT;
+		sun_top_ctrl_writel(v, TOP_CTRL_SW_INIT_0_SET);
+		wmb(); /* Sequence the reset. */
+
+		v = sun_top_ctrl_readl(TOP_CTRL_SW_INIT_0_CLEAR);
+		v |= TOP_CTRL_SW_INIT_0_XPT_SW_INIT;
+		sun_top_ctrl_writel(v, TOP_CTRL_SW_INIT_0_CLEAR);
+		wmb(); /* Must complete before we power on XPT. */
+	}
 
 	/* Power on/off everything */
 	pmu_fe_writel(val, PMU_FE_SP_PD_MEM_PWR_DN_CTRL);
@@ -135,25 +170,37 @@ static inline void xpt_set_power(int on)
 
 static void mcpb_run(int enable, int channel)
 {
-	memdma_mcpb_writel((!!enable << 8) | channel,
-			   MEMDMA_MCPB_RUN_SET_CLEAR);
-	(void)memdma_mcpb_readl(MEMDMA_MCPB_RUN_SET_CLEAR);
+	if (has_memdma_mcpb) {
+		memdma_mcpb_writel((!!enable << 8) | channel,
+				   MEMDMA_MCPB_RUN_SET_CLEAR);
+		(void)memdma_mcpb_readl(MEMDMA_MCPB_RUN_SET_CLEAR);
+	} else {
+		xpt_mcpb_writel((!!enable << 8) | channel,
+				   MCPB_RUN_SET_CLEAR);
+	}
 }
 
 static int mcpb_soft_init(void)
 {
 	int timeo = 1000 * 1000; /* 1 second timeout */
-	u32 reg;
+	u32 reg, mask, value;
 
-	/* MEMDMA */
-	bus_if_writel(1 << 1, BUS_IF_SUB_MODULE_SOFT_INIT_DO_MEM_INIT);
-	/* MEMDMA */
-	bus_if_writel(1 << 1, BUS_IF_SUB_MODULE_SOFT_INIT_SET);
+	if (has_memdma_mcpb) {
+		value = 1 << 1;
+		mask = MEMDMA_MCPB_SOFT_INIT;
+	} else {
+		value = 1;
+		mask = MCPB_SOFT_INIT_STATUS;
+	}
+
+	bus_if_writel(value, BUS_IF_SUB_MODULE_SOFT_INIT_DO_MEM_INIT);
+	bus_if_writel(value, BUS_IF_SUB_MODULE_SOFT_INIT_SET);
 
 	for (;;) {
 		reg = bus_if_readl(BUS_IF_SUB_MODULE_SOFT_INIT_STATUS);
-		if (!(reg & MEMDMA_MCPB_SOFT_INIT))
+		if (!(reg & mask))
 			break;
+
 		if (timeo <= 0)
 			return -EIO;
 
@@ -161,33 +208,58 @@ static int mcpb_soft_init(void)
 		udelay(10);
 	}
 
-	/* MEMDMA */
-	bus_if_writel(1 << 1, BUS_IF_SUB_MODULE_SOFT_INIT_CLEAR);
+	bus_if_writel(value, BUS_IF_SUB_MODULE_SOFT_INIT_CLEAR);
+
 	return 0;
 }
 
 static void memdma_init_mcpb_channel(int channel)
 {
-	unsigned long offs = MCPB_CHx_SPACING(channel);
-	unsigned long parser_ctrl = MEMDMA_MCPB_CH0_SP_PARSER_CTRL + offs;
-	unsigned long packet_len = MEMDMA_MCPB_CH0_SP_PKT_LEN + offs;
-	unsigned long dma_buf_ctrl = MEMDMA_MCPB_CH0_DMA_BBUFF_CTRL + offs;
-	unsigned long dma_data_ctrl = MEMDMA_MCPB_CH0_DMA_DATA_CONTROL + offs;
+	unsigned long offs, parser_ctrl, packet_len,
+		dma_buf_ctrl, dma_data_ctrl;
+
+	 offs = (has_memdma_mcpb) ?
+		MCPB_CHx_SPACING(channel) : MCPB_CHx_SPACING_NMM(channel);
+
+	parser_ctrl = offs + MEMDMA_MCPB_CH0_SP_PARSER_CTRL;
+	packet_len = offs + MEMDMA_MCPB_CH0_SP_PKT_LEN;
+	dma_buf_ctrl = offs + MEMDMA_MCPB_CH0_DMA_BBUFF_CTRL;
+	dma_data_ctrl = offs + MEMDMA_MCPB_CH0_DMA_DATA_CONTROL;
 
 	mcpb_run(0, channel);
 
-	/* setup for block mode */
-	memdma_mcpb_writel((1 << 0) |		/* parser enable */
-			  (6 << 1) |		/* block mode */
-			  (channel << 6) |	/* band ID */
-			  (1 << 14),		/* select playback parser */
-			  parser_ctrl);
+	if (has_memdma_mcpb) {
+		/* setup for block mode */
+		memdma_mcpb_writel(
+			(1 << 0)	| /* parser enable */
+			(6 << 1)	| /* block mode */
+			(channel << 6)	| /* band ID */
+			(1 << 14),	/* select playback parser */
+			parser_ctrl);
 
-	memdma_mcpb_writel(208, packet_len); /* packet length */
-	memdma_mcpb_writel(224, dma_buf_ctrl); /* stream feed size */
-	memdma_mcpb_writel((MEMDMA_DRAM_REQ_SIZE << 0) |
-			   (0 << 11),		/* disable run version match */
-			   dma_data_ctrl);
+		memdma_mcpb_writel(208, packet_len); /* packet length */
+		memdma_mcpb_writel(224, dma_buf_ctrl); /* stream feed size */
+		memdma_mcpb_writel(
+			(MEMDMA_DRAM_REQ_SIZE << 0) |
+			(0 << 11), /* disable run version match */
+			dma_data_ctrl);
+	} else {
+		xpt_mcpb_writel(
+			(1 << 0)	| /* parser enable */
+			(6 << 1)	| /* block mode */
+			(channel << 6)	| /* band ID */
+			(1 << 26)	| /* MEM DMA PIPE Enable */
+			(1 << 14),	/* select playback parser */
+			parser_ctrl);
+
+		xpt_mcpb_writel(208, packet_len); /* packet length */
+		xpt_mcpb_writel(224, dma_buf_ctrl); /* stream feed size */
+		xpt_mcpb_writel(
+			(MEMDMA_DRAM_REQ_SIZE << 0) |
+			(1 << 10) |
+			(0 << 11), /* disable run version match */
+			dma_data_ctrl);
+	}
 }
 
 static void xpt_init_ctx(unsigned int channel, unsigned int pid_channel)
@@ -253,10 +325,13 @@ static int mcpb_init_desc(struct mcpb_dma_desc *desc, dma_addr_t next,
 int memdma_prepare_descs(struct mcpb_dma_desc *descs, dma_addr_t descs_pa,
 		struct dma_region *regions, int numregions, bool channel_A)
 {
-	int i;
-	int pid = channel_A ? PID_CHANNEL_A : PID_CHANNEL_B;
+	int ret, i, pid;
 	dma_addr_t next_pa = descs_pa;
-	int ret;
+
+	if (has_memdma_mcpb)
+		pid = channel_A ? PID_CHANNEL_A : PID_CHANNEL_B;
+	else
+		pid = channel_A ? PID_CHANNEL_A_NMM : PID_CHANNEL_B_NMM;
 
 	for (i = 0; i < numregions; i++) {
 		int first = (i == 0);
@@ -319,10 +394,16 @@ static int memdma_wait_for_hash(int mac)
 
 static void memdma_start(dma_addr_t desc, int channel)
 {
-	unsigned long reg = MEMDMA_MCPB_CH0_DMA_DESC_CONTROL +
-		MCPB_CHx_SPACING(channel);
+	unsigned long reg = MEMDMA_MCPB_CH0_DMA_DESC_CONTROL;
 
-	memdma_mcpb_writel((uint32_t)desc, reg);
+	if (has_memdma_mcpb) {
+		reg += MCPB_CHx_SPACING(channel);
+		memdma_mcpb_writel((uint32_t)desc, reg);
+	 } else {
+		 reg += MCPB_CHx_SPACING_NMM(channel);
+		xpt_mcpb_writel((uint32_t)desc, reg);
+	}
+
 	mcpb_run(1, channel);
 }
 
@@ -336,7 +417,7 @@ static void memdma_start(dma_addr_t desc, int channel)
  */
 int memdma_run(dma_addr_t desc1, dma_addr_t desc2, bool dual_channel)
 {
-	int ret, ret2 = 0;
+	int ret, ret2 = 0, pid_channel_a, pid_channel_b;
 
 	xpt_set_power(1);
 
@@ -344,12 +425,21 @@ int memdma_run(dma_addr_t desc1, dma_addr_t desc2, bool dual_channel)
 	if (ret)
 		goto out;
 
-	memdma_init_hw(0, PID_CHANNEL_A);
+	if (has_memdma_mcpb) {
+		pid_channel_a = PID_CHANNEL_A;
+		pid_channel_b = PID_CHANNEL_B;
+	} else {
+		pid_channel_a = PID_CHANNEL_A_NMM;
+		pid_channel_b = PID_CHANNEL_B_NMM;
+	}
+
+	memdma_init_hw(0, pid_channel_a);
 	mb();
+
 	memdma_start(desc1, XPT_CHANNEL_A);
 
 	if (dual_channel) {
-		memdma_init_hw(1, PID_CHANNEL_B);
+		memdma_init_hw(1, pid_channel_b);
 		mb();
 		memdma_start(desc2, XPT_CHANNEL_B);
 	}
@@ -427,6 +517,12 @@ static struct resource xpt_dma_res[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	{
+		.name	= "xpt-mcpb",
+		.start	= BCHP_PHYSICAL_OFFSET + 0x00a70800,
+		.end	= BCHP_PHYSICAL_OFFSET + 0x00a70b9c,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
 		.name	= "xpt-pmu-fe",
 		.start	= BCHP_PHYSICAL_OFFSET + 0x00a00200,
 		.end	= BCHP_PHYSICAL_OFFSET + 0x00a00270,
@@ -438,6 +534,11 @@ static struct platform_device xpt_dma_pdev = {
 	.name	= "xpt-dma",
 	.resource = xpt_dma_res,
 	.num_resources = ARRAY_SIZE(xpt_dma_res),
+};
+
+static const struct of_device_id sun_top_ctrl_match[] = {
+	{ .compatible = "brcm,brcmstb-sun-top-ctrl", },
+	{ }
 };
 
 static int xpt_dma_probe(struct platform_device *pdev)
@@ -453,13 +554,26 @@ static int xpt_dma_probe(struct platform_device *pdev)
 		r = platform_get_resource(pdev, IORESOURCE_MEM, i);
 
 		if (!of_machine_is_compatible("brcm,bcm7439b0") &&
-		    !strcmp(r->name, "xpt-pmu-fe"))
+		    !strcmp(r->name, "xpt-pmu-fe") && has_memdma_mcpb)
 			continue;
 
 		*p = devm_ioremap_resource(&pdev->dev, r);
 		if (IS_ERR(*p))
 			return PTR_ERR(*p);
+
 		p++;
+	}
+
+	if (!has_memdma_mcpb) {
+		struct device_node *sun_top_ctrl;
+
+		sun_top_ctrl = of_find_matching_node(NULL, sun_top_ctrl_match);
+		if (!sun_top_ctrl)
+			return -ENODEV;
+
+		xpt_dma_priv.sun_top_ctrl = of_iomap(sun_top_ctrl, 0);
+		if (!xpt_dma_priv.sun_top_ctrl)
+			return -ENODEV;
 	}
 
 	dev_set_drvdata(&pdev->dev, priv);
@@ -478,11 +592,15 @@ static int __init xpt_dma_init(void)
 {
 	int ret = 0;
 
-	if (of_machine_is_compatible("brcm,bcm7260a0") ||
-	    of_machine_is_compatible("brcm,bcm7268a0") ||
-	    of_machine_is_compatible("brcm,bcm7271a0") ||
-	    of_machine_is_compatible("brcm,bcm74371a0"))
+	if (of_machine_is_compatible("brcm,bcm74371a0"))
 		return 0;
+
+	if (of_machine_is_compatible("brcm,bcm7268a0") ||
+	    of_machine_is_compatible("brcm,bcm7260a0") ||
+	    of_machine_is_compatible("brcm,bcm7271a0"))
+		has_memdma_mcpb = false;
+	else
+		has_memdma_mcpb = true;
 
 	ret = platform_device_register(&xpt_dma_pdev);
 	if (ret)
