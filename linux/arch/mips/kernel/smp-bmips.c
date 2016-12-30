@@ -364,6 +364,8 @@ static int bmips_cpu_disable(void)
 
 	set_cpu_online(cpu, false);
 	cpumask_clear_cpu(cpu, &cpu_callin_map);
+
+	irq_cpu_offline();
 	clear_c0_status(IE_IRQ5);
 
 	local_flush_tlb_all();
@@ -578,7 +580,7 @@ asmlinkage void __weak plat_wired_tlb_setup(void)
 	 */
 }
 
-void __init bmips_cpu_setup(void)
+void bmips_cpu_setup(void)
 {
 	void __iomem __maybe_unused *cbr = BMIPS_GET_CBR();
 	u32 __maybe_unused cfg;

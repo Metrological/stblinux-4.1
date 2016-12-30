@@ -561,5 +561,82 @@
 			pinctrl-single,function-mask = <0xffffffff>;
 			status = "disabled";
 		};
+		aon_ctrl: aon-ctrl@408000 {
+			compatible = "brcm,brcmstb-aon-ctrl";
+			reg = <0x408000 0x100>, <0x408200 0x200>;
+			reg-names = "aon-ctrl", "aon-sram";
+		};
+		waketimer: waketimer@409580 {
+			compatible = "brcm,brcmstb-waketimer";
+			reg = <0x409580 0x14>;
+			interrupt-parent = <&aon_pm_l2_intc>;
+			interrupts = <3>;
+			interrupt-names = "timer";
+		};
+		timers: timers@4067c0 {
+			compatible = "brcm,brcmstb-timers";
+			reg = <0x4067c0 0x40>;
+		};
+	};
+
+	memory_controllers {
+		compatible = "simple-bus";
+		ranges = <0x0 0x103b0000 0x1a000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		memc@0 {
+			compatible = "brcm,brcmstb-memc", "simple-bus";
+			ranges = <0x0 0x0 0xa000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			memc-arb@1000 {
+				compatible = "brcm,brcmstb-memc-arb";
+				reg = <0x1000 0x248>;
+			};
+
+			memc-ddr@2000 {
+				compatible = "brcm,brcmstb-memc-ddr";
+				reg = <0x2000 0x300>;
+			};
+
+			ddr-phy@6000 {
+				compatible = "brcm,brcmstb-ddr-phy";
+				reg = <0x6000 0xc8>;
+			};
+
+			shimphy@8000 {
+				compatible = "brcm,brcmstb-ddr-shimphy";
+				reg = <0x8000 0x13c>;
+			};
+		};
+
+		memc@1 {
+			compatible = "brcm,brcmstb-memc", "simple-bus";
+			ranges = <0x0 0x10000 0xa000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			memc-arb@1000 {
+				compatible = "brcm,brcmstb-memc-arb";
+				reg = <0x1000 0x248>;
+			};
+
+			memc-ddr@2000 {
+				compatible = "brcm,brcmstb-memc-ddr";
+				reg = <0x2000 0x300>;
+			};
+
+			ddr-phy@6000 {
+				compatible = "brcm,brcmstb-ddr-phy";
+				reg = <0x6000 0xc8>;
+			};
+
+			shimphy@8000 {
+				compatible = "brcm,brcmstb-ddr-shimphy";
+				reg = <0x8000 0x13c>;
+			};
+		};
 	};
 };

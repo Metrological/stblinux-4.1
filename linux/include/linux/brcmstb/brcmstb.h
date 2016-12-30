@@ -60,7 +60,7 @@
 
 #endif
 
-#if defined(CONFIG_BRCMSTB_PM)
+#if defined(CONFIG_BRCMSTB_PM) && !defined(CONFIG_MIPS)
 /*
  * Exclude a given memory range from the MAC authentication process during S3
  * suspend/resume. Ranges are reset after each MAC (i.e., after each S3

@@ -76,6 +76,10 @@ RELOPTS		:= TFTPHOST=$(REL_TFTPHOST) TFTPDIR=$(REL_TFTPDIR)
 
 MAKEOPTS	:= TFTPHOST=$(TFTPHOST) TFTPDIR=$(TFTPDIR) TFTPPATH=$(TFTPPATH)
 
+ifneq ($(PLAT),)
+include $(LINUX_CONFIG)
+endif
+
 #############################################################################
 # BASIC KERNEL/ROOTFS BUILDS
 #############################################################################
@@ -99,7 +103,9 @@ rootfs: .target chkpath
 		cp -a skel romfs || exit 1 ; \
 		chmod -R a+x romfs/{bin,sbin} ; \
 		mkdir -p romfs/{bin,sbin,etc,dev,proc,sys,lib,root,tmp} ; \
-		mkdir -p romfs/lib/$(OSLIB); \
+		if [ "$(ARCH)" = "arm64" ]; then \
+			mkdir -p romfs/lib64 ; \
+		fi ; \
 		mkdir -p romfs/lib/modules ; \
 		mkdir -p romfs/mnt/{hd,usb,flash,nfs} ; \
 		mkdir -p romfs/var/{log,run,tmp} romfs/{opt,data} ; \
@@ -114,6 +120,20 @@ rootfs: .target chkpath
 	fi
 	# build rootfs contents and install to romfs/
 	if [[ "$(SUBDIRS)" != linux* ]]; then \
+		if [ "$(CONFIG_COMPAT)" = "y" ]; then \
+			$(MAKE) -C lib distclean \
+				ARCH_CONFIG="$(ARCH_CONFIG).32" \
+				|| exit 1 ; \
+			$(MAKE) -C lib all \
+				ARCH_CONFIG="$(ARCH_CONFIG).32" \
+				INITRD_SUBDIR="$(SUBDIRS)" || exit 1 ; \
+			$(MAKE) -j1 -C lib romfs \
+				ARCH_CONFIG="$(ARCH_CONFIG).32" \
+				INITRD_SUBDIR="$(SUBDIRS)" || exit 1 ; \
+			$(MAKE) -C lib distclean \
+				ARCH_CONFIG="$(ARCH_CONFIG).32" \
+				|| exit 1 ; \
+		fi ; \
 		$(MAKE) -C lib all \
 			INITRD_SUBDIR="$(SUBDIRS)" || exit 1 ; \
 		$(MAKE) -C user all \

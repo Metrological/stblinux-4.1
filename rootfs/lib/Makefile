@@ -20,16 +20,10 @@ include $(ARCH_CONFIG)
 #
 # always build these dir_
 #
-dir_y  = $(LIBCDIR) libnet
-#dir_y  = libnet
+dir_y  = $(LIBCDIR)
+#dir_y  += libnet
 dir_n  =
 dir_   =
-
-ifeq ($(CONFIG_COMPAT),y)
-dir_y_compat = $(LIBCDIR)
-else
-dir_y_compat =
-endif
 
 ifeq ($(LIBCDIR),libc)
 dir_y += libm
@@ -37,7 +31,9 @@ endif
 
 #
 # and build these if someone needs them
+# (but not the compatibility version)
 #
+ifneq ($(ARCH)$(CONFIG_COMPAT),army)
 dir_$(CONFIG_LIB_LIBCAP)         += libcap
 dir_$(CONFIG_LIB_LIBCAP_FORCE)   += libcap
 dir_$(CONFIG_LIB_LIBDES)         += libdes
@@ -89,6 +85,7 @@ ifneq ($(shell echo $(filter lib%,$(INITRD_SUBDIR))|sed -e 's/lib[\/]/lib/'),lib
 dir_y:=$(patsubst lib/%,%,$(filter lib/%,$(INITRD_SUBDIR)))
 endif
 endif
+endif
 
 all:
 ifeq ($(LIBCDIR),glibc/build)
@@ -105,20 +102,15 @@ ifeq ($(LIBCDIR),glibc/build)
 			--enable-add-ons ; \
 	fi
 endif
-	@for i in $(dir_y_compat); do \
-		echo "--> making compatible lib/$$i"; \
-		$(MAKE) -C $$i ARCH_CONFIG=$(ARCH_CONFIG).32 || exit $$?; \
-		$(MAKE) -C $$i romfs ARCH_CONFIG=$(ARCH_CONFIG).32 || exit $$?; \
-	done
 	@for i in $(dir_y); do \
 		echo "--> making all in lib/$$i"; \
-		$(MAKE) -C $$i || exit $$?; \
+		$(MAKE) -C $$i ARCH_CONFIG="$(ARCH_CONFIG)" || exit $$?; \
 	done
 
 romfs:
 	@for i in $(dir_y); do \
 		echo "--> making romfs in lib/$$i"; \
-		$(MAKE) -C $$i romfs || exit $$?; \
+		$(MAKE) -C $$i romfs ARCH_CONFIG="$(ARCH_CONFIG)" || exit $$?; \
 	done
 ifeq ($(INITRD_SUBDIR),) 
 ifeq ($(findstring y,$(CONFIG_LIB_LIBSTDCXX_FORCE)$(CONFIG_LIB_LIBSTDCXX)),y)
@@ -158,7 +150,7 @@ ifeq ($(LIBCDIR),glibc/build)
 	rm -rf glibc/build
 endif
 	-for i in $(dir_y) $(dir_n) $(dir_); do \
-		$(MAKE) -C $$i clean ; \
+		$(MAKE) -C $$i clean ARCH_CONFIG="$(ARCH_CONFIG)" ; \
 	done
 
 distclean:

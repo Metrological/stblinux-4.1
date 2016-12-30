@@ -1,4 +1,4 @@
-include $(ROOTDIR)/config.arch
+include $(ARCH_CONFIG)
 
 TOOL_DIR_PREFIX=$(shell dirname $(shell which $(CC)))/..
 

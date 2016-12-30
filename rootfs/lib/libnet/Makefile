@@ -20,6 +20,6 @@ $(OBJS): $(SRC)
 
 romfs:
 
-clean:
+clean distclean:
 	-rm -f $(LIBNET) *.o
 

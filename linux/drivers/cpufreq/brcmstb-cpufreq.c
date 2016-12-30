@@ -36,11 +36,16 @@
 #define BRCMSTB_TBL_SAFE_MODE	BIT(0)
 #define BRCMSTB_REG_SAFE_MODE	BIT(4)
 
+#define TRANSITION_LATENCY	(25 * 1000)	/* 25 us */
+
 /* This is as low as we'll go in the frequency table. */
 #define MIN_CPU_FREQ		(100 * 1000)	/* in kHz */
 
 struct private_data {
 	void __iomem *cpu_clk_ctrl_reg;
+	struct clk *mdiv_clk;
+	struct clk *ndiv_clk;
+	struct clk *sw_scb_clk;
 	struct device *dev;
 };
 
@@ -60,46 +65,78 @@ static int count_memory_controllers(void)
 	return i;
 }
 
-static int get_frequencies(const struct cpufreq_policy *policy,
-			unsigned int *vco_freq, unsigned int *cpu_freq,
-			unsigned int *scb_freq)
+/*
+ * This is a little ugly, but we need it to maintain backwards compatibility.
+ * When this driver was first released internally, it did not require clock
+ * references to be present in the brcm,brcmstb-cpu-clk-div node. However, to
+ * meet upstream criteria, it was necessary to add those references, which allow
+ * us to use devm_clk_get() to look up clocks. Using __clk_lookup() was not
+ * permitted by upstream maintainers. Also, using __clk_lookup() leads to a
+ * linker error when this driver is compiled as a module.
+ *
+ * To enable the driver to function with old DT blobs without those clock
+ * references, we fall back to calling __clk_lookup() if devm_clk_get() fails.
+ * Since the use of __clk_lookup() prevents the driver from being compiled as
+ * module, we also add the capability to turn off the call to __clk_lookup() via
+ * config option.
+ */
+
+#ifdef CONFIG_ARM_BRCMSTB_CPUFREQ_OLD_DT_COMPAT
+
+static struct clk *clock_lookup(struct clk *clk, const char *name)
 {
-	struct clk *cpu_ndiv_int, *sw_scb;
+	/* If the clock has already been looked up successfully, return it. */
+	if (likely(!IS_ERR(clk)))
+		return clk;
 
-	cpu_ndiv_int = __clk_lookup(BRCMSTB_CLK_NDIV_INT);
-	if (!cpu_ndiv_int)
-		return -ENODEV;
+	clk = __clk_lookup(name);
+	if (!clk)
+		return ERR_PTR(-ENODEV);
 
-	sw_scb = __clk_lookup(BRCMSTB_CLK_SW_SCB);
-	if (!sw_scb)
-		return -ENODEV;
+	return clk;
+}
+
+#else
+
+static struct clk *clock_lookup(struct clk *clk, const char *name)
+{
+	return clk;
+}
+
+#endif /* !CONFIG_ARM_BRCMSTB_CPUFREQ_OLD_DT_COMPAT */
+
+static int get_frequencies(const struct cpufreq_policy *policy,
+			   unsigned int *vco_freq, unsigned int *cpu_freq,
+			   unsigned int *scb_freq)
+{
+	struct private_data *priv = policy->driver_data;
 
 	/* return frequencies in kHz */
-	*vco_freq = clk_get_rate(cpu_ndiv_int) / 1000;
-	*cpu_freq = clk_get_rate(policy->clk) / 1000;
-	*scb_freq = clk_get_rate(sw_scb) / 1000;
+	*vco_freq = clk_get_rate(priv->ndiv_clk) / 1000;
+	*cpu_freq = clk_get_rate(priv->mdiv_clk) / 1000;
+	*scb_freq = clk_get_rate(priv->sw_scb_clk) / 1000;
 
 	return 0;
 }
 
 /*
- * Safe mode. When set, the CPU's bus unit is being throttled. This is done to
+ * Safe mode: When set, the CPU's bus unit is being throttled. This is done to
  * avoid buffer overflows when the CPU-to-bus-clock ratio is low.
  *
- * The formula as to what constitutes a low CPU-to-bus-clock takes into account
- * the number of memory controllers present in the system and the SCB frequency.
- * More memory controllers means safe mode is required starting at higher
- * frequencies.
+ * The formula as to what constitutes a low CPU-to-bus-clock ratio takes into
+ * account the number of memory controllers active in the system and the SCB
+ * frequency. More memory controllers means safe mode is required starting at
+ * higher frequencies.
  *
- * For 1 memory controller, cpu_freq/scb_freq must be greater than or equal to 2
- * to not require safe mode.
+ * For 1 memory controller, cpu_freq/scb_freq must be greater than or equal to
+ * 2 to not require safe mode.
  *
  * For 2 or 3 memory controllers, cpu_freq/scb_freq must be greater than or
  * equal 3 to not require safe mode.
  */
 
 static int freq_requires_safe_mode(unsigned int cpu_freq, unsigned int scb_freq,
-				int num_memc)
+				   int num_memc)
 {
 	unsigned int safe_ratio;
 
@@ -168,13 +205,6 @@ brcmstb_get_freq_table(const struct cpufreq_policy *policy)
 	return table;
 }
 
-static unsigned brcmstb_cpufreq_get(unsigned cpu)
-{
-	struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
-
-	return clk_get_rate(policy->clk) / 1000;
-}
-
 static int brcmstb_target_index(struct cpufreq_policy *policy,
 				unsigned int index)
 {
@@ -204,7 +234,7 @@ static int brcmstb_target_index(struct cpufreq_policy *policy,
 /*
  * All initialization code that we only want to execute once goes here. Setup
  * code that can be re-tried on every core (if it failed before) can go into
- * brcm_avs_cpufreq_init().
+ * brcmstb_cpufreq_init().
  */
 static int brcmstb_prepare_init(struct platform_device *pdev)
 {
@@ -216,7 +246,7 @@ static int brcmstb_prepare_init(struct platform_device *pdev)
 	 * If the BRCM STB AVS CPUfreq driver is supported, we bail, so that
 	 * the more modern approach implementing DVFS in firmware can be used.
 	 */
-	if (IS_ENABLED(CONFIG_ARM_BRCM_AVS_CPUFREQ)) {
+	if (IS_ENABLED(CONFIG_ARM_BRCMSTB_AVS_CPUFREQ)) {
 		struct device_node *np;
 
 		np = of_find_compatible_node(NULL, NULL, BRCM_AVS_CPU_DATA);
@@ -240,30 +270,46 @@ static int brcmstb_prepare_init(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	priv->mdiv_clk = devm_clk_get(dev, BRCMSTB_CLK_MDIV_CH0);
+	priv->ndiv_clk = devm_clk_get(dev, BRCMSTB_CLK_NDIV_INT);
+	priv->sw_scb_clk = devm_clk_get(dev, BRCMSTB_CLK_SW_SCB);
+
+	/*
+	 * Backward compatibility, so driver works with old DT blobs that don't
+	 * have references to the three clocks we need inside the
+	 * brcm,brcmstb-cpu-clk-div node. These calls can be configured via
+	 * Kconfig option to be no-ops.
+	 */
+	priv->mdiv_clk = clock_lookup(priv->mdiv_clk, BRCMSTB_CLK_MDIV_CH0);
+	priv->ndiv_clk = clock_lookup(priv->ndiv_clk, BRCMSTB_CLK_NDIV_INT);
+	priv->sw_scb_clk = clock_lookup(priv->sw_scb_clk, BRCMSTB_CLK_SW_SCB);
+
+	if (IS_ERR(priv->mdiv_clk))
+		return PTR_ERR(priv->mdiv_clk);
+	if (IS_ERR(priv->ndiv_clk))
+		return PTR_ERR(priv->ndiv_clk);
+	if (IS_ERR(priv->sw_scb_clk))
+		return PTR_ERR(priv->sw_scb_clk);
+
 	priv->dev = dev;
 	platform_set_drvdata(pdev, priv);
 
 	return 0;
 }
 
-static int brcmstb_cpu_init(struct cpufreq_policy *policy)
+static int brcmstb_cpufreq_init(struct cpufreq_policy *policy)
 {
 	struct cpufreq_frequency_table *freq_table;
 	struct platform_device *pdev;
 	struct private_data *priv;
-	struct clk *cpu_mdiv_ch0;
 	struct device *dev;
 	int ret;
-
-	cpu_mdiv_ch0 = __clk_lookup(BRCMSTB_CLK_MDIV_CH0);
-	if (!cpu_mdiv_ch0)
-		return -ENODEV;
 
 	pdev = cpufreq_get_driver_data();
 	priv = platform_get_drvdata(pdev);
 	dev = &pdev->dev;
 
-	policy->clk = cpu_mdiv_ch0;
+	policy->clk = priv->mdiv_clk;
 	policy->driver_data = priv;
 
 	freq_table = brcmstb_get_freq_table(policy);
@@ -277,21 +323,11 @@ static int brcmstb_cpu_init(struct cpufreq_policy *policy)
 		return ret;
 	}
 
-	ret = cpufreq_table_validate_and_show(policy, freq_table);
-	if (ret) {
-		dev_err(dev, "invalid frequency table: %d\n", ret);
-		return ret;
-	}
+	ret = cpufreq_generic_init(policy, freq_table, TRANSITION_LATENCY);
+	if (!ret)
+		dev_info(dev, "registered\n");
 
-	dev_info(dev, "registered\n");
-
-	/* All cores share the same clock and thus the same policy. */
-	cpumask_setall(policy->cpus);
-
-	/* We start at the first entry in the frequency table. */
-	policy->cur = freq_table[0].frequency;
-
-	return 0;
+	return ret;
 }
 
 /* Shows the number of memory controllers. */
@@ -316,23 +352,12 @@ static ssize_t show_brcmstb_freqs(struct cpufreq_policy *policy, char *buf)
 /* Shows the lowest frequency (in kHz) that can be used without "safe mode". */
 static ssize_t show_brcmstb_safe_freq(struct cpufreq_policy *policy, char *buf)
 {
-	unsigned int vco_freq, cpu_freq, scb_freq;
+	struct cpufreq_frequency_table *entry;
 	unsigned int safe_freq = 0;
-	int i, num_memc, ret;
 
-	ret = get_frequencies(policy, &vco_freq, &cpu_freq, &scb_freq);
-	if (ret)
-		return sprintf(buf, "<unknown>\n");
-
-	num_memc = count_memory_controllers();
-
-	for (i = 0; policy->freq_table[i].frequency != CPUFREQ_TABLE_END; i++) {
-		ret = freq_requires_safe_mode(policy->freq_table[i].frequency,
-					      scb_freq, num_memc);
-		if (ret < 0)
-			return sprintf(buf, "<error>\n");
-		if (!ret)
-			safe_freq = policy->freq_table[i].frequency;
+	cpufreq_for_each_valid_entry(entry, policy->freq_table) {
+		if (!(entry->driver_data & BRCMSTB_TBL_SAFE_MODE))
+			safe_freq = entry->frequency;
 	}
 
 	return sprintf(buf, "%u\n", safe_freq);
@@ -342,7 +367,7 @@ cpufreq_freq_attr_ro(brcmstb_num_memc);
 cpufreq_freq_attr_ro(brcmstb_freqs);
 cpufreq_freq_attr_ro(brcmstb_safe_freq);
 
-struct freq_attr *brcmstb_cpufreq_attr[] = {
+static struct freq_attr *brcmstb_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	&brcmstb_num_memc,
 	&brcmstb_freqs,
@@ -354,8 +379,8 @@ static struct cpufreq_driver brcmstb_driver = {
 	.flags		= CPUFREQ_NEED_INITIAL_FREQ_CHECK,
 	.verify		= cpufreq_generic_frequency_table_verify,
 	.target_index	= brcmstb_target_index,
-	.get		= brcmstb_cpufreq_get,
-	.init		= brcmstb_cpu_init,
+	.get		= cpufreq_generic_get,
+	.init		= brcmstb_cpufreq_init,
 	.attr		= brcmstb_cpufreq_attr,
 	.name		= BRCMSTB_CPUFREQ_PREFIX,
 };
@@ -369,9 +394,8 @@ static int brcmstb_cpufreq_probe(struct platform_device *pdev)
 		return ret;
 
 	brcmstb_driver.driver_data = pdev;
-	ret = cpufreq_register_driver(&brcmstb_driver);
 
-	return ret;
+	return cpufreq_register_driver(&brcmstb_driver);
 }
 
 static int brcmstb_cpufreq_remove(struct platform_device *pdev)
@@ -391,7 +415,7 @@ static const struct of_device_id brcmstb_cpufreq_match[] = {
 	{ .compatible = BRCMSTB_DT_CPU_CLK_CTRL },
 	{ }
 };
-MODULE_DEVICE_TABLE(platform, brcmstb_cpufreq_match);
+MODULE_DEVICE_TABLE(of, brcmstb_cpufreq_match);
 
 static struct platform_driver brcmstb_cpufreq_platdrv = {
 	.driver = {

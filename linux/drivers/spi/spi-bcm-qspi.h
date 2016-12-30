@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2016 Broadcom
  *
@@ -62,27 +63,27 @@ enum {
 	MSPI_BSPI_DONE = 0x7
 };
 
-struct bcm_qspi_soc {
-	void (*bcm_qspi_int_ack)(struct bcm_qspi_soc *soc, int type);
-	void (*bcm_qspi_int_set)(struct bcm_qspi_soc *soc, int type, bool en);
-	u32 (*bcm_qspi_get_int_status)(struct bcm_qspi_soc *soc);
+struct bcm_qspi_soc_intc {
+	void (*bcm_qspi_int_ack)(struct bcm_qspi_soc_intc *soc_intc, int type);
+	void (*bcm_qspi_int_set)(struct bcm_qspi_soc_intc *soc_intc, int type,
+				 bool en);
+	u32 (*bcm_qspi_get_int_status)(struct bcm_qspi_soc_intc *soc_intc);
 };
 
 /* Read controller register*/
-static inline u32 bcm_qspi_readl(struct platform_device *pdev,
-				 void __iomem *addr)
+static inline u32 bcm_qspi_readl(bool be, void __iomem *addr)
 {
-	if (of_device_is_big_endian(pdev->dev.of_node))
+	if (be)
 		return ioread32be(addr);
 	else
 		return readl_relaxed(addr);
 }
 
 /* Write controller register*/
-static inline void bcm_qspi_writel(struct platform_device *pdev,
+static inline void bcm_qspi_writel(bool be,
 				   unsigned int data, void __iomem *addr)
 {
-	if (of_device_is_big_endian(pdev->dev.of_node))
+	if (be)
 		iowrite32be(data, addr);
 	else
 		writel_relaxed(data, addr);
@@ -104,9 +105,12 @@ static inline u32 get_qspi_mask(int type)
 	return 0;
 }
 
-int bcm_qspi_probe(struct platform_device *pdev, struct bcm_qspi_soc *soc);
+/* The common driver functions to be called by the SoC platform driver */
+int bcm_qspi_probe(struct platform_device *pdev,
+		   struct bcm_qspi_soc_intc *soc_intc);
 int bcm_qspi_remove(struct platform_device *pdev);
 
+/* pm_ops used by the SoC platform driver called on PM suspend/resume */
 extern const struct dev_pm_ops bcm_qspi_pm_ops;
 
 #endif /* __SPI_BCM_QSPI_H__ */

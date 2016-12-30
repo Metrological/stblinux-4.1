@@ -127,9 +127,10 @@ int bcmgenet_wol_power_down_cfg(struct bcmgenet_priv *priv,
 				enum bcmgenet_power_mode mode)
 {
 	struct net_device *dev = priv->dev;
-	u32 cpu_mask_clear;
+
+	struct bcmgenet_rxnfc_rule *rule;
+	u32 reg, hfb_ctrl_reg;
 	int retries = 0;
-	u32 reg;
 
 	if (mode != GENET_POWER_WOL_MAGIC) {
 		netif_err(priv, wol, dev, "unsupported mode: %d\n", mode);
@@ -142,6 +143,10 @@ int bcmgenet_wol_power_down_cfg(struct bcmgenet_priv *priv,
 	bcmgenet_umac_writel(priv, reg, UMAC_CMD);
 	mdelay(10);
 
+	hfb_ctrl_reg = bcmgenet_hfb_reg_readl(priv, HFB_CTRL);
+	reg = (hfb_ctrl_reg & ~RBUF_HFB_EN) | RBUF_ACPI_EN;
+	bcmgenet_hfb_reg_writel(priv, reg, HFB_CTRL);
+
 	reg = bcmgenet_umac_readl(priv, UMAC_MPD_CTRL);
 	reg |= MPD_EN;
 	bcmgenet_umac_writel(priv, reg, UMAC_MPD_CTRL);
@@ -152,11 +157,28 @@ int bcmgenet_wol_power_down_cfg(struct bcmgenet_priv *priv,
 		reg = bcmgenet_umac_readl(priv, UMAC_MPD_CTRL);
 		reg &= ~MPD_EN;
 		bcmgenet_umac_writel(priv, reg, UMAC_MPD_CTRL);
+		bcmgenet_hfb_reg_writel(priv, hfb_ctrl_reg, HFB_CTRL);
 		return retries;
 	}
 
 	netif_dbg(priv, wol, dev, "MPD WOL-ready status set after %d msec\n",
 		  retries);
+
+	/* Switch enet_clock_sel */
+	clk_prepare_enable(priv->clk_wol);
+	if (priv->internal_phy)
+		clk_set_parent(priv->clk_mux, priv->clk_slow);
+
+	reg = 0;
+	list_for_each_entry(rule, &priv->rxnfc_list, list) {
+		if (rule->fs.ring_cookie == 0)
+			reg |= (1 << rule->fs.location);
+	}
+	if (reg) {
+		bcmgenet_hfb_reg_writel(priv, reg, HFB_FLT_ENABLE_V3PLUS + 4);
+		reg = RBUF_HFB_EN | RBUF_ACPI_EN;
+		bcmgenet_hfb_reg_writel(priv, reg, HFB_CTRL);
+	}
 
 	/* Enable CRC forward */
 	reg = bcmgenet_umac_readl(priv, UMAC_CMD);
@@ -173,24 +195,22 @@ int bcmgenet_wol_power_down_cfg(struct bcmgenet_priv *priv,
 		bcmgenet_ext_writel(priv, reg, EXT_EXT_PWR_MGMT);
 	}
 
-	/* Enable the MPD interrupt */
-	cpu_mask_clear = UMAC_IRQ_MPD_R;
-
-	bcmgenet_intrl2_0_writel(priv, cpu_mask_clear, INTRL2_CPU_MASK_CLEAR);
-
 	return 0;
 }
 
 void bcmgenet_wol_power_up_cfg(struct bcmgenet_priv *priv,
 			       enum bcmgenet_power_mode mode)
 {
-	u32 cpu_mask_set;
 	u32 reg;
 
 	if (mode != GENET_POWER_WOL_MAGIC) {
 		netif_err(priv, wol, priv->dev, "invalid mode: %d\n", mode);
 		return;
 	}
+
+	reg = bcmgenet_hfb_reg_readl(priv, HFB_CTRL);
+	reg &= ~(RBUF_HFB_EN | RBUF_ACPI_EN);
+	bcmgenet_hfb_reg_writel(priv, reg, HFB_CTRL);
 
 	reg = bcmgenet_umac_readl(priv, UMAC_MPD_CTRL);
 	reg &= ~MPD_EN;
@@ -202,9 +222,7 @@ void bcmgenet_wol_power_up_cfg(struct bcmgenet_priv *priv,
 	bcmgenet_umac_writel(priv, reg, UMAC_CMD);
 	priv->crc_fwd_en = 0;
 
-	/* Stop monitoring magic packet IRQ */
-	cpu_mask_set = UMAC_IRQ_MPD_R;
-
-	/* Stop monitoring magic packet IRQ */
-	bcmgenet_intrl2_0_writel(priv, cpu_mask_set, INTRL2_CPU_MASK_SET);
+	/* Switch enet_clock_sel */
+	clk_set_parent(priv->clk_mux, priv->clk_fast);
+	clk_disable_unprepare(priv->clk_wol);
 }

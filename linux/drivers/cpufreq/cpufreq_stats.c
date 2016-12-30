@@ -30,8 +30,6 @@ struct cpufreq_stats {
 #endif
 };
 
-static void __cpufreq_stats_clear_table(struct cpufreq_policy *policy);
-
 static int cpufreq_stats_update(struct cpufreq_stats *stats)
 {
 	unsigned long long cur_time = get_jiffies_64();
@@ -41,6 +39,18 @@ static int cpufreq_stats_update(struct cpufreq_stats *stats)
 	stats->last_time = cur_time;
 	spin_unlock(&cpufreq_stats_lock);
 	return 0;
+}
+
+static void cpufreq_stats_clear_table(struct cpufreq_stats *stats)
+{
+	unsigned int count = stats->max_state;
+
+	memset(stats->time_in_state, 0, count * sizeof(u64));
+#ifdef CONFIG_CPU_FREQ_STAT_DETAILS
+	memset(stats->trans_table, 0, count * count * sizeof(int));
+#endif
+	stats->last_time = get_jiffies_64();
+	stats->total_trans = 0;
 }
 
 static ssize_t show_total_trans(struct cpufreq_policy *policy, char *buf)
@@ -63,16 +73,11 @@ static ssize_t show_time_in_state(struct cpufreq_policy *policy, char *buf)
 	return len;
 }
 
-static ssize_t show_reset(struct cpufreq_policy *policy, char *buf)
-{
-	buf[0] = '\0';
-	return 0;
-}
-
 static ssize_t store_reset(struct cpufreq_policy *policy, const char *buf,
 			   size_t count)
 {
-	__cpufreq_stats_clear_table(policy);
+	/* We don't care what is written to the attribute. */
+	cpufreq_stats_clear_table(policy->stats);
 	return count;
 }
 
@@ -122,7 +127,7 @@ cpufreq_freq_attr_ro(trans_table);
 
 cpufreq_freq_attr_ro(total_trans);
 cpufreq_freq_attr_ro(time_in_state);
-cpufreq_freq_attr_rw(reset);
+cpufreq_freq_attr_wo(reset);
 
 static struct attribute *default_attrs[] = {
 	&total_trans.attr,
@@ -161,19 +166,6 @@ static void __cpufreq_stats_free_table(struct cpufreq_policy *policy)
 	kfree(stats->time_in_state);
 	kfree(stats);
 	policy->stats = NULL;
-}
-
-static void __cpufreq_stats_clear_table(struct cpufreq_policy *policy)
-{
-	struct cpufreq_stats *stats = policy->stats;
-	unsigned int count = stats->max_state;
-
-	memset(stats->time_in_state, 0, count * sizeof(u64));
-#ifdef CONFIG_CPU_FREQ_STAT_DETAILS
-	memset(stats->trans_table, 0, count * count * sizeof(int));
-#endif
-	stats->last_time = get_jiffies_64();
-	stats->total_trans = 0;
 }
 
 static void cpufreq_stats_free_table(unsigned int cpu)

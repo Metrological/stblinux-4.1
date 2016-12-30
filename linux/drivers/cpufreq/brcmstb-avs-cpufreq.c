@@ -1,5 +1,6 @@
 /*
- * CPU frequency scaling for Broadcom SoCs with AVS firmware
+ * CPU frequency scaling for Broadcom SoCs with AVS firmware that
+ * supports DVS or DVFS
  *
  * Copyright (c) 2016 Broadcom
  *
@@ -13,22 +14,45 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/kernel.h>
+/*
+ * "AVS" is the name of a firmware developed at Broadcom. It derives
+ * its name from the technique called "Adaptive Voltage Scaling".
+ * Adaptive voltage scaling was the original purpose of this firmware.
+ * The AVS firmware still supports "AVS mode", where all it does is
+ * adaptive voltage scaling. However, on some newer Broadcom SoCs, the
+ * AVS Firmware, despite its unchanged name, also supports DFS mode and
+ * DVFS mode.
+ *
+ * In the context of this document and the related driver, "AVS" by
+ * itself always means the Broadcom firmware and never refers to the
+ * technique called "Adaptive Voltage Scaling".
+ *
+ * The Broadcom STB AVS CPUfreq driver provides voltage and frequency
+ * scaling on Broadcom SoCs using AVS firmware with support for DFS and
+ * DVFS. The AVS firmware is running on its own co-processor. The
+ * driver supports both uniprocessor (UP) and symmetric multiprocessor
+ * (SMP) systems which share clock and voltage across all CPUs.
+ *
+ * Actual voltage and frequency scaling is done solely by the AVS
+ * firmware. This driver does not change frequency or voltage itself.
+ * It provides a standard CPUfreq interface to the rest of the kernel
+ * and to userland. It interfaces with the AVS firmware to effect the
+ * requested changes and to report back the current system status in a
+ * way that is expected by existing tools.
+ */
+
 #include <linux/cpufreq.h>
-#include <linux/cpu.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of_address.h>
-#include <linux/of_irq.h>
-#include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <linux/pm_opp.h>
-#include <linux/slab.h>
+#include <linux/semaphore.h>
 
-#ifdef CONFIG_ARM_BRCM_AVS_CPUFREQ_DEBUG
+#ifdef CONFIG_ARM_BRCMSTB_AVS_CPUFREQ_DEBUG
 #include <linux/ctype.h>
 #include <linux/debugfs.h>
+#include <linux/slab.h>
 #include <linux/uaccess.h>
 #endif
 
@@ -141,24 +165,24 @@
 #define AVS_TIMEOUT		300 /* in ms; expected completion is < 10ms */
 #define AVS_FIRMWARE_MAGIC	0xa11600d1
 
-#define BRCM_AVS_CPUFREQ_NAME	"brcm-avs-cpufreq"
+#define BRCM_AVS_CPUFREQ_PREFIX	"brcmstb-avs"
+#define BRCM_AVS_CPUFREQ_NAME	BRCM_AVS_CPUFREQ_PREFIX "-cpufreq"
 #define BRCM_AVS_CPU_DATA	"brcm,avs-cpu-data-mem"
 #define BRCM_AVS_CPU_INTR	"brcm,avs-cpu-l2-intr"
 #define BRCM_AVS_HOST_INTR	"sw_intr"
 
 struct pmap {
-	unsigned mode;
-	unsigned p1;
-	unsigned p2;
-	unsigned state;
+	unsigned int mode;
+	unsigned int p1;
+	unsigned int p2;
+	unsigned int state;
 };
 
 struct private_data {
 	void __iomem *base;
 	void __iomem *avs_intr_base;
-	void __iomem *host_intr_base;
 	struct device *dev;
-#ifdef CONFIG_ARM_BRCM_AVS_CPUFREQ_DEBUG
+#ifdef CONFIG_ARM_BRCMSTB_AVS_CPUFREQ_DEBUG
 	struct dentry *debugfs;
 #endif
 	struct completion done;
@@ -166,7 +190,7 @@ struct private_data {
 	struct pmap pmap;
 };
 
-#ifdef CONFIG_ARM_BRCM_AVS_CPUFREQ_DEBUG
+#ifdef CONFIG_ARM_BRCMSTB_AVS_CPUFREQ_DEBUG
 
 enum debugfs_format {
 	DEBUGFS_NORMAL,
@@ -226,7 +250,7 @@ static struct debugfs_entry debugfs_entries[] = {
 	DEBUGFS_ENTRY(FREQUENCY, 0, DEBUGFS_NORMAL),
 };
 
-static int brcm_avs_target_index(struct cpufreq_policy *policy, unsigned index);
+static int brcm_avs_target_index(struct cpufreq_policy *, unsigned int);
 
 static char *__strtolower(char *s)
 {
@@ -238,7 +262,7 @@ static char *__strtolower(char *s)
 	return s;
 }
 
-#endif /* CONFIG_ARM_BRCM_AVS_CPUFREQ_DEBUG */
+#endif /* CONFIG_ARM_BRCMSTB_AVS_CPUFREQ_DEBUG */
 
 static void __iomem *__map_region(const char *name)
 {
@@ -248,20 +272,20 @@ static void __iomem *__map_region(const char *name)
 	np = of_find_compatible_node(NULL, NULL, name);
 	if (!np)
 		return NULL;
+
 	ptr = of_iomap(np, 0);
-	if (!ptr)
-		return NULL;
+	of_node_put(np);
 
 	return ptr;
 }
 
 static int __issue_avs_command(struct private_data *priv, int cmd, bool is_send,
-	u32 args[])
+			       u32 args[])
 {
 	unsigned long time_left = msecs_to_jiffies(AVS_TIMEOUT);
 	void __iomem *base = priv->base;
+	unsigned int i;
 	int ret;
-	unsigned i;
 	u32 val;
 
 	ret = down_interruptible(&priv->sem);
@@ -275,8 +299,9 @@ static int __issue_avs_command(struct private_data *priv, int cmd, bool is_send,
 	 */
 	for (i = 0, val = 1; val != 0 && i < AVS_LOOP_LIMIT; i++)
 		val = readl(base + AVS_MBOX_COMMAND);
+
 	/* Give the caller a chance to retry if AVS is busy. */
-	if (i >= AVS_LOOP_LIMIT) {
+	if (i == AVS_LOOP_LIMIT) {
 		ret = -EAGAIN;
 		goto out;
 	}
@@ -285,15 +310,18 @@ static int __issue_avs_command(struct private_data *priv, int cmd, bool is_send,
 	writel(AVS_STATUS_CLEAR, base + AVS_MBOX_STATUS);
 
 	/* We need to send arguments for this command. */
-	if (args && is_send)
+	if (args && is_send) {
 		for (i = 0; i < AVS_MAX_CMD_ARGS; i++)
 			writel(args[i], base + AVS_MBOX_PARAM(i));
+	}
 
 	/* Protect from spurious interrupts. */
 	reinit_completion(&priv->done);
+
 	/* Now issue the command & tell firmware to wake up to process it. */
 	writel(cmd, base + AVS_MBOX_COMMAND);
 	writel(AVS_CPU_L2_INT_MASK, priv->avs_intr_base + AVS_CPU_L2_SET0);
+
 	/* Wait for AVS co-processor to finish processing the command. */
 	time_left = wait_for_completion_timeout(&priv->done, time_left);
 
@@ -313,9 +341,10 @@ static int __issue_avs_command(struct private_data *priv, int cmd, bool is_send,
 	}
 
 	/* This command returned arguments, so we read them back. */
-	if (args && !is_send)
+	if (args && !is_send) {
 		for (i = 0; i < AVS_MAX_CMD_ARGS; i++)
 			args[i] = readl(base + AVS_MBOX_PARAM(i));
+	}
 
 	/* Clear status to tell AVS co-processor we are done. */
 	writel(AVS_STATUS_CLEAR, base + AVS_MBOX_STATUS);
@@ -355,7 +384,7 @@ static irqreturn_t irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static char *brcm_avs_mode_to_string(unsigned mode)
+static char *brcm_avs_mode_to_string(unsigned int mode)
 {
 	switch (mode) {
 	case AVS_MODE_AVS:
@@ -370,16 +399,17 @@ static char *brcm_avs_mode_to_string(unsigned mode)
 	return NULL;
 }
 
-static void brcm_avs_parse_p1(u32 p1, unsigned *mdiv_p0, unsigned *pdiv,
-				unsigned *ndiv)
+static void brcm_avs_parse_p1(u32 p1, unsigned int *mdiv_p0, unsigned int *pdiv,
+			      unsigned int *ndiv)
 {
 	*mdiv_p0 = (p1 >> MDIV_P0_SHIFT) & MDIV_P0_MASK;
 	*pdiv = (p1 >> PDIV_SHIFT) & PDIV_MASK;
 	*ndiv = (p1 >> NDIV_INT_SHIFT) & NDIV_INT_MASK;
 }
 
-static void brcm_avs_parse_p2(u32 p2, unsigned *mdiv_p1, unsigned *mdiv_p2,
-			unsigned *mdiv_p3, unsigned *mdiv_p4)
+static void brcm_avs_parse_p2(u32 p2, unsigned int *mdiv_p1,
+			      unsigned int *mdiv_p2, unsigned int *mdiv_p3,
+			      unsigned int *mdiv_p4)
 {
 	*mdiv_p4 = (p2 >> MDIV_P4_SHIFT) & MDIV_P4_MASK;
 	*mdiv_p3 = (p2 >> MDIV_P3_SHIFT) & MDIV_P3_MASK;
@@ -416,7 +446,7 @@ static int brcm_avs_set_pmap(struct private_data *priv, struct pmap *pmap)
 	return __issue_avs_command(priv, AVS_CMD_SET_PMAP, true, args);
 }
 
-static int brcm_avs_get_pstate(struct private_data *priv, unsigned *pstate)
+static int brcm_avs_get_pstate(struct private_data *priv, unsigned int *pstate)
 {
 	u32 args[AVS_MAX_CMD_ARGS];
 	int ret;
@@ -429,11 +459,12 @@ static int brcm_avs_get_pstate(struct private_data *priv, unsigned *pstate)
 	return 0;
 }
 
-static int brcm_avs_set_pstate(struct private_data *priv, unsigned pstate)
+static int brcm_avs_set_pstate(struct private_data *priv, unsigned int pstate)
 {
 	u32 args[AVS_MAX_CMD_ARGS];
 
 	args[0] = pstate;
+
 	return __issue_avs_command(priv, AVS_CMD_SET_PSTATE, true, args);
 }
 
@@ -455,7 +486,7 @@ static struct cpufreq_frequency_table *
 brcm_avs_get_freq_table(struct device *dev, struct private_data *priv)
 {
 	struct cpufreq_frequency_table *table;
-	unsigned pstate;
+	unsigned int pstate;
 	int i, ret;
 
 	/* Remember P-state for later */
@@ -464,7 +495,7 @@ brcm_avs_get_freq_table(struct device *dev, struct private_data *priv)
 		return ERR_PTR(ret);
 
 	table = devm_kzalloc(dev, (AVS_PSTATE_MAX + 1) * sizeof(*table),
-			GFP_KERNEL);
+			     GFP_KERNEL);
 	if (!table)
 		return ERR_PTR(-ENOMEM);
 
@@ -476,7 +507,6 @@ brcm_avs_get_freq_table(struct device *dev, struct private_data *priv)
 		table[i].driver_data = i;
 	}
 	table[i].frequency = CPUFREQ_TABLE_END;
-	table[i].driver_data = i;
 
 	/* Restore P-state */
 	ret = brcm_avs_set_pstate(priv, pstate);
@@ -486,10 +516,10 @@ brcm_avs_get_freq_table(struct device *dev, struct private_data *priv)
 	return table;
 }
 
-#ifdef CONFIG_ARM_BRCM_AVS_CPUFREQ_DEBUG
+#ifdef CONFIG_ARM_BRCMSTB_AVS_CPUFREQ_DEBUG
 
-#define MANT(x)	(unsigned)(abs((x)) / 1000)
-#define FRAC(x)	(unsigned)(abs((x)) - abs((x)) / 1000 * 1000)
+#define MANT(x)	(unsigned int)(abs((x)) / 1000)
+#define FRAC(x)	(unsigned int)(abs((x)) - abs((x)) / 1000 * 1000)
 
 static int brcm_avs_debug_show(struct seq_file *s, void *data)
 {
@@ -514,8 +544,8 @@ static int brcm_avs_debug_show(struct seq_file *s, void *data)
 		break;
 	case DEBUGFS_REV:
 		seq_printf(s, "%c.%c.%c.%c\n", (val >> 24 & 0xff),
-			(val >> 16 & 0xff), (val >> 8 & 0xff),
-			val & 0xff);
+			   (val >> 16 & 0xff), (val >> 8 & 0xff),
+			   val & 0xff);
 		break;
 	}
 	seq_printf(s, "0x%08x\n", val);
@@ -527,7 +557,7 @@ static int brcm_avs_debug_show(struct seq_file *s, void *data)
 #undef FRAC
 
 static ssize_t brcm_avs_seq_write(struct file *file, const char __user *buf,
-	size_t size, loff_t *ppos)
+				  size_t size, loff_t *ppos)
 {
 	struct seq_file *s = file->private_data;
 	struct debugfs_data *dbgfs = s->private;
@@ -570,7 +600,7 @@ static ssize_t brcm_avs_seq_write(struct file *file, const char __user *buf,
 	 */
 	if (val == AVS_CMD_SET_PSTATE) {
 		struct cpufreq_policy *policy;
-		unsigned pstate;
+		unsigned int pstate;
 
 		policy = cpufreq_cpu_get(smp_processor_id());
 		/* Read back the P-state we are about to set */
@@ -578,9 +608,8 @@ static ssize_t brcm_avs_seq_write(struct file *file, const char __user *buf,
 		if (use_issue_command) {
 			ret = brcm_avs_target_index(policy, pstate);
 			return ret ? ret : size;
-		} else {
-			policy->cur = policy->freq_table[pstate].frequency;
 		}
+		policy->cur = policy->freq_table[pstate].frequency;
 	}
 
 	if (use_issue_command) {
@@ -595,10 +624,9 @@ static ssize_t brcm_avs_seq_write(struct file *file, const char __user *buf,
 		/* We have to wake up the firmware to process a command. */
 		if (offset == AVS_MBOX_COMMAND)
 			writel(AVS_CPU_L2_INT_MASK,
-				avs_intr_base + AVS_CPU_L2_SET0);
+			       avs_intr_base + AVS_CPU_L2_SET0);
 		up(&priv->sem);
 	}
-
 
 	return ret ? ret : size;
 }
@@ -695,7 +723,7 @@ static void brcm_avs_cpufreq_debug_init(struct platform_device *pdev)
 		fmode_t mode = debugfs_entries[i].mode;
 
 		if (!debugfs_create_file(entry, S_IFREG | S_IRUGO | mode,
-				dir, priv, &brcm_avs_debug_ops)) {
+					 dir, priv, &brcm_avs_debug_ops)) {
 			priv->debugfs = NULL;
 			debugfs_remove_recursive(dir);
 			break;
@@ -718,12 +746,13 @@ static void brcm_avs_cpufreq_debug_exit(struct platform_device *pdev)
 static void brcm_avs_cpufreq_debug_init(struct platform_device *pdev) {}
 static void brcm_avs_cpufreq_debug_exit(struct platform_device *pdev) {}
 
-#endif /* CONFIG_ARM_BRCM_AVS_CPUFREQ_DEBUG */
+#endif /* CONFIG_ARM_BRCMSTB_AVS_CPUFREQ_DEBUG */
 
 /*
  * To ensure the right firmware is running we need to
  *    - check the MAGIC matches what we expect
- *    - brcm_avs_get_pmap() doesn't return -ENOTSUPP
+ *    - brcm_avs_get_pmap() doesn't return -ENOTSUPP or -EINVAL
+ * We need to set up our interrupt handling before calling brcm_avs_get_pmap()!
  */
 static bool brcm_avs_is_firmware_loaded(struct private_data *priv)
 {
@@ -737,31 +766,37 @@ static bool brcm_avs_is_firmware_loaded(struct private_data *priv)
 		(rc != -EINVAL);
 }
 
-static unsigned brcm_avs_cpufreq_get(unsigned cpu)
+static unsigned int brcm_avs_cpufreq_get(unsigned int cpu)
 {
 	struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
+	struct private_data *priv = policy->driver_data;
 
-	return policy->cur;
+	return brcm_avs_get_frequency(priv->base);
 }
 
-static int brcm_avs_target_index(struct cpufreq_policy *policy, unsigned index)
+static int brcm_avs_target_index(struct cpufreq_policy *policy,
+				 unsigned int index)
 {
-	int ret;
-
-	ret = brcm_avs_set_pstate(policy->driver_data,
-		policy->freq_table[index].driver_data);
-	if (ret)
-		return ret;
-
-	policy->cur = policy->freq_table[index].frequency;
-	return 0;
+	return brcm_avs_set_pstate(policy->driver_data,
+				  policy->freq_table[index].driver_data);
 }
 
 static int brcm_avs_suspend(struct cpufreq_policy *policy)
 {
 	struct private_data *priv = policy->driver_data;
+	int ret;
 
-	return brcm_avs_get_pmap(priv, &priv->pmap);
+	ret = brcm_avs_get_pmap(priv, &priv->pmap);
+	if (ret)
+		return ret;
+
+	/*
+	 * We can't use the P-state returned by brcm_avs_get_pmap(), since
+	 * that's the initial P-state from when the P-map was downloaded to the
+	 * AVS co-processor, not necessarily the P-state we are running at now.
+	 * So, we get the current P-state explicitly.
+	 */
+	return brcm_avs_get_pstate(priv, &priv->pmap.state);
 }
 
 static int brcm_avs_resume(struct cpufreq_policy *policy)
@@ -781,31 +816,23 @@ static int brcm_avs_resume(struct cpufreq_policy *policy)
 	return ret;
 }
 
-static int brcm_avs_cpu_init(struct cpufreq_policy *policy)
+/*
+ * All initialization code that we only want to execute once goes here. Setup
+ * code that can be re-tried on every core (if it failed before) can go into
+ * brcm_avs_cpufreq_init().
+ */
+static int brcm_avs_prepare_init(struct platform_device *pdev)
 {
-	struct cpufreq_frequency_table *freq_table;
-	struct platform_device *pdev;
 	struct private_data *priv;
 	struct device *dev;
-	int host_irq;
-	int ret;
+	int host_irq, ret;
 
-	/*
-	 * Register on CPU 0 only. If this fails, there is no reason to try on
-	 * other cores, since it would just fail again.
-	 */
-	if (policy->cpu > 0)
-		return -ENODEV;
-
-	pdev = cpufreq_get_driver_data();
 	dev = &pdev->dev;
-
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
 
 	priv->dev = dev;
-	policy->driver_data = priv;
 	sema_init(&priv->sem, 1);
 	init_completion(&priv->done);
 	platform_set_drvdata(pdev, priv);
@@ -821,34 +848,59 @@ static int brcm_avs_cpu_init(struct cpufreq_policy *policy)
 	if (!priv->avs_intr_base) {
 		dev_err(dev, "Couldn't find property %s in device tree.\n",
 			BRCM_AVS_CPU_INTR);
-		return -ENOENT;
+		ret = -ENOENT;
+		goto unmap_base;
 	}
 
 	host_irq = platform_get_irq_byname(pdev, BRCM_AVS_HOST_INTR);
 	if (host_irq < 0) {
 		dev_err(dev, "Couldn't find interrupt %s -- %d\n",
 			BRCM_AVS_HOST_INTR, host_irq);
-		return host_irq;
+		ret = host_irq;
+		goto unmap_intr_base;
 	}
+
 	ret = devm_request_irq(dev, host_irq, irq_handler, IRQF_TRIGGER_RISING,
-		BRCM_AVS_HOST_INTR, priv);
+			       BRCM_AVS_HOST_INTR, priv);
 	if (ret) {
 		dev_err(dev, "IRQ request failed: %s (%d) -- %d\n",
 			BRCM_AVS_HOST_INTR, host_irq, ret);
-		return ret;
+		goto unmap_intr_base;
 	}
 
-	if (!brcm_avs_is_firmware_loaded(priv)) {
-		dev_err(dev,
-			"AVS firmware is not loaded or doesn't support DVFS\n");
-		return -ENODEV;
-	}
+	if (brcm_avs_is_firmware_loaded(priv))
+		return 0;
+
+	dev_err(dev, "AVS firmware is not loaded or doesn't support DVFS\n");
+	ret = -ENODEV;
+
+unmap_intr_base:
+	iounmap(priv->avs_intr_base);
+unmap_base:
+	iounmap(priv->base);
+	platform_set_drvdata(pdev, NULL);
+
+	return ret;
+}
+
+static int brcm_avs_cpufreq_init(struct cpufreq_policy *policy)
+{
+	struct cpufreq_frequency_table *freq_table;
+	struct platform_device *pdev;
+	struct private_data *priv;
+	struct device *dev;
+	int ret;
+
+	pdev = cpufreq_get_driver_data();
+	priv = platform_get_drvdata(pdev);
+	policy->driver_data = priv;
+	dev = &pdev->dev;
 
 	freq_table = brcm_avs_get_freq_table(dev, priv);
 	if (IS_ERR(freq_table)) {
-		dev_err(dev, "Couldn't determine frequency table (%ld).\n",
-			PTR_ERR(freq_table));
-		return PTR_ERR(freq_table);
+		ret = PTR_ERR(freq_table);
+		dev_err(dev, "Couldn't determine frequency table (%d).\n", ret);
+		return ret;
 	}
 
 	ret = cpufreq_table_validate_and_show(policy, freq_table);
@@ -862,33 +914,25 @@ static int brcm_avs_cpu_init(struct cpufreq_policy *policy)
 
 	ret = __issue_avs_command(priv, AVS_CMD_ENABLE, false, NULL);
 	if (!ret) {
-		unsigned pstate;
+		unsigned int pstate;
 
 		ret = brcm_avs_get_pstate(priv, &pstate);
 		if (!ret) {
 			policy->cur = freq_table[pstate].frequency;
 			dev_info(dev, "registered\n");
+			return 0;
 		}
 	}
-	if (ret)
-		dev_err(dev, "couldn't initialize driver (%d)\n", ret);
+
+	dev_err(dev, "couldn't initialize driver (%d)\n", ret);
 
 	return ret;
-}
-
-static int brcm_avs_cpu_exit(struct cpufreq_policy *policy)
-{
-	/*
-	 * All our allocations are "managed", so we don't need to do
-	 * anything.
-	 */
-	return 0;
 }
 
 static ssize_t show_brcm_avs_pstate(struct cpufreq_policy *policy, char *buf)
 {
 	struct private_data *priv = policy->driver_data;
-	unsigned pstate;
+	unsigned int pstate;
 
 	if (brcm_avs_get_pstate(priv, &pstate))
 		return sprintf(buf, "<unknown>\n");
@@ -910,9 +954,9 @@ static ssize_t show_brcm_avs_mode(struct cpufreq_policy *policy, char *buf)
 
 static ssize_t show_brcm_avs_pmap(struct cpufreq_policy *policy, char *buf)
 {
-	unsigned mdiv_p0, mdiv_p1, mdiv_p2, mdiv_p3, mdiv_p4;
+	unsigned int mdiv_p0, mdiv_p1, mdiv_p2, mdiv_p3, mdiv_p4;
 	struct private_data *priv = policy->driver_data;
-	unsigned ndiv, pdiv;
+	unsigned int ndiv, pdiv;
 	struct pmap pmap;
 
 	if (brcm_avs_get_pmap(priv, &pmap))
@@ -921,9 +965,9 @@ static ssize_t show_brcm_avs_pmap(struct cpufreq_policy *policy, char *buf)
 	brcm_avs_parse_p1(pmap.p1, &mdiv_p0, &pdiv, &ndiv);
 	brcm_avs_parse_p2(pmap.p2, &mdiv_p1, &mdiv_p2, &mdiv_p3, &mdiv_p4);
 
-	return sprintf(buf, "0x%08x 0x%08x %u %u %u %u %u %u %u\n",
+	return sprintf(buf, "0x%08x 0x%08x %u %u %u %u %u %u %u %u %u\n",
 		pmap.p1, pmap.p2, ndiv, pdiv, mdiv_p0, mdiv_p1, mdiv_p2,
-		mdiv_p3, mdiv_p4);
+		mdiv_p3, mdiv_p4, pmap.mode, pmap.state);
 }
 
 static ssize_t show_brcm_avs_voltage(struct cpufreq_policy *policy, char *buf)
@@ -946,7 +990,7 @@ cpufreq_freq_attr_ro(brcm_avs_pmap);
 cpufreq_freq_attr_ro(brcm_avs_voltage);
 cpufreq_freq_attr_ro(brcm_avs_frequency);
 
-struct freq_attr *brcm_avs_cpufreq_attr[] = {
+static struct freq_attr *brcm_avs_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	&brcm_avs_pstate,
 	&brcm_avs_mode,
@@ -963,15 +1007,18 @@ static struct cpufreq_driver brcm_avs_driver = {
 	.get		= brcm_avs_cpufreq_get,
 	.suspend	= brcm_avs_suspend,
 	.resume		= brcm_avs_resume,
-	.init		= brcm_avs_cpu_init,
-	.exit		= brcm_avs_cpu_exit,
-	.name		= BRCM_AVS_CPUFREQ_NAME,
+	.init		= brcm_avs_cpufreq_init,
 	.attr		= brcm_avs_cpufreq_attr,
+	.name		= BRCM_AVS_CPUFREQ_PREFIX,
 };
 
 static int brcm_avs_cpufreq_probe(struct platform_device *pdev)
 {
 	int ret;
+
+	ret = brcm_avs_prepare_init(pdev);
+	if (ret)
+		return ret;
 
 	brcm_avs_driver.driver_data = pdev;
 	ret = cpufreq_register_driver(&brcm_avs_driver);
@@ -983,8 +1030,21 @@ static int brcm_avs_cpufreq_probe(struct platform_device *pdev)
 
 static int brcm_avs_cpufreq_remove(struct platform_device *pdev)
 {
+	struct private_data *priv;
+	int ret;
+
+	ret = cpufreq_unregister_driver(&brcm_avs_driver);
+	if (ret)
+		return ret;
+
 	brcm_avs_cpufreq_debug_exit(pdev);
-	return cpufreq_unregister_driver(&brcm_avs_driver);
+
+	priv = platform_get_drvdata(pdev);
+	iounmap(priv->base);
+	iounmap(priv->avs_intr_base);
+	platform_set_drvdata(pdev, NULL);
+
+	return 0;
 }
 
 static const struct of_device_id brcm_avs_cpufreq_match[] = {
@@ -1004,5 +1064,5 @@ static struct platform_driver brcm_avs_cpufreq_platdrv = {
 module_platform_driver(brcm_avs_cpufreq_platdrv);
 
 MODULE_AUTHOR("Markus Mayer <mmayer@broadcom.com>");
-MODULE_DESCRIPTION("CPUfreq driver for Broadcom AVS");
+MODULE_DESCRIPTION("CPUfreq driver for Broadcom STB AVS");
 MODULE_LICENSE("GPL");

@@ -28,11 +28,12 @@
 #define HIF_SPI_INTR2_CPU_MASK_SET             0x10
 #define HIF_SPI_INTR2_CPU_MASK_CLEAR           0x14
 
-struct brcmstb_qspi_soc {
-	struct bcm_qspi_soc soc;
+struct brcmstb_qspi_intc {
+	struct bcm_qspi_soc_intc soc_intc;
 	struct platform_device *pdev;
 	void __iomem *hif_intr2_reg;
 	spinlock_t soclock;
+	bool big_endian;
 };
 
 static const struct of_device_id brcmstb_qspi_of_match[] = {
@@ -45,14 +46,17 @@ static const struct of_device_id brcmstb_qspi_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, brcmstb_qspi_of_match);
 
-static u32 brcmstb_qspi_qspi_get_l2_int_status(struct bcm_qspi_soc *soc)
+static u32 brcmstb_qspi_qspi_get_l2_int_status(
+	struct bcm_qspi_soc_intc *soc_intc)
 {
-	struct brcmstb_qspi_soc *priv =
-			container_of(soc, struct brcmstb_qspi_soc, soc);
+	struct brcmstb_qspi_intc *priv = container_of(soc_intc,
+						      struct brcmstb_qspi_intc,
+						      soc_intc);
 	void __iomem *mmio = priv->hif_intr2_reg;
 	u32 val = 0, sts = 0;
 
-	val = bcm_qspi_readl(priv->pdev, (mmio + HIF_SPI_INTR2_CPU_STATUS));
+	val = bcm_qspi_readl(priv->big_endian,
+			     (mmio + HIF_SPI_INTR2_CPU_STATUS));
 
 	if (val & INTR_MSPI_DONE_MASK)
 		sts |= MSPI_DONE;
@@ -66,21 +70,26 @@ static u32 brcmstb_qspi_qspi_get_l2_int_status(struct bcm_qspi_soc *soc)
 	return sts;
 }
 
-static void brcmstb_qspi_qspi_int_ack(struct bcm_qspi_soc *soc, int type)
+static void brcmstb_qspi_qspi_int_ack(struct bcm_qspi_soc_intc *soc_intc,
+				      int type)
 {
-	struct brcmstb_qspi_soc *priv =
-			container_of(soc, struct brcmstb_qspi_soc, soc);
+	struct brcmstb_qspi_intc *priv = container_of(soc_intc,
+						      struct brcmstb_qspi_intc,
+						      soc_intc);
 	void __iomem *mmio = priv->hif_intr2_reg;
 	u32 mask = get_qspi_mask(type);
 
-	bcm_qspi_writel(priv->pdev, mask, (mmio + HIF_SPI_INTR2_CPU_CLEAR));
+	bcm_qspi_writel(priv->big_endian, mask,
+			(mmio + HIF_SPI_INTR2_CPU_CLEAR));
 }
 
-static void brcmstb_qspi_qspi_int_set(struct bcm_qspi_soc *soc, int type,
+static void brcmstb_qspi_qspi_int_set(struct bcm_qspi_soc_intc *soc_intc,
+				      int type,
 				      bool en)
 {
-	struct brcmstb_qspi_soc *priv =
-			container_of(soc, struct brcmstb_qspi_soc, soc);
+	struct brcmstb_qspi_intc *priv = container_of(soc_intc,
+						      struct brcmstb_qspi_intc,
+						      soc_intc);
 	void __iomem *mmio = priv->hif_intr2_reg;
 	u32 mask = get_qspi_mask(type);
 	unsigned long flags;
@@ -88,10 +97,10 @@ static void brcmstb_qspi_qspi_int_set(struct bcm_qspi_soc *soc, int type,
 	spin_lock_irqsave(&priv->soclock, flags);
 
 	if (en)
-		bcm_qspi_writel(priv->pdev, mask,
+		bcm_qspi_writel(priv->big_endian, mask,
 				(mmio + HIF_SPI_INTR2_CPU_MASK_CLEAR));
 	else
-		bcm_qspi_writel(priv->pdev, mask,
+		bcm_qspi_writel(priv->big_endian, mask,
 				(mmio + HIF_SPI_INTR2_CPU_MASK_SET));
 
 	spin_unlock_irqrestore(&priv->soclock, flags);
@@ -100,8 +109,8 @@ static void brcmstb_qspi_qspi_int_set(struct bcm_qspi_soc *soc, int type,
 static int brcmstb_qspi_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct brcmstb_qspi_soc *priv;
-	struct bcm_qspi_soc *soc = NULL;
+	struct brcmstb_qspi_intc *priv;
+	struct bcm_qspi_soc_intc *soc_intc = NULL;
 	struct resource *res;
 	int use_soc = 0;
 
@@ -120,17 +129,18 @@ static int brcmstb_qspi_probe(struct platform_device *pdev)
 		if (IS_ERR(priv->hif_intr2_reg))
 			return PTR_ERR(priv->hif_intr2_reg);
 
-		soc = &priv->soc;
-		brcmstb_qspi_qspi_int_set(soc, MSPI_BSPI_DONE, false);
-		brcmstb_qspi_qspi_int_ack(soc, MSPI_BSPI_DONE);
+		priv->big_endian = of_device_is_big_endian(dev->of_node);
+		soc_intc = &priv->soc_intc;
+		brcmstb_qspi_qspi_int_set(soc_intc, MSPI_BSPI_DONE, false);
+		brcmstb_qspi_qspi_int_ack(soc_intc, MSPI_BSPI_DONE);
 
-		soc->bcm_qspi_int_ack = brcmstb_qspi_qspi_int_ack;
-		soc->bcm_qspi_int_set = brcmstb_qspi_qspi_int_set;
-		soc->bcm_qspi_get_int_status =
+		soc_intc->bcm_qspi_int_ack = brcmstb_qspi_qspi_int_ack;
+		soc_intc->bcm_qspi_int_set = brcmstb_qspi_qspi_int_set;
+		soc_intc->bcm_qspi_get_int_status =
 			brcmstb_qspi_qspi_get_l2_int_status;
 	}
 
-	return bcm_qspi_probe(pdev, soc);
+	return bcm_qspi_probe(pdev, soc_intc);
 }
 
 static int brcmstb_qspi_remove(struct platform_device *pdev)

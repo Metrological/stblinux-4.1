@@ -2,6 +2,11 @@
 
 set -e
 
+# Only do this for the 3.14 MIPS kernel
+[ "$(uname -m)" = "mips" -a "$(uname -r | cut -d'.' -f1,2)" = "3.14" ] && {
+	pml.mips $@
+}
+
 function find_waketimer {
 	for i in /sys/bus/platform/drivers/brcm-waketimer/*
 	do

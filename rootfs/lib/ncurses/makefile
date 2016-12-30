@@ -1,6 +1,6 @@
-include $(ROOTDIR)/config.arch
+include $(ARCH_CONFIG)
 
-BOGUS_TARGETS		:= FORCE makefile $(ROOTDIR)/config.arch
+BOGUS_TARGETS		:= FORCE makefile $(ARCH_CONFIG)
 
 CC			:= $(CROSS_COMPILE)gcc
 STRIP			:= $(CROSS_COMPILE)strip

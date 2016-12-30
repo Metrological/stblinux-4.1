@@ -298,11 +298,18 @@ sub populate_linux_defaults($$)
 			} else {
 				$arch_config_options{"ARCH"} = "arm64";
 			}
+		} elsif(-e "$LINUXDIR/arch/mips/configs/bcm".$chip."_defconfig") {
+			$linux_defaults = "$LINUXDIR/arch/mips/configs/bcm".$chip."_defconfig";
+			$linux_new_defaults = "$LINUXDIR/arch/mips/configs/bcm".$chip."_new_defconfig";
+			$arch_config_options{"ARCH"} = "mips";
 		} else {
 			$arch_config_options{"ARCH"} = "arm";
 		}
-		$linux_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_defconfig";
-		$linux_new_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_new_defconfig";
+
+		if ($arch_config_options{"ARCH"} ne "mips") {
+			$linux_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_defconfig";
+			$linux_new_defaults = "$LINUXDIR/arch/".$arch_config_options{"ARCH"}."/configs/brcmstb_new_defconfig";
+		}
 	} elsif(-e "$LINUXDIR/arch/mips/configs/".$chip."_stb_defconfig") {
 		$linux_defaults = "$LINUXDIR/arch/mips/configs/bmips_stb_defconfig";
 		$arch_config_options{"ARCH"} = "mips";

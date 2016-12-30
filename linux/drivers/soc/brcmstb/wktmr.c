@@ -118,6 +118,24 @@ static void brcmstb_waketmr_read_persistent_clock(struct timespec64 *ts)
 	ts->tv_nsec = now.pre * (NSEC_PER_SEC / WKTMR_FREQ);
 }
 
+/* Use this wrapper if on MIPS */
+#ifdef CONFIG_MIPS
+void read_persistent_clock64(struct timespec64 *ts)
+{
+	/*
+	 * read_persistent_clock64 gets called before wake
+	 * timer can be initialized. If we are not initialized
+	 * yet, default to 0.
+	 */
+	if (wktimer.base) {
+		brcmstb_waketmr_read_persistent_clock(ts);
+	} else {
+		ts->tv_sec = 0;
+		ts->tv_nsec = 0;
+	}
+}
+#endif /* CONFIG_MIPS */
+
 static ssize_t brcmstb_waketmr_timeout_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -353,7 +371,9 @@ static int __init brcmstb_waketmr_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+#ifndef CONFIG_MIPS
 	register_persistent_clock(NULL, brcmstb_waketmr_read_persistent_clock);
+#endif
 
 	dev_info(dev, "registered, with irq %d\n", timer->irq);
 	return ret;

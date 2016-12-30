@@ -1,7 +1,7 @@
 /*
  * Definitions for Broadcom STB power management / Always ON (AON) block
  *
- * Copyright © 2014 Broadcom Corporation
+ * Copyright © 2016 Broadcom Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -23,6 +23,20 @@
 #define AON_CTRL_PM_INITIATE		0x88
 #define AON_CTRL_HOST_MISC_CMDS		0x8c
 #define AON_CTRL_SYSTEM_DATA_RAM_OFS	0x200
+
+/* MIPS PM constants */
+/* MEMC0 offsets */
+#define DDR40_PHY_CONTROL_REGS_0_PLL_STATUS	0x10
+#define DDR40_PHY_CONTROL_REGS_0_STANDBY_CTRL	0xa4
+
+/* TIMER offsets */
+#define TIMER_TIMER1_CTRL		0x0c
+#define TIMER_TIMER1_STAT		0x1c
+
+/* TIMER defines */
+#define RESET_TIMER			0x0
+#define START_TIMER			0xbfffffff
+#define TIMER_MASK			0x3fffffff
 
 /* PM_CTRL bitfield (Method #0) */
 #define PM_FAST_PWRDOWN			(1 << 6)
